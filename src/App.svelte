@@ -338,8 +338,10 @@
     if (isExactKeySkill) {
       pulseCorrectKeyIds = [targetKeyId || `${currentCard.note}4`];
       staffPulseGuide = true;
-    } else if (currentCard.skill === 'find') {
+    } else if (currentCard.skill === 'find' || currentCard.skill === 'patternIdentify') {
       pulseCorrectKeyIds = [currentCard.note];
+    } else if (currentCard.skill === 'identify') {
+      pulseCorrectAnswerNotes = [currentCard.note];
     } else {
       pulseCorrectAnswerNotes = [currentCard.note];
       if (targetKeyId) pulseCorrectKeyIds = [targetKeyId];
@@ -483,7 +485,12 @@
         hintUsed = true;
         if (targetKeyId) hintKeyIds = [targetKeyId];
         else hintKeyIds = [currentCard.note];
-        feedbackText += ' 💡 Нужная клавиша подсвечена желтым!';
+        if (currentCard.skill === 'identify') {
+          pulseCorrectAnswerNotes = [currentCard.note];
+          feedbackText += ' 💡 Нужный ответ подсвечен!';
+        } else {
+          feedbackText += ' 💡 Нужная клавиша подсвечена желтым!';
+        }
       }
     }
   }
@@ -518,6 +525,9 @@
       // Flash correct key as hint
       if (targetKeyId) hintKeyIds = [targetKeyId];
       else hintKeyIds = [currentCard.note];
+      if (currentCard.skill === 'identify') {
+        pulseCorrectAnswerNotes = [currentCard.note];
+      }
 
       isCompleted = true;
       isLocked = true;
@@ -661,12 +671,12 @@
         const keyId = resolved.specificKeyId || `${resolved.note}${octave}`;
         AudioEngine.getInstance().playPianoByKeyId(keyId, 96);
         handleAnswerSubmit(resolved.note, keyId);
-      } else if (currentCard.skill === 'find') {
+      } else if (currentCard.skill === 'find' || currentCard.skill === 'patternIdentify') {
         const keyId = resolved.specificKeyId || `${resolved.note}4`;
         AudioEngine.getInstance().playPianoByKeyId(keyId, 96);
         handleAnswerSubmit(resolved.note, keyId);
       } else {
-        // identify, patternIdentify
+        // identify
         handleAnswerSubmit(resolved.note);
       }
     }

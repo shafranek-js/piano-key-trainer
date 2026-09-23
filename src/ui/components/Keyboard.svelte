@@ -7,7 +7,7 @@
     pitchClassFromMidi, 
     freqFromMidi 
   } from '../../audio/types';
-  import { DISPLAY_NAMES } from '../../core/fsrs/constants';
+  import { DISPLAY_NAMES, SHORT_NAMES } from '../../core/fsrs/constants';
   import type { NoteName } from '../../core/fsrs/types';
 
   interface KeyData {
@@ -138,6 +138,11 @@
             {@const guide = fingerGuides.get(k.id)!}
             <span class="finger-guide-badge {guide.isTarget ? 'target' : ''}" aria-label="Палец {guide.finger}">
               {guide.finger}
+            </span>
+          {/if}
+          {#if hintKeyIds.includes(k.id) || hintKeyIds.includes(k.note)}
+            <span class="hint-badge" aria-label="Подсказка: {DISPLAY_NAMES[k.note]}">
+              {k.type === 'black' ? SHORT_NAMES[k.note] : DISPLAY_NAMES[k.note]}
             </span>
           {/if}
         </button>

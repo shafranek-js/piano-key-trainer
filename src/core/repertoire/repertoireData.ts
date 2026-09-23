@@ -57,6 +57,39 @@ export const REPERTOIRE: readonly SongDef[] = [
     restsAfter: { 6: 1 },
     measureBeats: 4,
     phraseBars: 2
+  },
+  {
+    id: 'hanon-1',
+    title: 'Hanon No. 1 · пальцевый этюд',
+    source: 'C. L. Hanon · The Virtuoso Pianist',
+    level: 'Разминка',
+    description: 'Классический паттерн на независимость пальцев: звенья C–E–F–G–A–G–F–E и D–F–G–A–B–A–G–F.',
+    notes: ['C4', 'E4', 'F4', 'G4', 'A4', 'G4', 'F4', 'E4', 'D4', 'F4', 'G4', 'A4', 'B4', 'A4', 'G4', 'F4', 'C4'],
+    beats: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2],
+    measureBeats: 4,
+    phraseBars: 2
+  },
+  {
+    id: 'czerny-599-1',
+    title: 'Czerny Op. 599 No. 1 · этюд',
+    source: 'C. Czerny · First Instructor',
+    level: 'Этюд',
+    description: 'Плавное движение по белым клавишам в пятипальцевой позиции C4–G4.',
+    notes: ['C4', 'D4', 'E4', 'F4', 'G4', 'G4', 'G4', 'F4', 'E4', 'D4', 'C4', 'C4'],
+    beats: [1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 2],
+    measureBeats: 4,
+    phraseBars: 2
+  },
+  {
+    id: 'beyer-101-8',
+    title: 'Beyer Op. 101 No. 8 · мотив',
+    source: 'F. Beyer · Vorschule im Klavierspiel',
+    level: 'Этюд',
+    description: 'Терцовые ходы и поступенное движение для развития беглости правой руки.',
+    notes: ['C4', 'E4', 'D4', 'F4', 'E4', 'G4', 'F4', 'D4', 'C4'],
+    beats: [1, 1, 1, 1, 1, 1, 1, 1, 2],
+    measureBeats: 4,
+    phraseBars: 2
   }
 ];
 

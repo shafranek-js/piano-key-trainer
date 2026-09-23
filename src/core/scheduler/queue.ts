@@ -157,3 +157,67 @@ export function buildColdQueue(
 
   return queue;
 }
+
+export interface ConfusionPair {
+  pair: string;
+  noteA: NoteName;
+  noteB: NoteName;
+  count: number;
+}
+
+export function topConfusionPairs(
+  reviewLogs: readonly { kind: string; note: NoteName; answer?: NoteName | null }[],
+  minCount = 2,
+  limit = 500
+): ConfusionPair[] {
+  const allowed = new Set(['scheduled', 'new', 'cold']);
+  const events = reviewLogs
+    .filter(e => allowed.has(e.kind) && e.note && e.answer && e.note !== e.answer)
+    .slice(-limit);
+
+  const pairs = new Map<string, { noteA: NoteName; noteB: NoteName; count: number }>();
+  for (const e of events) {
+    const a = e.note;
+    const b = e.answer!;
+    const sorted = [a, b].sort();
+    const key = `${sorted[0]}↔${sorted[1]}`;
+    const cur = pairs.get(key) || { noteA: sorted[0] as NoteName, noteB: sorted[1] as NoteName, count: 0 };
+    cur.count++;
+    pairs.set(key, cur);
+  }
+
+  return [...pairs.entries()]
+    .map(([pair, data]) => ({ pair, ...data }))
+    .filter(x => x.count >= minCount)
+    .sort((a, b) => b.count - a.count);
+}
+
+export function chooseConfusionPractice(
+  cards: readonly Card[],
+  reviewLogs: readonly { kind: string; note: NoteName; answer?: NoteName | null }[],
+  recentCards: readonly Card[],
+  lastConfusionTrial = -99,
+  sessionTrials = 0,
+  confusionReviews = 0
+): Card | null {
+  if (confusionReviews >= 4 || (sessionTrials - lastConfusionTrial < 3)) return null;
+
+  const top = topConfusionPairs(reviewLogs, 2);
+  if (!top.length) return null;
+
+  const currentNotes = new Set(cards.map(c => c.note));
+  const pair = top.find(x => currentNotes.has(x.noteA) && currentNotes.has(x.noteB));
+  if (!pair) return null;
+
+  const last = recentCards[0];
+  const target = last?.note === pair.noteA ? pair.noteB : pair.noteA;
+  const options = cards.filter(
+    c => c.note === target && (c.skill === 'find' || c.skill === 'identify')
+  );
+  if (!options.length) return null;
+
+  const sorted = [...options].sort(
+    (x, y) => diversityPenalty(x, recentCards) - diversityPenalty(y, recentCards)
+  );
+  return sorted[0] ?? null;
+}

@@ -105,4 +105,53 @@ describe('Scheduler and Queue Logic', () => {
     expect(phases[0].done).toBe(false); // C and F are not yet mastered
     expect(phases[1].open).toBe(false); // Neighbors (D,E,B) locked until anchors done
   });
+
+  it('detects top confusion pairs and injects contrast practice', async () => {
+    const { topConfusionPairs, chooseConfusionPractice } = await import('../../src/core/scheduler/queue');
+    const logs = [
+      { kind: 'scheduled', note: 'C' as const, answer: 'D' as const },
+      { kind: 'scheduled', note: 'C' as const, answer: 'D' as const },
+      { kind: 'scheduled', note: 'E' as const, answer: 'F' as const }
+    ];
+
+    const pairs = topConfusionPairs(logs, 2);
+    expect(pairs.length).toBe(1);
+    expect(pairs[0].pair).toBe('C↔D');
+    expect(pairs[0].count).toBe(2);
+
+    const cards = [
+      makeCard('find', 'C', 1),
+      makeCard('find', 'D', 1),
+      makeCard('find', 'E', 1)
+    ];
+
+    const practiceCard = chooseConfusionPractice(cards, logs, [], -99, 10, 0);
+    expect(practiceCard).not.toBeNull();
+    expect(['C', 'D']).toContain(practiceCard?.note);
+  });
+
+  it('includes Roadmap Direction 3 etudes (Hanon, Czerny, Beyer) with measures and phrases', async () => {
+    const { REPERTOIRE } = await import('../../src/core/repertoire/repertoireData');
+    const hanon = REPERTOIRE.find(s => s.id === 'hanon-1');
+    const czerny = REPERTOIRE.find(s => s.id === 'czerny-599-1');
+    const beyer = REPERTOIRE.find(s => s.id === 'beyer-101-8');
+
+    expect(hanon).toBeDefined();
+    expect(czerny).toBeDefined();
+    expect(beyer).toBeDefined();
+
+    expect(hanon?.measureBeats).toBe(4);
+    expect(czerny?.notes.length).toBeGreaterThan(5);
+  });
+
+  it('includes Roadmap Direction 5 intervals and triads definitions', async () => {
+    const { INTERVALS, TRIADS } = await import('../../src/core/ear/earTrainingData');
+    expect(INTERVALS.length).toBeGreaterThanOrEqual(7);
+    expect(TRIADS.major.length).toBeGreaterThan(0);
+    expect(TRIADS.minor.length).toBeGreaterThan(0);
+
+    const fifth = INTERVALS.find(i => i.id === 'P5');
+    expect(fifth?.semitones).toBe(7);
+    expect(fifth?.targetKeyId).toBe('G4');
+  });
 });

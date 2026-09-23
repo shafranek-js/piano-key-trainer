@@ -44,6 +44,8 @@
           <option value="pattern">Свободно · ориентиры 2 + 3</option>
           <option value="notationToKey">Свободно · нота на стане → клавиша</option>
           <option value="soundToKey">Свободно · звук → клавиша</option>
+          <option value="earIntervals">Слух · интервалы от C4</option>
+          <option value="earTriads">Слух · мажор или минор</option>
         </select>
       </div>
 

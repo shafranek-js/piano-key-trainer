@@ -273,7 +273,7 @@ body::before{opacity:.9}
 .session-summary{margin-bottom:10px}
 .workspace-page[data-page="practice"] .card[style*="margin-top:12px"]{margin-top:10px!important}
 @media (max-width:1500px){.task-grid{grid-template-columns:minmax(0,1fr) 280px}.challenge-inner{grid-template-columns:minmax(0,1fr) 220px}}
-@media (max-width:1260px){html,body{overflow:auto}.app{height:auto;overflow:visible}.workspace-page[data-page="practice"]{overflow:auto}.practice-stage{grid-template-columns:1fr}.task-grid{grid-template-columns:1fr}.challenge-inner{grid-template-columns:1fr}.inspector-hotzone,.inspector-rail{display:none}.topbar{grid-template-columns:1fr}.hero-toolbar{justify-content:flex-start}}
+@media (max-width:1260px){html,body{overflow:auto}.app{height:auto;overflow:visible}.workspace-page[data-page="practice"]{overflow:auto}.practice-stage{grid-template-columns:1fr}.task-grid{grid-template-columns:1fr}.challenge-inner{grid-template-columns:1fr}.topbar{grid-template-columns:1fr}.hero-toolbar{justify-content:flex-start}}
 
 
 /* ===== v4.7.2 Visual QA Surface ===== */
@@ -1057,14 +1057,19 @@ body::before{opacity:.9}
 .top-nav{overflow-x:auto;scrollbar-width:none}.top-nav::-webkit-scrollbar{display:none}
 .top-nav-btn:focus-visible,.hero-chip:focus-visible,.btn:focus-visible,.answer-btn:focus-visible,.link-btn:focus-visible,.settings-close:focus-visible,.key:focus-visible{outline:2px solid #7dd3fc!important;outline-offset:2px!important;box-shadow:0 0 0 4px rgba(56,189,248,.13)!important}
 .key:focus-visible{z-index:8}
-.context-toggle{display:none!important}
+.context-toggle{display:inline-flex!important}
+.context-toggle.active{border-color:rgba(56,189,248,.6)!important;background:rgba(56,189,248,.15)!important;color:#eaf6ff!important}
+.inspector-backdrop{position:fixed;inset:0;background:rgba(2,8,23,.5);backdrop-filter:blur(3px);z-index:69}
+.inspector-hotzone{position:fixed;top:0;right:0;width:16px;height:100vh;z-index:69;cursor:pointer;background:linear-gradient(90deg,transparent,rgba(56,189,248,.12));transition:background .2s ease}
+.inspector-hotzone:hover{background:linear-gradient(90deg,transparent,rgba(56,189,248,.25))}
+.inspector-hotzone::after{content:"";position:absolute;right:2px;top:45%;transform:translateY(-50%);width:4px;height:64px;border-radius:99px;background:rgba(56,189,248,.7);box-shadow:0 0 10px rgba(56,189,248,.8);transition:transform .2s ease,background .2s ease}
+.inspector-hotzone:hover::after{transform:translateY(-50%) scaleY(1.2);background:#38bdf8;box-shadow:0 0 14px rgba(56,189,248,1)}
+.inspector-rail{position:fixed;top:10px;right:10px;bottom:10px;width:320px;max-width:calc(100vw - 20px);z-index:70;display:flex;flex-direction:column;gap:10px;padding:16px 14px 14px;border-radius:20px;border:1px solid rgba(148,163,184,.22);background:linear-gradient(180deg,rgba(8,15,30,.98),rgba(8,15,30,.94));box-shadow:0 20px 60px rgba(2,8,23,.45),0 0 30px rgba(56,189,248,.15);transform:translateX(calc(100% + 20px));transition:transform .26s cubic-bezier(.2,.8,.2,1);overflow-y:auto}
+.inspector-rail.open,.inspector-rail:hover{transform:translateX(0)!important}
+.inspector-hotzone:hover + .inspector-rail{transform:translateX(0)!important}
 .a11y-sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}.song-note-token.current{transform:none!important}.key{transition:none!important}}
 @media(pointer:coarse){
-  .context-toggle{display:inline-flex!important}
-  .inspector-hotzone{display:none!important}
-  .inspector-rail{transform:translateX(110%)!important;pointer-events:none}
-  .inspector-rail.open{transform:translateX(0)!important;pointer-events:auto}
   .top-nav-btn{min-height:42px!important;padding-inline:14px!important}
   .btn,.hero-chip,.answer-btn{min-height:44px}
   .settings-panel{width:min(520px,calc(100vw - 18px))}

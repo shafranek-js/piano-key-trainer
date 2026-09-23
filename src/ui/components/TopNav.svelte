@@ -1,6 +1,8 @@
 <script lang="ts">
   let {
     activePage = 'practice',
+    isContextOpen = false,
+    isSettingsOpen = false,
     onPageChange,
     onToggleSettings,
     onToggleContext,
@@ -60,7 +62,7 @@
   <div class="hero-action-group">
     <button
       type="button"
-      class="hero-chip ghost context-toggle"
+      class="hero-chip ghost {isContextOpen ? 'active' : ''}"
       aria-label="Показать контекст занятия"
       onclick={() => onToggleContext?.()}
     >
@@ -68,7 +70,7 @@
     </button>
     <button
       type="button"
-      class="hero-chip ghost"
+      class="hero-chip ghost {isSettingsOpen ? 'active' : ''}"
       aria-label="Настройки"
       onclick={() => onToggleSettings?.()}
     >

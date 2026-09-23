@@ -734,6 +734,8 @@
 
     <TopNav
       {activePage}
+      {isContextOpen}
+      {isSettingsOpen}
       nextButtonDisabled={activePage !== 'practice'}
       onPageChange={(p: string) => { activePage = p; }}
       onToggleSettings={() => { isSettingsOpen = !isSettingsOpen; }}
@@ -887,6 +889,8 @@
 
   <InspectorRail
     isOpen={isContextOpen}
+    onClose={() => { isContextOpen = false; }}
+    onToggle={() => { isContextOpen = !isContextOpen; }}
     {dueCount}
     {newCount}
     {learningCount}

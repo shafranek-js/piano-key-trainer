@@ -215,7 +215,9 @@
 
   function scheduleAutoAdvance(delaySeconds?: number) {
     clearAutoAdvance();
-    const delaySec = delaySeconds !== undefined ? delaySeconds : (settings.autoAdvanceDelaySeconds ?? 3.0);
+    const raw = delaySeconds !== undefined ? delaySeconds : settings?.autoAdvanceDelaySeconds;
+    const num = Number(raw);
+    const delaySec = (Number.isFinite(num) && num > 0) ? num : (raw === 0 ? 0 : 3.0);
     if (delaySec <= 0) {
       autoAdvanceCountdown = null;
       return;
@@ -230,8 +232,10 @@
       const remainingMs = Math.max(0, totalMs - elapsedMs);
       autoAdvanceCountdown = Math.round((remainingMs / 1000) * 10) / 10;
       if (remainingMs <= 0) {
-        if (autoAdvanceInterval != null) clearInterval(autoAdvanceInterval);
-        autoAdvanceInterval = null;
+        if (autoAdvanceInterval != null) {
+          clearInterval(autoAdvanceInterval);
+          autoAdvanceInterval = null;
+        }
       }
     }, 100);
 
@@ -378,6 +382,9 @@
         feedbackText = `✓ Правильно · ${(responseMs / 1000).toFixed(1)} с`;
         feedbackClass = 'good';
         if (answerKeyId) correctKeyIds = [answerKeyId];
+        isCompleted = true;
+        isLocked = true;
+        scheduleAutoAdvance();
       } else {
         sessionStreak = 0;
         feedbackClass = 'bad';
@@ -393,28 +400,28 @@
 
       // Calculate FSRS grade if scheduled or new
       let grade: Grade = isCorrect ? 3 : 1;
-      if (currentKind === 'scheduled' || currentKind === 'new') {
+      const cardRef = currentCard;
+      const kindRef = currentKind;
+
+      if (kindRef === 'scheduled' || kindRef === 'new') {
         grade = determineGrade({
           firstCorrect: isCorrect,
           hintUsed: false,
           responseMs,
-          card: currentCard,
+          card: cardRef,
           reviewLog: reviewLogs,
           useLatencyGrading: settings.useLatencyGrading
         });
-
-        applyFsrsReview(currentCard, grade, Date.now(), settings);
-        await db.cards.put(currentCard);
       }
 
       // Save review log event
       const logEvent: ReviewLogEvent = {
         ts: Date.now(),
         sessionId: 'session-live',
-        cardId: currentCard.id,
-        note: currentCard.note,
-        skill: currentCard.skill,
-        kind: currentKind,
+        cardId: cardRef.id,
+        note: cardRef.note,
+        skill: cardRef.skill,
+        kind: kindRef,
         grade,
         gradeName: grade === 1 ? 'Again' : grade === 2 ? 'Hard' : grade === 4 ? 'Easy' : 'Good',
         firstCorrect: isCorrect,
@@ -424,22 +431,29 @@
         hintUsed: false,
         responseMs,
         elapsedDays: null,
-        retrievabilityBefore: retrievability(currentCard),
-        stabilityBefore: currentCard.stability,
-        stabilityAfter: currentCard.stability,
-        difficultyBefore: currentCard.difficulty,
-        difficultyAfter: currentCard.difficulty,
+        retrievabilityBefore: retrievability(cardRef),
+        stabilityBefore: cardRef.stability,
+        stabilityAfter: cardRef.stability,
+        difficultyBefore: cardRef.difficulty,
+        difficultyAfter: cardRef.difficulty,
         scheduledDays: null
       };
 
       reviewLogs = [...reviewLogs, logEvent];
-      await db.reviewLogs.put(logEvent);
 
-      if (isCorrect) {
-        isCompleted = true;
-        isLocked = true;
-        scheduleAutoAdvance();
-      }
+      // Asynchronous background persistence to Dexie DB
+      (async () => {
+        try {
+          if (kindRef === 'scheduled' || kindRef === 'new') {
+            applyFsrsReview(cardRef, grade, Date.now(), settings);
+            await db.cards.put(cardRef);
+          }
+          await db.reviewLogs.put(logEvent);
+        } catch (err) {
+          console.warn('DB put error:', err);
+        }
+      })();
+
       return;
     }
 
@@ -501,22 +515,24 @@
       feedbackText = `Ответ: ${targetLabel}. ${getExerciseHint(currentCard)} Карточка скоро вернется.`;
       feedbackClass = 'warn';
 
-      if (currentKind === 'scheduled' || currentKind === 'new') {
-        applyFsrsReview(currentCard, 1, Date.now(), settings);
-        db.cards.put(currentCard);
-      }
-
       // Flash correct key as hint
       if (targetKeyId) hintKeyIds = [targetKeyId];
       else hintKeyIds = [currentCard.note];
 
+      isCompleted = true;
+      isLocked = true;
+      scheduleAutoAdvance();
+
+      const cardRef = currentCard;
+      const kindRef = currentKind;
+
       const logEvent: ReviewLogEvent = {
         ts: Date.now(),
         sessionId: 'session-live',
-        cardId: currentCard.id,
-        note: currentCard.note,
-        skill: currentCard.skill,
-        kind: currentKind,
+        cardId: cardRef.id,
+        note: cardRef.note,
+        skill: cardRef.skill,
+        kind: kindRef,
         grade: 1,
         gradeName: 'Again',
         firstCorrect: false,
@@ -526,20 +542,27 @@
         hintUsed: true,
         responseMs: Math.round(performance.now() - shownPerfMs),
         elapsedDays: null,
-        retrievabilityBefore: retrievability(currentCard),
-        stabilityBefore: currentCard.stability,
-        stabilityAfter: currentCard.stability,
-        difficultyBefore: currentCard.difficulty,
-        difficultyAfter: currentCard.difficulty,
+        retrievabilityBefore: retrievability(cardRef),
+        stabilityBefore: cardRef.stability,
+        stabilityAfter: cardRef.stability,
+        difficultyBefore: cardRef.difficulty,
+        difficultyAfter: cardRef.difficulty,
         scheduledDays: null
       };
 
       reviewLogs = [...reviewLogs, logEvent];
-      db.reviewLogs.put(logEvent);
 
-      isCompleted = true;
-      isLocked = true;
-      scheduleAutoAdvance();
+      (async () => {
+        try {
+          if (kindRef === 'scheduled' || kindRef === 'new') {
+            applyFsrsReview(cardRef, 1, Date.now(), settings);
+            await db.cards.put(cardRef);
+          }
+          await db.reviewLogs.put(logEvent);
+        } catch (e) {
+          console.warn('DB put error:', e);
+        }
+      })();
     }
   }
 

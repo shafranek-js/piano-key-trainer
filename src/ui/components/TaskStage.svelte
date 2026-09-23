@@ -106,11 +106,12 @@
                 aria-label={DISPLAY_NAMES[note]}
                 onclick={() => onAnswerClick?.(note)}
               >
-                {SHORT_NAMES[note]}
+                <span class="note-latin">{SHORT_NAMES[note]}</span>
+                <small class="note-ru">{DISPLAY_NAMES[note]}</small>
               </button>
             {/each}
           </div>
-          <div class="answer-hotkeys-hint">Клавиатура: C–B или 1–7 · Shift + C/D/F/G/A = ♯</div>
+          <div class="answer-hotkeys-hint">Клавиатура: буквы C–B или цифры 1–7 · Shift + C/D/F/G/A = ♯</div>
         </section>
       </div>
     {/if}

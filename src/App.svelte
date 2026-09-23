@@ -1550,7 +1550,7 @@
       return;
     }
     if (practiceActivity === 'standard') {
-      if (currentCard && currentCard.skill !== 'identify') {
+      if (currentCard) {
         handleAnswerSubmit(noteName, keyId);
       }
     }
@@ -1628,7 +1628,6 @@
       e.preventDefault();
       const octave = targetKeyId ? targetKeyId.slice(-1) : '4';
       const keyId = resolved.specificKeyId || `${resolved.note}${octave}`;
-      AudioEngine.getInstance().playPianoByKeyId(keyId, 96);
       handleKeyClick(keyId, resolved.note);
     }
   }
@@ -1657,7 +1656,7 @@
           handleTwoHandKeyInput(ev.keyId, { input: 'midi' });
         } else if (practiceActivity === 'lesson') {
           handleLessonKeyInput(ev.noteName, ev.keyId);
-        } else if (practiceActivity === 'standard' && currentCard && currentCard.skill !== 'identify') {
+        } else if (practiceActivity === 'standard' && currentCard) {
           handleAnswerSubmit(ev.noteName, ev.keyId);
         }
       }
@@ -1705,7 +1704,7 @@
 
   <div class="workspace-pages" style="display:block; min-height: 400px;">
     {#if activePage === 'practice'}
-      <div class="workspace-page active" data-page="practice">
+      <div class="workspace-page active {currentCard?.skill ? `practice-mode-${currentCard.skill}` : ''}" data-page="practice">
         <!-- 1. Guided Lessons Banner -->
         {#if practiceActivity === 'lesson' && activeLesson}
           {@const lesson = activeLessonDef()}
@@ -1892,7 +1891,12 @@
             answerNotes={NATURAL_NOTES}
             wrongAnswerNotes={pulseWrongAnswerNotes}
             correctAnswerNotes={pulseCorrectAnswerNotes}
-            onAnswerClick={(n) => handleAnswerSubmit(n)}
+            onAnswerClick={(n) => {
+              const octave = targetKeyId ? targetKeyId.slice(-1) : '4';
+              const keyId = `${n}${octave}`;
+              AudioEngine.getInstance().playPianoByKeyId(keyId, 96);
+              handleAnswerSubmit(n, keyId);
+            }}
             onDontKnow={handleDontKnow}
             onReplaySound={playSoundPrompt}
             onNextQuestion={() => { clearAutoAdvance(); nextRound(); }}

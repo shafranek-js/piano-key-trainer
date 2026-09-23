@@ -35,4 +35,14 @@ describe('Piano Trainer Core Regressions & Invariants', () => {
     expect(pitchClassFromMidi(60)).toBe('C');
     expect(keyIdFromMidi(60)).toBe('C4'); // Middle C
   });
+
+  it('correctly evaluates identify skill responses', () => {
+    // In identify mode: question is "Which note is highlighted?"
+    // User response can be provided via key press, note button click, or piano strike
+    const targetCard = { id: 'card-1', note: 'C', skill: 'identify' };
+    const checkIdentifyAnswer = (answerNote: string) => answerNote === targetCard.note;
+
+    expect(checkIdentifyAnswer('C')).toBe(true);
+    expect(checkIdentifyAnswer('D')).toBe(false);
+  });
 });

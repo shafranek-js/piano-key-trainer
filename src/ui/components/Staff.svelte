@@ -6,7 +6,8 @@
     mode = 'single' as 'single' | 'repertoire',
     repertoireSong = null as any,
     currentNoteIndex = 0,
-    isCompleted = false
+    isCompleted = false,
+    pulseGuide = false
   } = $props();
 
   // Y-coordinate calculation for treble clef
@@ -40,7 +41,7 @@
         {#if y >= 108}
           <line class="ledger" x1="119" x2="153" y1={y} y2={y} />
         {/if}
-        <ellipse class="notehead" cx="135" cy={y} rx="10" ry="6.5" transform="rotate(-18 135 {y})" />
+        <ellipse class="notehead {pulseGuide ? 'pulse-guide' : ''}" cx="135" cy={y} rx="10" ry="6.5" transform="rotate(-18 135 {y})" />
         {#if stemUp}
           <line class="stem" x1="143" y1={y} x2="143" y2={y - 44} />
         {:else}

@@ -56,6 +56,7 @@
     correctKeyIds = [] as string[],
     wrongKeyIds = [] as string[],
     hintKeyIds = [] as string[],
+    pulseCorrectKeyIds = [] as string[],
     midiActiveKeyIds = [] as string[],
     twoHandLeftTarget = null as string | null,
     twoHandRightTarget = null as string | null,
@@ -98,6 +99,7 @@
     if (targetKeyIds.includes(k.id) || targetKeyIds.includes(k.note)) classes.push('target');
     if (correctKeyIds.includes(k.id) || correctKeyIds.includes(k.note)) classes.push('correct');
     if (wrongKeyIds.includes(k.id) || wrongKeyIds.includes(k.note)) classes.push('wrong');
+    if (pulseCorrectKeyIds.includes(k.id) || pulseCorrectKeyIds.includes(k.note)) classes.push('correct-pulse');
     if (hintKeyIds.includes(k.id) || hintKeyIds.includes(k.note)) classes.push('hint');
     if (midiActiveKeyIds.includes(k.id)) classes.push('midi-active');
     if (twoHandLeftTarget === k.id) classes.push('twohand-left-target');

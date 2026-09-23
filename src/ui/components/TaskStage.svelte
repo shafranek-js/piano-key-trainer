@@ -16,6 +16,8 @@
     dontKnowDisabled = false,
     showAnswerButtons = false,
     answerNotes = [] as NoteName[],
+    wrongAnswerNotes = [] as NoteName[],
+    correctAnswerNotes = [] as NoteName[],
     isCompleted = false,
     autoAdvanceCountdown = null as number | null,
     autoAdvanceTotal = 3.0,
@@ -100,7 +102,7 @@
             {#each answerNotes as note (note)}
               <button
                 type="button"
-                class="answer-btn"
+                class="answer-btn {wrongAnswerNotes.includes(note) ? 'wrong-pulse' : ''} {correctAnswerNotes.includes(note) ? 'correct-pulse' : ''}"
                 aria-label={DISPLAY_NAMES[note]}
                 onclick={() => onAnswerClick?.(note)}
               >

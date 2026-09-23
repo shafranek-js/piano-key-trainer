@@ -76,6 +76,10 @@
   let correctKeyIds = $state<string[]>([]);
   let wrongKeyIds = $state<string[]>([]);
   let hintKeyIds = $state<string[]>([]);
+  let pulseCorrectKeyIds = $state<string[]>([]);
+  let pulseWrongAnswerNotes = $state<NoteName[]>([]);
+  let pulseCorrectAnswerNotes = $state<NoteName[]>([]);
+  let staffPulseGuide = $state(false);
   let midiActiveKeyIds = $state<string[]>([]);
 
   // Statistics of session
@@ -251,6 +255,10 @@
     correctKeyIds = [];
     wrongKeyIds = [];
     hintKeyIds = [];
+    pulseCorrectKeyIds = [];
+    pulseWrongAnswerNotes = [];
+    pulseCorrectAnswerNotes = [];
+    staffPulseGuide = false;
     targetKeyId = null;
 
     const now = Date.now();
@@ -310,6 +318,43 @@
     }, 600);
   }
 
+  function triggerErrorPulse(answerNote: NoteName, answerKeyId?: string) {
+    if (!currentCard) return;
+    const isExactKeySkill = currentCard.skill === 'notationToKey' || currentCard.skill === 'soundToKey';
+
+    // 1. Red pulse on the wrong item
+    if (answerKeyId) {
+      wrongKeyIds = [answerKeyId];
+    }
+    if (currentCard.skill === 'identify' || currentCard.skill === 'patternIdentify') {
+      pulseWrongAnswerNotes = [answerNote];
+    }
+
+    // 2. Green pulse on the correct step / target
+    if (isExactKeySkill) {
+      pulseCorrectKeyIds = [targetKeyId || `${currentCard.note}4`];
+      staffPulseGuide = true;
+    } else if (currentCard.skill === 'find') {
+      pulseCorrectKeyIds = [currentCard.note];
+    } else {
+      pulseCorrectAnswerNotes = [currentCard.note];
+      if (targetKeyId) pulseCorrectKeyIds = [targetKeyId];
+    }
+
+    // 3. Clear red after 850ms
+    setTimeout(() => {
+      if (answerKeyId) wrongKeyIds = wrongKeyIds.filter(id => id !== answerKeyId);
+      pulseWrongAnswerNotes = [];
+    }, 850);
+
+    // 4. Clear green guide after 1400ms
+    setTimeout(() => {
+      pulseCorrectKeyIds = [];
+      pulseCorrectAnswerNotes = [];
+      staffPulseGuide = false;
+    }, 1400);
+  }
+
   async function handleAnswerSubmit(answerNote: NoteName, answerKeyId?: string) {
     if (isLocked || !currentCard || isCompleted) return;
 
@@ -336,12 +381,7 @@
       } else {
         sessionStreak = 0;
         feedbackClass = 'bad';
-        if (answerKeyId) {
-          wrongKeyIds = [answerKeyId];
-          setTimeout(() => {
-            wrongKeyIds = wrongKeyIds.filter(id => id !== answerKeyId);
-          }, 450);
-        }
+        triggerErrorPulse(answerNote, answerKeyId);
 
         const hint = getExerciseHint(currentCard);
         if (isOctaveMismatch) {
@@ -416,12 +456,7 @@
       scheduleAutoAdvance();
     } else {
       feedbackClass = 'bad';
-      if (answerKeyId) {
-        wrongKeyIds = [...wrongKeyIds, answerKeyId];
-        setTimeout(() => {
-          wrongKeyIds = wrongKeyIds.filter(id => id !== answerKeyId);
-        }, 450);
-      }
+      triggerErrorPulse(answerNote, answerKeyId);
 
       const hint = getExerciseHint(currentCard);
       if (isOctaveMismatch) {
@@ -691,7 +726,7 @@
 
           {#if currentCard.skill === 'notationToKey'}
             <div style="display:flex; justify-content:center; margin-bottom: 12px;">
-              <Staff keyId={targetKeyId || 'C4'} mode="single" />
+              <Staff keyId={targetKeyId || 'C4'} mode="single" pulseGuide={staffPulseGuide} />
             </div>
           {/if}
 
@@ -710,6 +745,8 @@
             showSoundRepeat={currentCard.skill === 'soundToKey'}
             showAnswerButtons={currentCard.skill === 'identify'}
             answerNotes={NATURAL_NOTES}
+            wrongAnswerNotes={pulseWrongAnswerNotes}
+            correctAnswerNotes={pulseCorrectAnswerNotes}
             onAnswerClick={(n) => handleAnswerSubmit(n)}
             onDontKnow={handleDontKnow}
             onReplaySound={playSoundPrompt}
@@ -723,6 +760,7 @@
           {correctKeyIds}
           {wrongKeyIds}
           {hintKeyIds}
+          {pulseCorrectKeyIds}
           {midiActiveKeyIds}
         />
       </div>

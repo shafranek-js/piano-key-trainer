@@ -85,6 +85,21 @@
         </select>
       </div>
 
+      <div class="field">
+        <label for="delaySelect">Пауза после ответа</label>
+        <select 
+          id="delaySelect" 
+          value={String(settings.autoAdvanceDelaySeconds ?? 3.0)}
+          onchange={(e) => onSettingsChange?.({ autoAdvanceDelaySeconds: Number((e.target as HTMLSelectElement).value) })}
+        >
+          <option value="1.5">1.5 сек · быстро</option>
+          <option value="2">2 сек · бодро</option>
+          <option value="3">3 сек · стандарт (для чтения пояснений)</option>
+          <option value="4">4 сек · спокойно</option>
+          <option value="0">Вручную (кнопка / Пробел)</option>
+        </select>
+      </div>
+
       <button 
         type="button" 
         class="btn {settings.useLatencyGrading ? 'on' : ''}" 

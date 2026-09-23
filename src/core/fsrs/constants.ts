@@ -26,7 +26,8 @@ export const DEFAULT_SETTINGS: UserSettings = {
   repertoireDisplayMode: 'keys',
   repertoireDynamicsTarget: 'off',
   repertoireArticulationTarget: 'off',
-  twoHandTempoMode: 'wait'
+  twoHandTempoMode: 'wait',
+  autoAdvanceDelaySeconds: 3.0
 };
 
 export const LEARN_ORDER: readonly NoteName[] = [
@@ -94,3 +95,38 @@ export const CURRICULUM_GROUPS = {
 };
 
 export const CURRICULUM_MIN_STABILITY_DAYS = 3;
+
+export const STAFF_HINTS: Partial<Record<NoteName, string>> = {
+  C: 'Middle C — на добавочной линейке под скрипичным станом (C4).',
+  D: 'D4 — в пространстве прямо под нижней линией стана.',
+  E: 'E4 — нижняя линия скрипичного стана.',
+  F: 'F4 — первое пространство снизу.',
+  G: 'G4 — вторая линия снизу.',
+  A: 'A4 — второе пространство снизу.',
+  B: 'B4 — средняя линия скрипичного стана.'
+};
+
+export const SOUND_HINTS: Partial<Record<NoteName, string>> = {
+  C: 'После опорной C4 звучит та же клавиша C4.',
+  D: 'D4 — следующая белая справа от опорной C4.',
+  E: 'E4 — вторая белая справа от C4.',
+  F: 'F4 — третья белая справа от C4.',
+  G: 'G4 — четвёртая белая справа от C4.',
+  A: 'A4 — пятая белая справа от C4.',
+  B: 'B4 — шестая белая справа от C4.'
+};
+
+export const LANDMARK_HINTS: Partial<Record<NoteName, string>> = {
+  C: 'C — белая сразу слева от пары из 2 чёрных.',
+  D: 'D — белая между двумя чёрными клавишами.',
+  E: 'E — белая сразу справа от пары из 2 чёрных.',
+  F: 'F — белая сразу слева от группы из 3 чёрных.',
+  G: 'G — белая между 1-й и 2-й чёрной в группе из 3.',
+  A: 'A — белая между 2-й и 3-й чёрной в группе из 3.',
+  B: 'B — белая сразу справа от группы из 3 чёрных.',
+  'C#': 'C♯ — первая чёрная в паре из 2.',
+  'D#': 'D♯ — вторая чёрная в паре из 2.',
+  'F#': 'F♯ — первая чёрная в группе из 3.',
+  'G#': 'G♯ — средняя чёрная в группе из 3.',
+  'A#': 'A♯ — третья чёрная в группе из 3.'
+};

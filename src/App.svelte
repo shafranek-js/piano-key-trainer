@@ -5,7 +5,7 @@
   // Core & Audio
   import { AudioEngine } from './audio/AudioEngine';
   import { MidiController, type MidiNoteOnEvent, type MidiNoteOffEvent } from './audio/MidiController';
-  import { DEFAULT_SETTINGS, NATURAL_NOTES, ALL_NOTES, DISPLAY_NAMES, SHORT_NAMES } from './core/fsrs/constants';
+  import { DEFAULT_SETTINGS, NATURAL_NOTES, ALL_NOTES, DISPLAY_NAMES, SHORT_NAMES, STAFF_HINTS, SOUND_HINTS, LANDMARK_HINTS } from './core/fsrs/constants';
   import { applyFsrsReview, retrievability, isMastered } from './core/fsrs/fsrs6';
   import { determineGrade } from './core/fsrs/latencyGrading';
   import { chooseDue, chooseNew, choosePractice, buildColdQueue } from './core/scheduler/queue';
@@ -58,12 +58,18 @@
   let targetKeyId = $state<string | null>(null);
   let shownPerfMs = $state(0);
   let firstResponseRecorded = $state(false);
+  let attempts = $state(0);
+  let hintUsed = $state(false);
+  let isCompleted = $state(false);
   let isLocked = $state(false);
   let reactionElapsedMs = $state(0);
   let reactionStatus = $state('калибровка');
   let reactionClass = $state('');
   let feedbackText = $state('');
   let feedbackClass = $state('');
+  let autoAdvanceCountdown = $state<number | null>(null);
+  let autoAdvanceTimer: number | null = null;
+  let autoAdvanceInterval: number | null = null;
 
   // Active visual keys on keyboard
   let targetKeyIds = $state<string[]>([]);
@@ -181,10 +187,64 @@
     }
   }
 
+  function getExerciseHint(card: Card): string {
+    if (card.skill === 'notationToKey') {
+      return STAFF_HINTS[card.note] || '';
+    }
+    if (card.skill === 'soundToKey') {
+      return SOUND_HINTS[card.note] || '';
+    }
+    return LANDMARK_HINTS[card.note] || '';
+  }
+
+  function clearAutoAdvance() {
+    if (autoAdvanceTimer != null) {
+      clearTimeout(autoAdvanceTimer);
+      autoAdvanceTimer = null;
+    }
+    if (autoAdvanceInterval != null) {
+      clearInterval(autoAdvanceInterval);
+      autoAdvanceInterval = null;
+    }
+    autoAdvanceCountdown = null;
+  }
+
+  function scheduleAutoAdvance(delaySeconds?: number) {
+    clearAutoAdvance();
+    const delaySec = delaySeconds !== undefined ? delaySeconds : (settings.autoAdvanceDelaySeconds ?? 3.0);
+    if (delaySec <= 0) {
+      autoAdvanceCountdown = null;
+      return;
+    }
+
+    autoAdvanceCountdown = delaySec;
+    const startTime = performance.now();
+    const totalMs = delaySec * 1000;
+
+    autoAdvanceInterval = window.setInterval(() => {
+      const elapsedMs = performance.now() - startTime;
+      const remainingMs = Math.max(0, totalMs - elapsedMs);
+      autoAdvanceCountdown = Math.round((remainingMs / 1000) * 10) / 10;
+      if (remainingMs <= 0) {
+        if (autoAdvanceInterval != null) clearInterval(autoAdvanceInterval);
+        autoAdvanceInterval = null;
+      }
+    }, 100);
+
+    autoAdvanceTimer = window.setTimeout(() => {
+      clearAutoAdvance();
+      nextRound();
+    }, totalMs);
+  }
+
   function nextRound() {
+    clearAutoAdvance();
     stopReactionTimer();
     isLocked = false;
+    isCompleted = false;
     firstResponseRecorded = false;
+    attempts = 0;
+    hintUsed = false;
     feedbackText = '';
     feedbackClass = '';
     targetKeyIds = [];
@@ -251,110 +311,253 @@
   }
 
   async function handleAnswerSubmit(answerNote: NoteName, answerKeyId?: string) {
-    if (isLocked || !currentCard || firstResponseRecorded) return;
+    if (isLocked || !currentCard || isCompleted) return;
 
-    firstResponseRecorded = true;
-    stopReactionTimer();
-    const responseMs = Math.round(performance.now() - shownPerfMs);
-
-    const isCorrect = (currentCard.skill === 'notationToKey' || currentCard.skill === 'soundToKey')
+    const isExactKeySkill = currentCard.skill === 'notationToKey' || currentCard.skill === 'soundToKey';
+    const isCorrect = isExactKeySkill
       ? answerKeyId === targetKeyId
       : answerNote === currentCard.note;
+    const isOctaveMismatch = isExactKeySkill && answerNote === currentCard.note && answerKeyId !== targetKeyId;
 
-    sessionTrials++;
-    if (isCorrect) {
-      sessionScore++;
-      sessionStreak++;
-      feedbackText = `✓ Правильно · ${(responseMs / 1000).toFixed(1)} с`;
-      feedbackClass = 'good';
-      if (answerKeyId) correctKeyIds = [answerKeyId];
-    } else {
-      sessionStreak = 0;
-      feedbackText = `✗ Ошибка. Это ${DISPLAY_NAMES[answerNote]}. Нужна была ${DISPLAY_NAMES[currentCard.note]}.`;
-      feedbackClass = 'bad';
-      if (answerKeyId) wrongKeyIds = [answerKeyId];
-    }
+    // --- FIRST ATTEMPT ---
+    if (!firstResponseRecorded) {
+      firstResponseRecorded = true;
+      attempts = 1;
+      stopReactionTimer();
+      const responseMs = Math.round(performance.now() - shownPerfMs);
 
-    // Calculate FSRS grade if scheduled or new
-    let grade: Grade = 3;
-    if (currentKind === 'scheduled' || currentKind === 'new') {
-      grade = determineGrade({
+      sessionTrials++;
+      if (isCorrect) {
+        sessionScore++;
+        sessionStreak++;
+        feedbackText = `✓ Правильно · ${(responseMs / 1000).toFixed(1)} с`;
+        feedbackClass = 'good';
+        if (answerKeyId) correctKeyIds = [answerKeyId];
+      } else {
+        sessionStreak = 0;
+        feedbackClass = 'bad';
+        if (answerKeyId) {
+          wrongKeyIds = [answerKeyId];
+          setTimeout(() => {
+            wrongKeyIds = wrongKeyIds.filter(id => id !== answerKeyId);
+          }, 450);
+        }
+
+        const hint = getExerciseHint(currentCard);
+        if (isOctaveMismatch) {
+          feedbackText = `✗ Не та октава! Нота верная (${DISPLAY_NAMES[answerNote]}), но нажата ${answerKeyId}. Требуется ${targetKeyId} (${hint || 'найдите нужную октаву'}). Первая попытка засчитана как ошибка. Попробуйте еще раз!`;
+        } else {
+          feedbackText = `✗ Ошибка. Это ${DISPLAY_NAMES[answerNote]}${answerKeyId ? ' (' + answerKeyId + ')' : ''}. Нужна была ${DISPLAY_NAMES[currentCard.note]}${targetKeyId ? ' (' + targetKeyId + ')' : ''}. ${hint} Первая попытка засчитана как ошибка.`;
+        }
+      }
+
+      // Calculate FSRS grade if scheduled or new
+      let grade: Grade = isCorrect ? 3 : 1;
+      if (currentKind === 'scheduled' || currentKind === 'new') {
+        grade = determineGrade({
+          firstCorrect: isCorrect,
+          hintUsed: false,
+          responseMs,
+          card: currentCard,
+          reviewLog: reviewLogs,
+          useLatencyGrading: settings.useLatencyGrading
+        });
+
+        applyFsrsReview(currentCard, grade, Date.now(), settings);
+        await db.cards.put(currentCard);
+      }
+
+      // Save review log event
+      const logEvent: ReviewLogEvent = {
+        ts: Date.now(),
+        sessionId: 'session-live',
+        cardId: currentCard.id,
+        note: currentCard.note,
+        skill: currentCard.skill,
+        kind: currentKind,
+        grade,
+        gradeName: grade === 1 ? 'Again' : grade === 2 ? 'Hard' : grade === 4 ? 'Easy' : 'Good',
         firstCorrect: isCorrect,
+        answer: answerNote,
+        answerKeyId: answerKeyId || null,
+        attempts: 1,
         hintUsed: false,
         responseMs,
-        card: currentCard,
-        reviewLog: reviewLogs,
-        useLatencyGrading: settings.useLatencyGrading
-      });
+        elapsedDays: null,
+        retrievabilityBefore: retrievability(currentCard),
+        stabilityBefore: currentCard.stability,
+        stabilityAfter: currentCard.stability,
+        difficultyBefore: currentCard.difficulty,
+        difficultyAfter: currentCard.difficulty,
+        scheduledDays: null
+      };
 
-      applyFsrsReview(currentCard, grade, Date.now(), settings);
-      await db.cards.put(currentCard);
+      reviewLogs = [...reviewLogs, logEvent];
+      await db.reviewLogs.put(logEvent);
+
+      if (isCorrect) {
+        isCompleted = true;
+        isLocked = true;
+        scheduleAutoAdvance();
+      }
+      return;
     }
 
-    // Save review log event
-    const logEvent: ReviewLogEvent = {
-      ts: Date.now(),
-      sessionId: 'session-live',
-      cardId: currentCard.id,
-      note: currentCard.note,
-      skill: currentCard.skill,
-      kind: currentKind,
-      grade,
-      gradeName: grade === 1 ? 'Again' : grade === 2 ? 'Hard' : grade === 4 ? 'Easy' : 'Good',
-      firstCorrect: isCorrect,
-      answer: answerNote,
-      answerKeyId: answerKeyId || null,
-      attempts: 1,
-      hintUsed: false,
-      responseMs,
-      elapsedDays: null,
-      retrievabilityBefore: retrievability(currentCard),
-      stabilityBefore: currentCard.stability,
-      stabilityAfter: currentCard.stability,
-      difficultyBefore: currentCard.difficulty,
-      difficultyAfter: currentCard.difficulty,
-      scheduledDays: null
-    };
-
-    reviewLogs = [...reviewLogs, logEvent];
-    await db.reviewLogs.put(logEvent);
-
+    // --- SUBSEQUENT CORRECTIVE ATTEMPTS ---
+    attempts++;
     if (isCorrect) {
+      isCompleted = true;
       isLocked = true;
-      setTimeout(nextRound, 900);
+      if (answerKeyId) correctKeyIds = [answerKeyId];
+      feedbackClass = 'warn';
+      feedbackText = currentKind === 'practice'
+        ? `✓ Исправлено (${attempts}-я попытка)! Свободная практика.`
+        : `✓ Исправлено (${attempts}-я попытка). Для памяти FSRS засчитана первая ошибка (Again); карточка скоро вернется для повторения.`;
+      scheduleAutoAdvance();
+    } else {
+      feedbackClass = 'bad';
+      if (answerKeyId) {
+        wrongKeyIds = [...wrongKeyIds, answerKeyId];
+        setTimeout(() => {
+          wrongKeyIds = wrongKeyIds.filter(id => id !== answerKeyId);
+        }, 450);
+      }
+
+      const hint = getExerciseHint(currentCard);
+      if (isOctaveMismatch) {
+        feedbackText = `Пока не та октава (${answerKeyId}). Требуется ${targetKeyId}. ${hint}`;
+      } else {
+        feedbackText = `Это ${DISPLAY_NAMES[answerNote]}${answerKeyId ? ' (' + answerKeyId + ')' : ''}. Нужна ${DISPLAY_NAMES[currentCard.note]}${targetKeyId ? ' (' + targetKeyId + ')' : ''}. ${hint}`;
+      }
+
+      if (attempts >= 3) {
+        hintUsed = true;
+        if (targetKeyId) hintKeyIds = [targetKeyId];
+        else hintKeyIds = [currentCard.note];
+        feedbackText += ' 💡 Нужная клавиша подсвечена желтым!';
+      }
     }
   }
 
   function handleKeyClick(keyId: string, noteName: NoteName) {
     AudioEngine.getInstance().playPianoByKeyId(keyId, 96);
 
-    if (activePage !== 'practice' || !currentCard || isLocked) return;
+    if (activePage !== 'practice' || !currentCard || isLocked || isCompleted) return;
 
     if (currentCard.skill === 'identify') {
-      return; // in identify mode, answer is clicked on button or hotkey
+      return; // in identify mode, answer is clicked on note button or hotkey
     }
 
     handleAnswerSubmit(noteName, keyId);
   }
 
   function handleDontKnow() {
-    if (isLocked || !currentCard || firstResponseRecorded) return;
-    firstResponseRecorded = true;
-    stopReactionTimer();
+    if (isLocked || !currentCard || isCompleted) return;
 
-    feedbackText = `Ответ: ${DISPLAY_NAMES[currentCard.note]}. Карточка вернется через 45 сек.`;
-    feedbackClass = 'warn';
+    if (!firstResponseRecorded) {
+      firstResponseRecorded = true;
+      attempts = 1;
+      hintUsed = true;
+      stopReactionTimer();
+      sessionTrials++;
+      sessionStreak = 0;
 
-    if (currentKind === 'scheduled' || currentKind === 'new') {
-      applyFsrsReview(currentCard, 1, Date.now(), settings);
-      db.cards.put(currentCard);
+      const targetLabel = targetKeyId ? `${DISPLAY_NAMES[currentCard.note]} (${targetKeyId})` : DISPLAY_NAMES[currentCard.note];
+      feedbackText = `Ответ: ${targetLabel}. ${getExerciseHint(currentCard)} Карточка скоро вернется.`;
+      feedbackClass = 'warn';
+
+      if (currentKind === 'scheduled' || currentKind === 'new') {
+        applyFsrsReview(currentCard, 1, Date.now(), settings);
+        db.cards.put(currentCard);
+      }
+
+      // Flash correct key as hint
+      if (targetKeyId) hintKeyIds = [targetKeyId];
+      else hintKeyIds = [currentCard.note];
+
+      const logEvent: ReviewLogEvent = {
+        ts: Date.now(),
+        sessionId: 'session-live',
+        cardId: currentCard.id,
+        note: currentCard.note,
+        skill: currentCard.skill,
+        kind: currentKind,
+        grade: 1,
+        gradeName: 'Again',
+        firstCorrect: false,
+        answer: null,
+        answerKeyId: null,
+        attempts: 1,
+        hintUsed: true,
+        responseMs: Math.round(performance.now() - shownPerfMs),
+        elapsedDays: null,
+        retrievabilityBefore: retrievability(currentCard),
+        stabilityBefore: currentCard.stability,
+        stabilityAfter: currentCard.stability,
+        difficultyBefore: currentCard.difficulty,
+        difficultyAfter: currentCard.difficulty,
+        scheduledDays: null
+      };
+
+      reviewLogs = [...reviewLogs, logEvent];
+      db.reviewLogs.put(logEvent);
+
+      isCompleted = true;
+      isLocked = true;
+      scheduleAutoAdvance();
+    }
+  }
+
+  function resolveNoteFromKeyboard(e: KeyboardEvent): { note: NoteName; specificKeyId?: string } | null {
+    // 1. Digits 1-7: 1=C, 2=D, 3=E, 4=F, 5=G, 6=A, 7=B
+    const digitMap: Record<string, NoteName> = {
+      Digit1: 'C', Digit2: 'D', Digit3: 'E', Digit4: 'F', Digit5: 'G', Digit6: 'A', Digit7: 'B',
+      Numpad1: 'C', Numpad2: 'D', Numpad3: 'E', Numpad4: 'F', Numpad5: 'G', Numpad6: 'A', Numpad7: 'B'
+    };
+    if (digitMap[e.code]) {
+      const base = digitMap[e.code];
+      const isSharp = e.shiftKey && ['C', 'D', 'F', 'G', 'A'].includes(base);
+      return { note: (isSharp ? `${base}#` : base) as NoteName };
     }
 
-    // Flash correct key as hint
-    if (targetKeyId) hintKeyIds = [targetKeyId];
-    else hintKeyIds = [currentCard.note];
+    // 2. Direct note letter keys (C, D, E, F, G, A, B) via e.code
+    const codeToNote: Record<string, NoteName> = {
+      KeyC: 'C', KeyD: 'D', KeyE: 'E', KeyF: 'F', KeyG: 'G', KeyA: 'A', KeyB: 'B'
+    };
+    if (codeToNote[e.code]) {
+      const base = codeToNote[e.code];
+      const isSharp = e.shiftKey && ['C', 'D', 'F', 'G', 'A'].includes(base);
+      return { note: (isSharp ? `${base}#` : base) as NoteName };
+    }
 
-    setTimeout(nextRound, 1800);
+    // 3. Fallback for e.key (e.g. Russian keyboard layout: с, в, у, а, п, ф, и)
+    const keyLower = e.key.toLowerCase();
+    const ruToNote: Record<string, NoteName> = {
+      c: 'C', d: 'D', e: 'E', f: 'F', g: 'G', a: 'A', b: 'B',
+      'с': 'C', 'в': 'D', 'у': 'E', 'а': 'F', 'п': 'G', 'ф': 'A', 'и': 'B'
+    };
+    if (ruToNote[keyLower]) {
+      const base = ruToNote[keyLower];
+      const isSharp = e.shiftKey && ['C', 'D', 'F', 'G', 'A'].includes(base);
+      return { note: (isSharp ? `${base}#` : base) as NoteName };
+    }
+
+    // 4. Musical typing (home row piano: ASDFGHJK / WETYU)
+    const musicalTyping: Record<string, { note: NoteName; keyId: string }> = {
+      KeyW: { note: 'C#', keyId: 'C#4' },
+      KeyS: { note: 'D', keyId: 'D4' },
+      KeyT: { note: 'F#', keyId: 'F#4' },
+      KeyY: { note: 'G#', keyId: 'G#4' },
+      KeyH: { note: 'A', keyId: 'A4' },
+      KeyU: { note: 'A#', keyId: 'A#4' },
+      KeyJ: { note: 'B', keyId: 'B4' },
+      KeyK: { note: 'C', keyId: 'C5' }
+    };
+    if (musicalTyping[e.code]) {
+      return { note: musicalTyping[e.code].note, specificKeyId: musicalTyping[e.code].keyId };
+    }
+
+    return null;
   }
 
   // Keyboard hotkeys
@@ -367,25 +570,46 @@
       return;
     }
 
+    // Space or Enter to skip delay when completed
+    if (e.code === 'Space' || e.key === ' ') {
+      if (isCompleted) {
+        e.preventDefault();
+        clearAutoAdvance();
+        nextRound();
+        return;
+      }
+    }
+
     if (e.key === 'Enter') {
       e.preventDefault();
+      if (isCompleted) {
+        clearAutoAdvance();
+        nextRound();
+        return;
+      }
       handleDontKnow();
       return;
     }
 
-    // C-B or 1-7 answer keys for identify
-    if (activePage === 'practice' && currentCard?.skill === 'identify') {
-      const digitMap: Record<string, NoteName> = {
-        Digit1: 'C', Digit2: 'D', Digit3: 'E', Digit4: 'F', Digit5: 'G', Digit6: 'A', Digit7: 'B'
-      };
-      const letterMap: Record<string, NoteName> = {
-        KeyC: 'C', KeyD: 'D', KeyE: 'E', KeyF: 'F', KeyG: 'G', KeyA: 'A', KeyB: 'B'
-      };
+    // Practice mode answering via PC Keyboard
+    if (activePage === 'practice' && currentCard && !isLocked && !isCompleted) {
+      const resolved = resolveNoteFromKeyboard(e);
+      if (!resolved) return;
 
-      const note = digitMap[e.code] || letterMap[e.code];
-      if (note) {
-        e.preventDefault();
-        handleAnswerSubmit(note);
+      e.preventDefault();
+
+      if (currentCard.skill === 'notationToKey' || currentCard.skill === 'soundToKey') {
+        const octave = targetKeyId ? targetKeyId.slice(-1) : '4';
+        const keyId = resolved.specificKeyId || `${resolved.note}${octave}`;
+        AudioEngine.getInstance().playPianoByKeyId(keyId, 96);
+        handleAnswerSubmit(resolved.note, keyId);
+      } else if (currentCard.skill === 'find') {
+        const keyId = resolved.specificKeyId || `${resolved.note}4`;
+        AudioEngine.getInstance().playPianoByKeyId(keyId, 96);
+        handleAnswerSubmit(resolved.note, keyId);
+      } else {
+        // identify, patternIdentify
+        handleAnswerSubmit(resolved.note);
       }
     }
   }
@@ -446,7 +670,7 @@
       onPageChange={(p: string) => { activePage = p; }}
       onToggleSettings={() => { isSettingsOpen = !isSettingsOpen; }}
       onToggleContext={() => { isContextOpen = !isContextOpen; }}
-      onNextQuestion={() => nextRound()}
+      onNextQuestion={() => { clearAutoAdvance(); nextRound(); }}
     />
   </header>
 
@@ -474,18 +698,22 @@
           <TaskStage
             eyebrow="{currentKind === 'scheduled' ? 'Плановое повторение' : currentKind === 'new' ? 'Новая карточка' : 'Свободная практика'} · {currentCard.skill}"
             promptText={promptHtml}
-            instructionText={currentCard.skill === 'identify' ? 'Назовите клавишу, подсвеченную голубым' : 'Нажмите нужную клавишу на клавиатуре или сыграйте по MIDI'}
+            instructionText={currentCard.skill === 'identify' ? 'Назовите клавишу, подсвеченную голубым' : 'Нажмите клавишу на клавиатуре (буквы C–B, цифры 1–7) или сыграйте по MIDI'}
             reactionTime="{((reactionElapsedMs || 0) / 1000).toFixed(1)} с"
             {reactionStatus}
             {reactionClass}
             {feedbackText}
             {feedbackClass}
+            {isCompleted}
+            {autoAdvanceCountdown}
+            autoAdvanceTotal={settings.autoAdvanceDelaySeconds ?? 3.0}
             showSoundRepeat={currentCard.skill === 'soundToKey'}
             showAnswerButtons={currentCard.skill === 'identify'}
             answerNotes={NATURAL_NOTES}
             onAnswerClick={(n) => handleAnswerSubmit(n)}
             onDontKnow={handleDontKnow}
             onReplaySound={playSoundPrompt}
+            onNextQuestion={() => { clearAutoAdvance(); nextRound(); }}
           />
         {/if}
 

@@ -16,9 +16,13 @@
     dontKnowDisabled = false,
     showAnswerButtons = false,
     answerNotes = [] as NoteName[],
+    isCompleted = false,
+    autoAdvanceCountdown = null as number | null,
+    autoAdvanceTotal = 3.0,
     onAnswerClick,
     onDontKnow,
-    onReplaySound
+    onReplaySound,
+    onNextQuestion
   } = $props();
 </script>
 
@@ -54,7 +58,27 @@
             </button>
           {/if}
 
-          {#if showDontKnow}
+          {#if isCompleted}
+            <div class="auto-advance-wrap" style="width:100%; display:flex; flex-direction:column; gap:6px; margin-top:6px;">
+              {#if autoAdvanceCountdown != null && autoAdvanceCountdown > 0}
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--muted);">
+                  <span>Следующее задание через <b>{autoAdvanceCountdown.toFixed(1)} с</b>…</span>
+                  <span style="opacity:0.8; font-size:11px;">Пробел для пропуска</span>
+                </div>
+                <div style="width:100%; height:4px; background:rgba(255,255,255,0.12); border-radius:999px; overflow:hidden;">
+                  <div style="height:100%; background:var(--accent); width:{(autoAdvanceCountdown / (autoAdvanceTotal || 3)) * 100}%; transition:width 0.1s linear;"></div>
+                </div>
+              {/if}
+              <button
+                type="button"
+                class="btn primary"
+                style="margin-top:4px; width:100%; font-size:14px;"
+                onclick={() => onNextQuestion?.()}
+              >
+                Следующее задание → <small style="opacity:0.8; font-weight:normal;">(Пробел или Enter)</small>
+              </button>
+            </div>
+          {:else if showDontKnow}
             <button
               type="button"
               class="btn warn"

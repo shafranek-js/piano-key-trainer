@@ -97,4 +97,5 @@ export interface UserSettings {
   repertoireDynamicsTarget: 'off' | 'p' | 'mf' | 'f';
   repertoireArticulationTarget: 'off' | 'legato' | 'detached';
   twoHandTempoMode: 'wait' | 'slow';
+  autoAdvanceDelaySeconds: number;
 }

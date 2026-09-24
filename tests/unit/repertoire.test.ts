@@ -7,6 +7,11 @@ import {
   getSongDurationMs,
   type SongDef
 } from '../../src/core/repertoire/repertoireData';
+import {
+  songToMusicXml,
+  singleNoteToMusicXml,
+  twoHandToMusicXml
+} from '../../src/core/repertoire/musicXmlGenerator';
 
 describe('Repertoire Data & Measure Logic', () => {
   it('contains valid piano note names and matching beat counts for all songs', () => {
@@ -23,22 +28,15 @@ describe('Repertoire Data & Measure Logic', () => {
 
   it('correctly calculates measure count and note indices', () => {
     const ode = REPERTOIRE.find(s => s.id === 'ode-joy')!;
-    // 15 notes, 4 beats per measure => ceil(15 / 4) = 4 measures
     expect(getSongMeasureCount(ode)).toBe(4);
-
-    // Note 0 (first note) is in measure 1
     expect(getMeasureForNoteIndex(ode, 0)).toBe(1);
-    // Note 3 (4th note) is in measure 1
     expect(getMeasureForNoteIndex(ode, 3)).toBe(1);
-    // Note 4 (5th note) is in measure 2
     expect(getMeasureForNoteIndex(ode, 4)).toBe(2);
-    // Note 14 (last note) is in measure 4
     expect(getMeasureForNoteIndex(ode, 14)).toBe(4);
   });
 
   it('provides exact note slices for each measure in getMeasureNoteRange', () => {
     const bach = REPERTOIRE.find(s => s.id === 'bach-minuet-g')!;
-    // 3 beats per measure (3/4 time signature)
     expect(bach.measureBeats).toBe(3);
     const m1 = getMeasureNoteRange(bach, 1);
     expect(m1.start).toBe(0);
@@ -53,13 +51,12 @@ describe('Repertoire Data & Measure Logic', () => {
 
   it('safely clamps out-of-bound measure numbers', () => {
     const furElise = REPERTOIRE.find(s => s.id === 'beethoven-fur-elise')!;
-    const total = getSongMeasureCount(furElise);
 
     const under = getMeasureNoteRange(furElise, 0);
-    expect(under.start).toBe(0); // clamps to measure 1
+    expect(under.start).toBe(0);
 
     const over = getMeasureNoteRange(furElise, 999);
-    expect(over.end).toBe(furElise.notes.length); // clamps to last measure
+    expect(over.end).toBe(furElise.notes.length);
   });
 
   it('supports 3/4 and 4/4 pieces correctly', () => {
@@ -74,13 +71,34 @@ describe('Repertoire Data & Measure Logic', () => {
 
   it('calculates total song duration in ms for demo playback', () => {
     const ode = REPERTOIRE.find(s => s.id === 'ode-joy')!;
-    // 14 beats of 1, and 1 beat of 2 = 16 total beats
-    // at 60 bpm, 16 beats = 16 * 1000 = 16000 ms
     const dur60 = getSongDurationMs(ode, 60);
     expect(dur60).toBe(16000);
 
-    // at 120 bpm, 16 beats = 8000 ms
     const dur120 = getSongDurationMs(ode, 120);
     expect(dur120).toBe(8000);
+  });
+
+  it('generates valid MusicXML 4.0 with beams, dots, and durations for OSMD', () => {
+    for (const song of REPERTOIRE) {
+      const xml = songToMusicXml(song);
+      expect(xml).toContain('<score-partwise version="4.0">');
+      expect(xml).toContain(`<work-title>${song.title}</work-title>`);
+    }
+
+    const elise = REPERTOIRE.find(s => s.id === 'beethoven-fur-elise')!;
+    const eliseXml = songToMusicXml(elise);
+    expect(eliseXml).toContain('<type>eighth</type>');
+    expect(eliseXml).toContain('<beam number="1">begin</beam>');
+    expect(eliseXml).toContain('<accidental>sharp</accidental>');
+    expect(eliseXml).toContain('<dot/>');
+
+    const singleGrand = singleNoteToMusicXml('C3', 'grand');
+    expect(singleGrand).toContain('<staves>2</staves>');
+    expect(singleGrand).toContain('<sign>F</sign>');
+
+    const twoHandXml = twoHandToMusicXml('C3', 'E4');
+    expect(twoHandXml).toContain('<staves>2</staves>');
+    expect(twoHandXml).toContain('<staff>1</staff>');
+    expect(twoHandXml).toContain('<staff>2</staff>');
   });
 });

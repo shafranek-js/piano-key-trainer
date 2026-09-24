@@ -27,6 +27,7 @@ export default defineConfig({
         ]
       },
       workbox: {
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/tonejs\.github\.io\/audio\/salamander\/.*\.mp3$/,
@@ -46,6 +47,22 @@ export default defineConfig({
       }
     })
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (
+            id.includes('/node_modules/opensheetmusicdisplay/') ||
+            id.includes('\\node_modules\\opensheetmusicdisplay\\') ||
+            id.includes('/node_modules/vexflow/') ||
+            id.includes('\\node_modules\\vexflow\\')
+          ) {
+            return 'osmd';
+          }
+        }
+      }
+    }
+  },
   resolve: {
     alias: {
       '@core': path.resolve(__dirname, './src/core'),

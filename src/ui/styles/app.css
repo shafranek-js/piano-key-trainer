@@ -1755,3 +1755,101 @@ body::before{opacity:.9}
 .key.twohand-right-target{box-shadow:inset 0 0 0 4px #38bdf8,0 5px 10px rgba(2,8,23,.12)!important}
 .black-key.twohand-left-target{box-shadow:inset 0 0 0 3px #a78bfa,0 6px 12px rgba(0,0,0,.32)!important}
 .black-key.twohand-right-target{box-shadow:inset 0 0 0 3px #38bdf8,0 6px 12px rgba(0,0,0,.32)!important}
+
+/* ===== OpenSheetMusicDisplay (OSMD) Dark Theme & Layout ===== */
+.osmd-repertoire-shell {
+  width: 100%;
+  max-width: 980px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(8, 15, 30, 0.72);
+  padding: 8px 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.osmd-repertoire-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+.osmd-meta-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #cbd5e1;
+  background: rgba(30, 41, 59, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.osmd-meta-pill.loop {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.osmd-sheet-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  min-height: 122px;
+  display: flex;
+  align-items: center;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(71 85 105) rgb(15 23 42 / 0.45);
+}
+
+.osmd-canvas {
+  min-width: max-content;
+  min-height: 116px;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.osmd-card-single {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 280px;
+  min-height: 130px;
+  padding: 6px 16px;
+  overflow: hidden;
+}
+
+.osmd-single-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 240px;
+  min-height: 118px;
+}
+
+.osmd-dark {
+  filter: invert(90%) hue-rotate(180deg) brightness(1.2);
+}
+
+.osmd-dark [id^="cursorImg-"] {
+  filter: invert(100%) hue-rotate(180deg);
+}
+
+.osmd-dark svg path[fill="none"]:not(.vf-note *):not(.vf-stavenote *):not(.vf-stem *):not(.vf-notehead *):not(.vf-flag *) {
+  stroke: #9ca3af !important;
+  stroke-width: 1px !important;
+}
+
+.osmd-dark .vf-stavenote.osmd-vf-done path {
+  fill: #047857 !important;
+  stroke: #047857 !important;
+  opacity: 0.85;
+}
+
+.osmd-dark .vf-stavenote.osmd-vf-current path {
+  fill: #0369a1 !important;
+  stroke: #0369a1 !important;
+}

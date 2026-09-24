@@ -7,6 +7,7 @@
     getSongMeasureCount,
     type SongDef
   } from '../../core/repertoire/repertoireData';
+  import { parseMusicXmlToSongDef } from '../../core/repertoire/musicXmlGenerator';
   import type { UserSettings } from '../../core/fsrs/types';
 
   let {
@@ -15,32 +16,61 @@
     onStartSong
   } = $props();
 
-  let selectedCategory = $state<'all' | 'warmup' | 'study' | 'classical'>('all');
+  let selectedCategory = $state<'all' | 'classical' | 'melody' | 'study' | 'warmup'>('all');
+  let repertoireVersion = $state(0);
+  let importStatusText = $state('');
+  let fileInputEl = $state<HTMLInputElement | null>(null);
+
+  const allSongs = $derived.by(() => {
+    void repertoireVersion;
+    return [...REPERTOIRE];
+  });
 
   const filteredRepertoire = $derived(
     selectedCategory === 'all'
-      ? REPERTOIRE
-      : REPERTOIRE.filter(s => (s.category || 'classical') === selectedCategory)
+      ? allSongs
+      : allSongs.filter(s => (s.category || 'classical') === selectedCategory)
   );
 
   const categoryCounts = $derived({
-    all: REPERTOIRE.length,
-    warmup: REPERTOIRE.filter(s => s.category === 'warmup').length,
-    study: REPERTOIRE.filter(s => s.category === 'study').length,
-    classical: REPERTOIRE.filter(s => (s.category || 'classical') === 'classical').length
+    all: allSongs.length,
+    classical: allSongs.filter(s => (s.category || 'classical') === 'classical').length,
+    melody: allSongs.filter(s => s.category === 'melody').length,
+    study: allSongs.filter(s => s.category === 'study').length,
+    warmup: allSongs.filter(s => s.category === 'warmup').length
   });
+
+  async function handleImportMusicXml(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    try {
+      const xmlText = await file.text();
+      const importedSong = parseMusicXmlToSongDef(xmlText, file.name);
+      REPERTOIRE.unshift(importedSong);
+      repertoireVersion++;
+      selectedCategory = 'all';
+      importStatusText = `✓ Импортировано: «${importedSong.title}» (${importedSong.notes.length} нот)`;
+    } catch (err) {
+      console.error('MusicXML import error:', err);
+      importStatusText = 'Ошибка чтения файла MusicXML';
+    } finally {
+      input.value = '';
+    }
+  }
 </script>
 
 <div class="page-heading">
   <div>
     <h2>Мелодии и Шедевры</h2>
-    <p>Играйте по названиям клавиш или непосредственно по нотному стану. Доступна отработка отдельных тактов по кругу (Measure Looping).</p>
+    <p>Партитуры гравируются движком <strong>OpenSheetMusicDisplay (OSMD)</strong>. Поддерживается зацикливание тактов (Measure Looping), автопроигрывание (Демо) и импорт собственных <code>.musicxml</code> файлов.</p>
   </div>
 </div>
 
 <div class="repertoire-intro">
   <section class="card">
-    <h2>Музыкальная выразительность и Отработка <span class="pill">v6.2</span></h2>
+    <h2>Музыкальная выразительность и Отработка <span class="pill">OSMD · v6.3</span></h2>
     <div class="help">
       <strong>Pitch</strong>, <strong>timing</strong>, <strong>динамика</strong> и <strong>артикуляция</strong> оцениваются раздельно.<br>
       🔁 <strong>Зацикливание тактов (Measure Looping):</strong> во время игры вы можете включить повтор любого такта с помощью панели управления вверху, чтобы отточить сложный фрагмент перед исполнением всей пьесы.
@@ -77,7 +107,7 @@
             class="rhythm-btn {settings.repertoireDisplayMode === 'staff' ? 'active' : ''}"
             onclick={() => onSettingsChange?.({ repertoireDisplayMode: 'staff' })}
           >
-            Ноты
+            Ноты (OSMD)
           </button>
         </div>
       </div>
@@ -123,10 +153,30 @@
   </section>
 
   <section class="card">
-    <h2>Ввод и Классика</h2>
+    <h2>Библиотека MelodicaTrainer & Импорт MusicXML</h2>
     <div class="help">
-      В репертуар добавлены классические шедевры: <strong>К Элизе</strong> (Бетховен), <strong>Менуэт G-dur</strong> (Бах), <strong>Арабеска</strong> (Бургмюллер), <strong>Маленькая ночная серенада</strong> (Моцарт).<br><br>
-      В Tempo Mode перед стартом идёт визуальный отсчёт 4–3–2–1. Мышь проверяет pitch/timing, а для динамики и артикуляции подключите MIDI-клавиатуру.
+      Коллекция пополнена лучшими произведениями из <strong>MuseTrainer</strong>, <strong>PDMX (CC0)</strong> и <strong>OpenScore Lieder</strong>: <em>Gymnopédie No. 1</em> (Сати), <em>Canon in D</em> (Пахельбель), <em>Лебединое озеро</em> (Чайковский), <em>Утро</em> (Григ), <em>Весна</em> (Вивальди), <em>Largo</em> (Дворжак), <em>Коробейники</em>, <em>Щедрик</em>, <em>Greensleeves</em>, <em>Sakura</em> и <em>The Entertainer</em>.<br><br>
+      Вы также можете загрузить любой собственный файл <code>.musicxml</code> или <code>.xml</code>:
+    </div>
+    <div style="margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <input
+        bind:this={fileInputEl}
+        type="file"
+        accept=".musicxml,.xml"
+        style="display:none;"
+        onchange={handleImportMusicXml}
+      />
+      <button
+        type="button"
+        class="btn primary"
+        style="font-size:13px; padding:7px 14px;"
+        onclick={() => fileInputEl?.click()}
+      >
+        📂 Загрузить MusicXML (.musicxml / .xml)
+      </button>
+      {#if importStatusText}
+        <span style="font-size:12px; color:#6ee7a5; font-weight:600;">{importStatusText}</span>
+      {/if}
     </div>
   </section>
 </div>
@@ -147,6 +197,14 @@
     onclick={() => { selectedCategory = 'classical'; }}
   >
     Классика ({categoryCounts.classical})
+  </button>
+  <button
+    type="button"
+    class="btn {selectedCategory === 'melody' ? 'primary' : ''}"
+    style="font-size:13px; padding:6px 14px;"
+    onclick={() => { selectedCategory = 'melody'; }}
+  >
+    Мелодии и Фолк ({categoryCounts.melody})
   </button>
   <button
     type="button"

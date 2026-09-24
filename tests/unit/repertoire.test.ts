@@ -10,7 +10,9 @@ import {
 import {
   songToMusicXml,
   singleNoteToMusicXml,
-  twoHandToMusicXml
+  twoHandToMusicXml,
+  parseMusicXmlToSongDef,
+  pitchToKeyboardNoteId
 } from '../../src/core/repertoire/musicXmlGenerator';
 
 describe('Repertoire Data & Measure Logic', () => {
@@ -100,5 +102,24 @@ describe('Repertoire Data & Measure Logic', () => {
     expect(twoHandXml).toContain('<staves>2</staves>');
     expect(twoHandXml).toContain('<staff>1</staff>');
     expect(twoHandXml).toContain('<staff>2</staff>');
+  });
+
+  it('includes curated MelodicaTrainer pieces and parses imported MusicXML into SongDef', () => {
+    expect(REPERTOIRE.length).toBeGreaterThanOrEqual(25);
+    expect(REPERTOIRE.some(s => s.id === 'satie-gymnopedie-1')).toBe(true);
+    expect(REPERTOIRE.some(s => s.id === 'korobeiniki-tetris')).toBe(true);
+    expect(REPERTOIRE.some(s => s.id === 'leontovych-shchedryk')).toBe(true);
+
+    const gymnopedie = REPERTOIRE.find(s => s.id === 'satie-gymnopedie-1')!;
+    const xml = songToMusicXml(gymnopedie);
+    const parsed = parseMusicXmlToSongDef(xml);
+    expect(parsed.title).toBe(gymnopedie.title);
+    expect(parsed.notes).toEqual(gymnopedie.notes);
+    expect(parsed.beats).toEqual(gymnopedie.beats);
+    expect(parsed.timeSignature).toEqual([3, 4]);
+
+    // Enharmonic flat-to-sharp conversion for keyboard compatibility (Bb4 -> A#4, Eb4 -> D#4)
+    expect(pitchToKeyboardNoteId('B', -1, 4)).toBe('A#4');
+    expect(pitchToKeyboardNoteId('E', -1, 4)).toBe('D#4');
   });
 });

@@ -323,3 +323,123 @@ export function twoHandToMusicXml(leftKeyId: string | null, rightKeyId: string |
   </part>
 </score-partwise>`;
 }
+
+const SEMITONE_BY_STEP: Record<string, number> = {
+  C: 0,
+  D: 2,
+  E: 4,
+  F: 5,
+  G: 7,
+  A: 9,
+  B: 11
+};
+
+const SHARP_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+export function pitchToKeyboardNoteId(step: string, alter: number, octave: number): string {
+  const base = SEMITONE_BY_STEP[step.toUpperCase()] ?? 0;
+  let midi = (octave + 1) * 12 + base + alter;
+  while (midi < 36) midi += 12; // C2 = 36
+  while (midi > 84) midi -= 12; // C6 = 84
+  const noteName = SHARP_NAMES[((midi % 12) + 12) % 12];
+  const oct = Math.floor(midi / 12) - 1;
+  return `${noteName}${oct}`;
+}
+
+/**
+ * Parses a MusicXML (.musicxml / .xml) string into a playable SongDef
+ * (following MelodicaTrainer's first-part, first-staff melody extraction pattern).
+ */
+export function parseMusicXmlToSongDef(xmlText: string, fallbackTitle = 'Импортированная пьеса'): SongDef {
+  const workTitleMatch = /<work-title>([\s\S]*?)<\/work-title>/i.exec(xmlText);
+  const movementTitleMatch = /<movement-title>([\s\S]*?)<\/movement-title>/i.exec(xmlText);
+  const composerMatch = /<creator[^>]*type=["']composer["'][^>]*>([\s\S]*?)<\/creator>/i.exec(xmlText);
+
+  const cleanFallback = fallbackTitle.replace(/\.(musicxml|xml|mxl)$/i, '').trim();
+  const title = (workTitleMatch?.[1] || movementTitleMatch?.[1] || cleanFallback).trim();
+  const composer = (composerMatch?.[1] || 'MusicXML Импорт').trim();
+
+  // Extract first <part>...</part>
+  const partMatch = /<part\b[^>]*>([\s\S]*?)<\/part>/i.exec(xmlText);
+  const partContent = partMatch ? partMatch[1] : xmlText;
+
+  let divisions = 4;
+  let timeTop = 4;
+  let timeBottom = 4;
+
+  const divMatch = /<divisions>\s*(\d+)\s*<\/divisions>/i.exec(partContent);
+  if (divMatch) divisions = Math.max(1, Number(divMatch[1]));
+
+  const beatsMatch = /<time\b[^>]*>[\s\S]*?<beats>\s*(\d+)\s*<\/beats>[\s\S]*?<beat-type>\s*(\d+)\s*<\/beat-type>[\s\S]*?<\/time>/i.exec(
+    partContent
+  );
+  if (beatsMatch) {
+    timeTop = Math.max(1, Number(beatsMatch[1]));
+    timeBottom = Math.max(1, Number(beatsMatch[2]));
+  }
+
+  const notes: string[] = [];
+  const beats: number[] = [];
+
+  const noteRegex = /<note\b[^>]*>([\s\S]*?)<\/note>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = noteRegex.exec(partContent)) !== null) {
+    const noteBody = m[1];
+    // Skip rests, chord secondary notes, grace notes, and tie-stop continuations
+    if (/<rest\b/i.test(noteBody)) continue;
+    if (/<chord\b/i.test(noteBody)) continue;
+    if (/<grace\b/i.test(noteBody)) continue;
+    if (/<tie\b[^>]*type=["']stop["']/i.test(noteBody) && !/<tie\b[^>]*type=["']start["']/i.test(noteBody)) {
+      continue;
+    }
+
+    const staffMatch = /<staff>\s*(\d+)\s*<\/staff>/i.exec(noteBody);
+    if (staffMatch && Number(staffMatch[1]) !== 1) continue;
+
+    const voiceMatch = /<voice>\s*(\d+)\s*<\/voice>/i.exec(noteBody);
+    if (voiceMatch && Number(voiceMatch[1]) !== 1) continue;
+
+    const stepMatch = /<step>\s*([A-G])\s*<\/step>/i.exec(noteBody);
+    const octMatch = /<octave>\s*(\d+)\s*<\/octave>/i.exec(noteBody);
+    if (!stepMatch || !octMatch) continue;
+
+    const alterMatch = /<alter>\s*(-?\d+)\s*<\/alter>/i.exec(noteBody);
+    const alter = alterMatch ? Number(alterMatch[1]) : 0;
+
+    const durMatch = /<duration>\s*(\d+)\s*<\/duration>/i.exec(noteBody);
+    const rawDivs = durMatch ? Number(durMatch[1]) : divisions;
+    const rawBeats = Math.max(0.25, Math.min(4, rawDivs / divisions));
+    // Snap to standard grid (0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4)
+    const standardGrid = [0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4];
+    const snappedBeat = standardGrid.reduce((prev, curr) =>
+      Math.abs(curr - rawBeats) < Math.abs(prev - rawBeats) ? curr : prev
+    );
+
+    notes.push(pitchToKeyboardNoteId(stepMatch[1], alter, Number(octMatch[1])));
+    beats.push(snappedBeat);
+
+    if (notes.length >= 64) break; // Keep imported excerpt concise and responsive
+  }
+
+  if (notes.length === 0) {
+    notes.push('C4', 'D4', 'E4', 'F4', 'G4');
+    beats.push(1, 1, 1, 1, 2);
+  }
+
+  const measureBeats = timeBottom === 8 ? Math.max(2, Math.round(timeTop / 2)) : timeTop;
+
+  return {
+    id: `custom-${Date.now()}`,
+    title,
+    source: composer,
+    level: 'MusicXML Импорт',
+    category: 'classical',
+    description: `Импортированная партитура MusicXML (${notes.length} нот, размер ${timeTop}/${timeBottom}).`,
+    notes,
+    beats,
+    measureBeats,
+    timeSignature: [timeTop, timeBottom],
+    phraseBars: 2
+  };
+}
+

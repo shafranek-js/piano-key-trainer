@@ -89,6 +89,20 @@
       </div>
 
       <div class="field">
+        <label for="newPitchClassesSelect">Новые ноты за сессию</label>
+        <select 
+          id="newPitchClassesSelect" 
+          value={String(settings.newPitchClassesPerSession ?? 2)}
+          onchange={(e) => onSettingsChange?.({ newPitchClassesPerSession: Number((e.target as HTMLSelectElement).value) })}
+        >
+          <option value="2">2 ноты · размеренно</option>
+          <option value="3">3 ноты · оптимально</option>
+          <option value="4">4 ноты · интенсивно</option>
+          <option value="12">Все сразу · без лимита</option>
+        </select>
+      </div>
+
+      <div class="field">
         <label for="delaySelect">Пауза после ответа</label>
         <select 
           id="delaySelect" 

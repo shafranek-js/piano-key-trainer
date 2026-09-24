@@ -67,7 +67,16 @@ export function chooseNew(
     )[0];
   }
 
-  if (sessionIntroducedNotes.size >= maxNewPitchClasses) return null;
+  // 2. If the user already finished all unseen cards for currently introduced notes,
+  // check if they should unlock the next note in LEARN_ORDER:
+  const allCurrentNotesReviewed = sessionIntroducedNotes.size > 0 &&
+    Array.from(sessionIntroducedNotes).every(note =>
+      cards.some(c => c.note === note && (c.reps > 0 || (c.stats && c.stats.trials > 0)))
+    );
+
+  if (sessionIntroducedNotes.size >= maxNewPitchClasses && !allCurrentNotesReviewed) {
+    return null;
+  }
 
   const nextNote = unseen[0].note;
   const candidates = unseen
@@ -92,15 +101,21 @@ export function choosePractice(
   recentCards: readonly Card[]
 ): Card | null {
   if (!cards.length) return null;
-  const scored = cards
+  // Free practice must only pull from cards that have already been introduced or practiced!
+  const learned = cards.filter(c => c.reps > 0 || (c.stats && c.stats.trials > 0));
+  const pool = learned.length > 0 ? learned : cards.filter(c => c.reps > 0);
+  if (!pool.length) {
+    return cards.slice().sort(rankNew)[0] ?? null;
+  }
+  const scored = pool
     .map(c => {
-      const r = c.reps > 0 ? (retrievability(c, now) ?? 1) : 0.98;
+      const r = retrievability(c, now) ?? 0.85;
       const trials = c.stats.trials || 0;
       const acc = trials ? c.stats.firstCorrect / trials : 0.75;
       return { card: c, score: r * 0.6 + acc * 0.25 + diversityPenalty(c, recentCards) };
     })
     .sort((a, b) => a.score - b.score);
-  return scored[0]?.card ?? cards[Math.floor(Math.random() * cards.length)];
+  return scored[0]?.card ?? pool[Math.floor(Math.random() * pool.length)];
 }
 
 export function shuffleCopy<T>(arr: readonly T[]): T[] {

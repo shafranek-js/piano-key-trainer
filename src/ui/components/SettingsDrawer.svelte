@@ -35,7 +35,7 @@
         <label for="modeSelect">Режим</label>
         <select 
           id="modeSelect" 
-          value={settings.sessionPreset === 'cold' ? 'smart' : 'smart'} 
+          value={settings.mode || 'smart'} 
           onchange={(e) => onSettingsChange?.({ mode: (e.target as HTMLSelectElement).value })}
         >
           <option value="smart">Умная тренировка · FSRS</option>
@@ -53,7 +53,8 @@
         <label for="levelSelect">Материал</label>
         <select 
           id="levelSelect" 
-          onchange={(e) => onSettingsChange?.({ level: (e.target as HTMLSelectElement).value })}
+          value={settings.level || 'white'}
+          onchange={(e) => onSettingsChange?.({ level: (e.target as HTMLSelectElement).value as 'white' | 'all' })}
         >
           <option value="white">Белые клавиши · C D E F G A B</option>
           <option value="all">Все клавиши · + ♯ / ♭</option>
@@ -64,8 +65,8 @@
         <label for="retentionSelect">Цель памяти</label>
         <select 
           id="retentionSelect" 
-          value={String(settings.desiredRetention || 0.9)}
-          onchange={(e) => onSettingsChange?.({ desiredRetention: Number((e.target as HTMLSelectElement).value) })}
+          value={Number(settings.desiredRetention || 0.9).toFixed(2)}
+          onchange={(e) => onSettingsChange?.({ desiredRetention: parseFloat((e.target as HTMLSelectElement).value) })}
         >
           <option value="0.87">Экономно · 87%</option>
           <option value="0.90">Баланс · 90%</option>
@@ -78,7 +79,7 @@
         <select 
           id="presetSelect" 
           value={settings.sessionPreset || 'normal'}
-          onchange={(e) => onSettingsChange?.({ sessionPreset: (e.target as HTMLSelectElement).value })}
+          onchange={(e) => onSettingsChange?.({ sessionPreset: (e.target as HTMLSelectElement).value as any })}
         >
           <option value="quick">Быстрая · 3 мин</option>
           <option value="normal">Обычная · 8 мин</option>

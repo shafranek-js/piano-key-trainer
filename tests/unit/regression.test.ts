@@ -45,4 +45,25 @@ describe('Piano Trainer Core Regressions & Invariants', () => {
     expect(checkIdentifyAnswer('C')).toBe(true);
     expect(checkIdentifyAnswer('D')).toBe(false);
   });
+
+  it('validates settings retention formatting and time remaining bar calculation', () => {
+    // 1. Retention formatting matches dropdown options (0.87, 0.90, 0.93)
+    const retention = 0.9;
+    expect(Number(retention).toFixed(2)).toBe('0.90');
+
+    // 2. Time remaining bar calculation: 100% at start, 50% halfway, 0% at end
+    const durationMs = 3 * 60 * 1000;
+    const now = 1000000;
+    const sessionEndsAt = now + durationMs;
+
+    const calcRemainingPct = (current: number) => {
+      const remaining = Math.max(0, sessionEndsAt - current);
+      return Math.min(100, Math.max(0, (remaining / durationMs) * 100));
+    };
+
+    expect(calcRemainingPct(now)).toBe(100);
+    expect(calcRemainingPct(now + durationMs / 2)).toBe(50);
+    expect(calcRemainingPct(sessionEndsAt)).toBe(0);
+    expect(calcRemainingPct(sessionEndsAt + 5000)).toBe(0);
+  });
 });

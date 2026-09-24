@@ -77,7 +77,38 @@
   // App Navigation & Settings
   let activePage = $state('practice');
   let practiceActivity = $state<'standard' | 'lesson' | 'repertoire' | 'twohand' | 'earIntervals' | 'earTriads'>('standard');
-  let settings = $state<UserSettings>({ ...DEFAULT_SETTINGS });
+
+  const SETTINGS_STORAGE_KEY = 'piano-trainer-settings';
+
+  function getInitialSettings(): UserSettings {
+    try {
+      const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          return { ...DEFAULT_SETTINGS, ...parsed };
+        }
+      }
+    } catch (_) {}
+    return { ...DEFAULT_SETTINGS };
+  }
+
+  const initialSettings = getInitialSettings();
+  let settings = $state<UserSettings>(initialSettings);
+
+  function persistSettings(patch: Partial<UserSettings>) {
+    settings = { ...settings, ...patch };
+    const snapshot = $state.snapshot(settings);
+    try {
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(snapshot));
+    } catch (e) {
+      console.warn('Failed to save settings to localStorage', e);
+    }
+    db.settings.put({ key: 'userSettings', value: snapshot }).catch((err) => {
+      console.warn('Failed to save settings to IndexedDB', err);
+    });
+  }
+
   let cards = $state<Card[]>([]);
   let reviewLogs = $state<ReviewLogEvent[]>([]);
   let coldTests = $state<ColdTestRecord[]>([]);
@@ -96,9 +127,10 @@
 
   // Session State
   type SessionPreset = 'quick' | 'normal' | 'due' | 'cold';
-  let sessionPreset = $state<SessionPreset>('normal');
+  let sessionPreset = $state<SessionPreset>(initialSettings.sessionPreset || 'normal');
+  let currentNow = $state(Date.now());
   let sessionStartedAt = $state(Date.now());
-  let sessionEndsAt = $state<number | null>(Date.now() + 8 * 60 * 1000);
+  let sessionEndsAt = $state<number | null>(Date.now() + ((initialSettings.sessionPreset === 'quick') ? 3 : 8) * 60 * 1000);
   let isSessionEnded = $state(false);
   let sessionTrials = $state(0);
   let sessionScore = $state(0);
@@ -238,9 +270,8 @@
     if (sessionPreset === 'due') {
       return `Все повторы · due ${dueCount}`;
     }
-    const cfgMs = sessionPreset === 'quick' ? 3 * 60 * 1000 : 8 * 60 * 1000;
     if (sessionEndsAt) {
-      const remaining = Math.max(0, sessionEndsAt - Date.now());
+      const remaining = Math.max(0, sessionEndsAt - currentNow);
       if (remaining <= 0) return `${sessionPreset === 'quick' ? 'Быстрая' : 'Обычная'} · время вышло`;
       return `${sessionPreset === 'quick' ? 'Быстрая' : 'Обычная'} · ${formatClock(remaining)} осталось`;
     }
@@ -258,14 +289,14 @@
       return Math.round((Math.min(coldIndex, 20) / 20) * 100);
     }
     if (sessionPreset === 'due') {
-      return dueCount === 0 ? 100 : 35;
+      return dueCount === 0 ? 100 : Math.min(100, Math.round((sessionScore / Math.max(1, dueCount + sessionScore)) * 100));
     }
     if (sessionEndsAt) {
       const durationMs = (sessionPreset === 'quick' ? 3 : 8) * 60 * 1000;
-      const elapsed = Date.now() - sessionStartedAt;
-      return Math.min(100, Math.round((elapsed / durationMs) * 100));
+      const remaining = Math.max(0, sessionEndsAt - currentNow);
+      return Math.min(100, Math.max(0, (remaining / durationMs) * 100));
     }
-    return 0;
+    return 100;
   });
 
   // Session Summary Data
@@ -341,10 +372,17 @@
   async function loadData() {
     await checkAndMigrateLocalStorage();
 
-    const storedSettings = await db.settings.get('userSettings');
-    if (storedSettings?.value) {
-      settings = { ...DEFAULT_SETTINGS, ...(storedSettings.value as Partial<UserSettings>) };
-      if (settings.sessionPreset) sessionPreset = settings.sessionPreset as SessionPreset;
+    try {
+      const storedSettings = await db.settings.get('userSettings');
+      if (storedSettings?.value && typeof storedSettings.value === 'object') {
+        settings = { ...DEFAULT_SETTINGS, ...settings, ...(storedSettings.value as Partial<UserSettings>) };
+        if (settings.sessionPreset) sessionPreset = settings.sessionPreset as SessionPreset;
+        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify($state.snapshot(settings)));
+      } else {
+        db.settings.put({ key: 'userSettings', value: $state.snapshot(settings) }).catch(console.warn);
+      }
+    } catch (err) {
+      console.warn('Error loading settings from IndexedDB', err);
     }
 
     let storedCards = await db.cards.toArray();
@@ -376,10 +414,10 @@
   // Session Management
   function startLearningSession(preset: SessionPreset = 'normal') {
     sessionPreset = preset;
-    settings.sessionPreset = preset;
-    db.settings.put({ key: 'userSettings', value: settings });
+    persistSettings({ sessionPreset: preset });
 
     const now = Date.now();
+    currentNow = now;
     sessionStartedAt = now;
     sessionEndsAt = (preset === 'quick') ? now + 3 * 60 * 1000 : (preset === 'normal') ? now + 8 * 60 * 1000 : null;
     isSessionEnded = false;
@@ -406,11 +444,11 @@
 
     if (sessionClockInterval != null) clearInterval(sessionClockInterval);
     sessionClockInterval = window.setInterval(() => {
-      if (sessionEndsAt && Date.now() >= sessionEndsAt && !isSessionEnded && practiceActivity === 'standard') {
-        // Time expired notification in reactionStatus
+      currentNow = Date.now();
+      if (sessionEndsAt && currentNow >= sessionEndsAt && !isSessionEnded && practiceActivity === 'standard') {
         reactionStatus = 'время вышло · закончите вопрос';
       }
-    }, 1000);
+    }, 250);
   }
 
   function finishLearningSession(reason: 'manual' | 'expired' | 'cold_complete' = 'manual') {
@@ -665,7 +703,13 @@
     }
 
     const now = Date.now();
-    const candidateCards = cards;
+    const levelFiltered = (settings.level === 'all')
+      ? cards
+      : cards.filter(c => NATURAL_NOTES.includes(c.note as any));
+
+    const candidateCards = (settings.mode && settings.mode !== 'smart' && ['find', 'identify', 'pattern', 'notationToKey', 'soundToKey'].includes(settings.mode))
+      ? levelFiltered.filter(c => c.skill === (settings.mode === 'pattern' ? 'patternIdentify' : settings.mode))
+      : levelFiltered;
     let picked: Card | null = null;
     let kind: ReviewKind = 'practice';
 
@@ -1929,8 +1973,7 @@
         <RepertoireView
           {settings}
           onSettingsChange={(patch: Partial<UserSettings>) => {
-            settings = { ...settings, ...patch };
-            db.settings.put({ key: 'userSettings', value: settings });
+            persistSettings(patch);
           }}
           onStartSong={(id: string) => startSong(id)}
         />
@@ -1940,8 +1983,7 @@
         <TwoHandView
           {settings}
           onSettingsChange={(patch: Partial<UserSettings>) => {
-            settings = { ...settings, ...patch };
-            db.settings.put({ key: 'userSettings', value: settings });
+            persistSettings(patch);
           }}
           onStartPattern={(id: string) => startTwoHand(id)}
         />
@@ -2003,16 +2045,20 @@
     midiConnected={midiReady}
     onClose={() => { isSettingsOpen = false; }}
     onSettingsChange={(patch: Partial<UserSettings>) => {
-      settings = { ...settings, ...patch };
-      db.settings.put({ key: 'userSettings', value: settings });
+      persistSettings(patch);
       if (patch.sessionPreset) {
         startLearningSession(patch.sessionPreset as SessionPreset);
         nextRound();
       }
+      if (patch.level) {
+        nextRound();
+      }
       if (patch.mode === 'earIntervals') startEarIntervalTraining();
       else if (patch.mode === 'earTriads') startEarTriadTraining();
-      else if (practiceActivity === 'earIntervals' || practiceActivity === 'earTriads') {
+      else if (patch.mode && (practiceActivity === 'earIntervals' || practiceActivity === 'earTriads')) {
         practiceActivity = 'standard';
+        nextRound();
+      } else if (patch.mode) {
         nextRound();
       }
     }}

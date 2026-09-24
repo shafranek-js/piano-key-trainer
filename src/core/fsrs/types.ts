@@ -98,4 +98,6 @@ export interface UserSettings {
   repertoireArticulationTarget: 'off' | 'legato' | 'detached';
   twoHandTempoMode: 'wait' | 'slow';
   autoAdvanceDelaySeconds: number;
+  level?: 'white' | 'all';
+  mode?: string;
 }

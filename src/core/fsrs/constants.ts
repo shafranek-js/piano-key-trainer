@@ -27,7 +27,9 @@ export const DEFAULT_SETTINGS: UserSettings = {
   repertoireDynamicsTarget: 'off',
   repertoireArticulationTarget: 'off',
   twoHandTempoMode: 'wait',
-  autoAdvanceDelaySeconds: 3.0
+  autoAdvanceDelaySeconds: 3.0,
+  level: 'white',
+  mode: 'smart'
 };
 
 export const LEARN_ORDER: readonly NoteName[] = [

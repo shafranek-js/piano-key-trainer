@@ -41,10 +41,13 @@
   import {
     INTERVALS,
     TRIADS,
+    ECHO_PHRASES,
     playIntervalSequence,
     playTriadSequence,
+    playEchoPhrase,
     type IntervalDef,
-    type TriadDef
+    type TriadDef,
+    type EchoPhraseDef
   } from './core/ear/earTrainingData';
 
   // Storage
@@ -314,6 +317,12 @@
     item: TriadDef;
     type: 'major' | 'minor';
     answered: boolean;
+  } | null>(null);
+  let activeEarEcho = $state<{
+    item: EchoPhraseDef;
+    currentIndex: number;
+    answeredNotes: string[];
+    completed: boolean;
   } | null>(null);
 
   // Derived state
@@ -743,6 +752,10 @@
     }
     if (practiceActivity === 'earTriads') {
       renderEarTriadStep();
+      return;
+    }
+    if (practiceActivity === 'earEcho') {
+      renderEarEchoStep();
       return;
     }
 
@@ -1651,11 +1664,67 @@
     scheduleAutoAdvance();
   }
 
+  function startEarEchoTraining() {
+    practiceActivity = 'earEcho';
+    activePage = 'practice';
+    nextRound();
+  }
+
+  function renderEarEchoStep() {
+    const item = ECHO_PHRASES[Math.floor(Math.random() * ECHO_PHRASES.length)];
+    activeEarEcho = {
+      item,
+      currentIndex: 0,
+      answeredNotes: [],
+      completed: false
+    };
+    isLocked = false;
+    isCompleted = false;
+    feedbackText = '';
+    feedbackClass = '';
+    setTimeout(() => playEchoPhrase(item.notes), 350);
+  }
+
+  function handleEarEchoKeyInput(keyId: string, noteName: NoteName) {
+    if (!activeEarEcho || activeEarEcho.completed || isLocked) return;
+    const expectedKey = activeEarEcho.item.notes[activeEarEcho.currentIndex];
+    
+    if (keyId === expectedKey) {
+      activeEarEcho.answeredNotes = [...activeEarEcho.answeredNotes, keyId];
+      pulseCorrectKeyIds = [keyId];
+      activeEarEcho.currentIndex++;
+      
+      if (activeEarEcho.currentIndex >= activeEarEcho.item.notes.length) {
+        activeEarEcho.completed = true;
+        isCompleted = true;
+        sessionScore++;
+        sessionTrials++;
+        feedbackText = `✓ Великолепно! Вся фраза сыграна верно: ${activeEarEcho.item.title}. ${activeEarEcho.item.description}`;
+        feedbackClass = 'good';
+        scheduleAutoAdvance();
+      } else {
+        feedbackText = `✓ Нота ${activeEarEcho.currentIndex} из ${activeEarEcho.item.notes.length} верна! Сыграйте следующую...`;
+        feedbackClass = 'good';
+      }
+    } else {
+      wrongKeyIds = [keyId];
+      setTimeout(() => {
+        wrongKeyIds = wrongKeyIds.filter(id => id !== keyId);
+      }, 400);
+      feedbackText = `Клавиша ${keyId} не подходит. Попробуйте снова или нажмите «Повторить звук».`;
+      feedbackClass = 'bad';
+    }
+  }
+
   // General Key Input Router
   function handleKeyClick(keyId: string, noteName: NoteName) {
     AudioEngine.getInstance().playPianoByKeyId(keyId, 96);
     if (activePage !== 'practice' || isLocked) return;
 
+    if (practiceActivity === 'earEcho') {
+      handleEarEchoKeyInput(keyId, noteName);
+      return;
+    }
     if (practiceActivity === 'lesson') {
       handleLessonKeyInput(noteName, keyId);
       return;
@@ -2019,6 +2088,23 @@
               🌧️ Минор (задумчивое)
             </button>
           </div>
+        {:else if practiceActivity === 'earEcho' && activeEarEcho}
+          <TaskStage
+            eyebrow="Тренировка слуха · Мелодическое эхо · {activeEarEcho.item.level === 'easy' ? '3 ноты' : activeEarEcho.item.level === 'medium' ? '4 ноты' : '5 нот'}"
+            promptText="<div class='echo-slots-container' style='display:flex; justify-content:center; gap:10px; margin: 4px 0;'>{activeEarEcho.item.notes.map((n, i) => `<span class='echo-slot ${i < activeEarEcho.currentIndex ? 'done' : i === activeEarEcho.currentIndex ? 'current' : ''}' style='display:inline-flex; align-items:center; justify-content:center; min-width:44px; height:44px; padding:0 8px; border-radius:12px; font-weight:700; font-size:16px; border:2px solid ${i < activeEarEcho.currentIndex ? '#22c55e' : i === activeEarEcho.currentIndex ? '#38bdf8' : 'rgba(148,163,184,0.3)'}; background:${i < activeEarEcho.currentIndex ? 'rgba(34,197,94,0.18)' : i === activeEarEcho.currentIndex ? 'rgba(56,189,248,0.15)' : 'rgba(15,23,42,0.4)'}; color:${i < activeEarEcho.currentIndex ? '#4ade80' : i === activeEarEcho.currentIndex ? '#38bdf8' : '#64748b'};'>${i < activeEarEcho.currentIndex ? n : (i === activeEarEcho.currentIndex ? '?' : '·')}</span>`).join('')}</div>"
+            instructionText="Послушайте фразу и сыграйте её на клавиатуре фортепиано (нота {Math.min(activeEarEcho.currentIndex + 1, activeEarEcho.item.notes.length)} из {activeEarEcho.item.notes.length})"
+            reactionTime="—"
+            reactionStatus="Слух · Эхо"
+            {feedbackText}
+            {feedbackClass}
+            isCompleted={activeEarEcho.completed}
+            autoAdvanceTotal={2.5}
+            {autoAdvanceCountdown}
+            showSoundRepeat={true}
+            showDontKnow={false}
+            onReplaySound={() => playEchoPhrase(activeEarEcho!.item.notes)}
+            onNextQuestion={nextRound}
+          />
         {:else if practiceActivity === 'twohand' && activeTwoHand}
           {@const pattern = activeTwoHandPattern()}
           {#if pattern}
@@ -2197,7 +2283,8 @@
       }
       if (patch.mode === 'earIntervals') startEarIntervalTraining();
       else if (patch.mode === 'earTriads') startEarTriadTraining();
-      else if (patch.mode && (practiceActivity === 'earIntervals' || practiceActivity === 'earTriads')) {
+      else if (patch.mode === 'earEcho') startEarEchoTraining();
+      else if (patch.mode && (practiceActivity === 'earIntervals' || practiceActivity === 'earTriads' || practiceActivity === 'earEcho')) {
         practiceActivity = 'standard';
         nextRound();
       } else if (patch.mode) {

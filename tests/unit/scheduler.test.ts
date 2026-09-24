@@ -168,4 +168,17 @@ describe('Scheduler and Queue Logic', () => {
     expect(grandLesson?.title).toContain('Grand Staff');
     expect(grandLesson?.steps.some(s => s.keyId === 'C4')).toBe(true);
   });
+
+  it('includes Echo Phrases (melodic dictation) definitions across easy, medium, and hard levels', async () => {
+    const { ECHO_PHRASES } = await import('../../src/core/ear/earTrainingData');
+    expect(ECHO_PHRASES.length).toBeGreaterThanOrEqual(10);
+    const easy = ECHO_PHRASES.filter(p => p.level === 'easy');
+    const medium = ECHO_PHRASES.filter(p => p.level === 'medium');
+    const hard = ECHO_PHRASES.filter(p => p.level === 'hard');
+
+    expect(easy.length).toBeGreaterThan(0);
+    expect(medium.length).toBeGreaterThan(0);
+    expect(hard.length).toBeGreaterThan(0);
+    expect(easy[0].notes.length).toBe(3);
+  });
 });

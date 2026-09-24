@@ -48,6 +48,7 @@
           <option value="soundToKey">Свободно · звук → клавиша</option>
           <option value="earIntervals">Слух · интервалы от C4</option>
           <option value="earTriads">Слух · мажор или минор</option>
+          <option value="earEcho">Слух · мелодическое эхо (диктант)</option>
         </select>
       </div>
 

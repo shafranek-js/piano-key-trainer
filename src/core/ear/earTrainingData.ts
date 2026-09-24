@@ -43,12 +43,49 @@ export const TRIADS: Record<'major' | 'minor', TriadDef[]> = {
   ]
 };
 
-export async function playIntervalSequence(targetKeyId: string, referenceKeyId = 'C4'): Promise<void> {
+export interface EchoPhraseDef {
+  id: string;
+  title: string;
+  notes: string[]; // keyIds, e.g. ['C4', 'E4', 'G4']
+  description: string;
+  level: 'easy' | 'medium' | 'hard';
+}
+
+export const ECHO_PHRASES: readonly EchoPhraseDef[] = [
+  // 3-note phrases (easy)
+  { id: 'echo-c-step-up', title: 'Шаг вверх: C–D–E', notes: ['C4', 'D4', 'E4'], description: 'Поступательное движение наверх', level: 'easy' },
+  { id: 'echo-c-step-down', title: 'Шаг вниз: E–D–C', notes: ['E4', 'D4', 'C4'], description: 'Поступательное движение вниз', level: 'easy' },
+  { id: 'echo-c-triad-up', title: 'Трезвучие: C–E–G', notes: ['C4', 'E4', 'G4'], description: 'Движение по звукам мажорного трезвучия', level: 'easy' },
+  { id: 'echo-c-triad-down', title: 'Трезвучие вниз: G–E–C', notes: ['G4', 'E4', 'C4'], description: 'Трезвучие сверху вниз', level: 'easy' },
+  { id: 'echo-c-arch', title: 'Дуга: C–E–C', notes: ['C4', 'E4', 'C4'], description: 'Возвращение к тонике', level: 'easy' },
+  
+  // 4-note phrases (medium)
+  { id: 'echo-c-scale-4', title: 'Гамма 4 ноты: C–D–E–F', notes: ['C4', 'D4', 'E4', 'F4'], description: 'Первые 4 ноты мажорной гаммы', level: 'medium' },
+  { id: 'echo-c-wave', title: 'Волна: C–E–D–C', notes: ['C4', 'E4', 'D4', 'C4'], description: 'Скачок на терцию и плавное разрешение', level: 'medium' },
+  { id: 'echo-c-pentatonic', title: 'Пента-мотив: G–E–F–D', notes: ['G4', 'E4', 'F4', 'D4'], description: 'Нисходящие секвенции', level: 'medium' },
+  { id: 'echo-c-cuddle', title: 'Опевание: D–C–D–E', notes: ['D4', 'C4', 'D4', 'E4'], description: 'Опевание и выход на терцию', level: 'medium' },
+  
+  // 5-note phrases (hard)
+  { id: 'echo-c-position-full', title: 'Вся C-позиция: C–D–E–F–G', notes: ['C4', 'D4', 'E4', 'F4', 'G4'], description: 'Полная пятипальцевая позиция', level: 'hard' },
+  { id: 'echo-c-turnaround', title: 'Поворот: G–F–E–D–C', notes: ['G4', 'F4', 'E4', 'D4', 'C4'], description: 'Нисходящий пассаж в C', level: 'hard' },
+  { id: 'echo-c-fanfare', title: 'Фанфара: C–G–E–G–C', notes: ['C4', 'G4', 'E4', 'G4', 'C5'], description: 'Октавный фанфарный мотив', level: 'hard' }
+];
+
+export async function playIntervalSequence(
+  targetKeyId: string, 
+  referenceKeyId = 'C4', 
+  mode: 'melodic' | 'harmonic' = 'melodic'
+): Promise<void> {
   const engine = AudioEngine.getInstance();
-  await engine.playPianoByKeyId(referenceKeyId, 85);
-  setTimeout(() => {
-    engine.playPianoByKeyId(targetKeyId, 96);
-  }, 550);
+  if (mode === 'harmonic') {
+    engine.playPianoByKeyId(referenceKeyId, 85);
+    engine.playPianoByKeyId(targetKeyId, 92);
+  } else {
+    await engine.playPianoByKeyId(referenceKeyId, 85);
+    setTimeout(() => {
+      engine.playPianoByKeyId(targetKeyId, 96);
+    }, 550);
+  }
 }
 
 export async function playTriadSequence(triadNotes: string[], mode: 'arpeggio' | 'harmonic' = 'arpeggio'): Promise<void> {
@@ -66,4 +103,13 @@ export async function playTriadSequence(triadNotes: string[], mode: 'arpeggio' |
       }, idx * 280);
     });
   }
+}
+
+export async function playEchoPhrase(phraseNotes: string[], tempoMs = 500): Promise<void> {
+  const engine = AudioEngine.getInstance();
+  phraseNotes.forEach((keyId, idx) => {
+    setTimeout(() => {
+      engine.playPianoByKeyId(keyId, 92);
+    }, idx * tempoMs);
+  });
 }

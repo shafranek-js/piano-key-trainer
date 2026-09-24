@@ -2182,30 +2182,32 @@
         {:else if practiceActivity === 'repertoire' && activeRepertoire}
           {@const song = REPERTOIRE.find(s => s.id === activeRepertoire!.id)}
           {#if song}
-            {#if activeRepertoire.displayMode === 'staff'}
-              <div style="display:flex; justify-content:center; margin-bottom:12px; overflow-x:auto;">
-                <Staff
-                  mode="repertoire"
-                  repertoireSong={song}
-                  currentNoteIndex={activeRepertoire.index}
-                  loopMeasure={activeRepertoire.loopMeasure}
-                  isCompleted={activeRepertoire.completed}
-                />
-              </div>
-            {/if}
-            <TaskStage
-              eyebrow="Мелодия · {song.level}{activeRepertoire.loopMeasure != null ? ` · 🔁 Зациклен такт ${activeRepertoire.loopMeasure}` : ''}"
-              promptText={activeRepertoire.displayMode === 'staff' ? 'Читайте ноты на стане' : `<span class="note">${song.notes[activeRepertoire.index] || 'Конец'}</span>`}
-              instructionText={activeRepertoire.countingIn ? `Счёт 4–3–2–1... приготовьтесь к первому такту` : `Сыграйте ноту: ${song.notes[activeRepertoire.index] || 'Завершено'}`}
-              reactionTime="—"
-              reactionStatus={activeRepertoire.bpm ? `${activeRepertoire.bpm} BPM` : 'Wait Mode'}
-              {reactionClass}
-              {feedbackText}
-              {feedbackClass}
-              {isCompleted}
-              showDontKnow={false}
-              onNextQuestion={nextRound}
-            />
+            <div style="display:flex; flex-direction:column; justify-content:center; gap:6px; min-height:0;">
+              {#if activeRepertoire.displayMode === 'staff'}
+                <div style="display:flex; justify-content:center; overflow-x:auto;">
+                  <Staff
+                    mode="repertoire"
+                    repertoireSong={song}
+                    currentNoteIndex={activeRepertoire.index}
+                    loopMeasure={activeRepertoire.loopMeasure}
+                    isCompleted={activeRepertoire.completed}
+                  />
+                </div>
+              {/if}
+              <TaskStage
+                eyebrow="Мелодия · {song.level}{activeRepertoire.loopMeasure != null ? ` · 🔁 Зациклен такт ${activeRepertoire.loopMeasure}` : ''}"
+                promptText={activeRepertoire.displayMode === 'staff' ? 'Читайте ноты на стане' : `<span class="note">${song.notes[activeRepertoire.index] || 'Конец'}</span>`}
+                instructionText={activeRepertoire.countingIn ? `Счёт 4–3–2–1... приготовьтесь к первому такту` : `Сыграйте ноту: ${song.notes[activeRepertoire.index] || 'Завершено'}`}
+                reactionTime="—"
+                reactionStatus={activeRepertoire.bpm ? `${activeRepertoire.bpm} BPM` : 'Wait Mode'}
+                {reactionClass}
+                {feedbackText}
+                {feedbackClass}
+                {isCompleted}
+                showDontKnow={false}
+                onNextQuestion={nextRound}
+              />
+            </div>
           {/if}
         {:else if practiceActivity === 'earIntervals' && activeEarInterval}
           <TaskStage
@@ -2300,54 +2302,56 @@
             {@const pairStep = isPair ? (step as { left: string; right: string }) : null}
             {@const altStep = !isPair ? (step as { key: string; hand: 'L' | 'R' }) : null}
 
-            <div style="display:flex; justify-content:center; margin-bottom:12px;">
-              <Staff
-                mode="twohand"
-                twoHandLeft={isPair ? pairStep?.left : (altStep?.hand === 'L' ? altStep.key : null)}
-                twoHandRight={isPair ? pairStep?.right : (altStep?.hand === 'R' ? altStep.key : null)}
-              />
-            </div>
-
-            <TaskStage
-              eyebrow="Две руки · {pattern.title} · Шаг {Math.min(activeTwoHand.index + 1, pattern.steps.length)}/{pattern.steps.length}"
-              promptText={isPair
-                ? `Левая: <span class='note' style='color:#c084fc;'>${pairStep?.left}</span> &nbsp;+&nbsp; Правая: <span class='note' style='color:#38bdf8;'>${pairStep?.right}</span>`
-                : `${altStep?.hand === 'L' ? 'Левая рука' : 'Правая рука'}: <span class='note' style='color:${altStep?.hand === 'L' ? '#c084fc' : '#38bdf8'};'>${altStep?.key}</span>`}
-              instructionText={pattern.mode === 'pair'
-                ? 'Сыграйте обе ноты одновременно (по MIDI или поочередно кликом)'
-                : pattern.mode === 'anchor'
-                  ? `Удерживайте левой рукой ${pairStep?.left} и нажмите ${pairStep?.right}`
-                  : `Сыграйте ${altStep?.hand === 'L' ? 'левой рукой (фиолетовая)' : 'правой рукой (голубая)'}`}
-              reactionTime="—"
-              reactionStatus={activeTwoHand.bpm ? '60 BPM' : 'Wait Mode'}
-              {feedbackText}
-              {feedbackClass}
-              isCompleted={activeTwoHand.completed}
-              showDontKnow={false}
-              showAnswerButtons={false}
-              onNextQuestion={nextRound}
-            />
-
-            {#if activeTwoHand.completed}
-              <div style="display:flex; justify-content:center; gap:12px; margin: 12px 0;">
-                <button
-                  type="button"
-                  class="btn primary"
-                  style="font-size:15px; padding:10px 20px; font-weight:600;"
-                  onclick={restartTwoHand}
-                >
-                  Повторить упражнение 🔁
-                </button>
-                <button
-                  type="button"
-                  class="btn"
-                  style="padding:10px 16px;"
-                  onclick={leaveTwoHand}
-                >
-                  К списку упражнений
-                </button>
+            <div style="display:flex; flex-direction:column; justify-content:center; gap:6px; min-height:0;">
+              <div style="display:flex; justify-content:center;">
+                <Staff
+                  mode="twohand"
+                  twoHandLeft={isPair ? pairStep?.left : (altStep?.hand === 'L' ? altStep.key : null)}
+                  twoHandRight={isPair ? pairStep?.right : (altStep?.hand === 'R' ? altStep.key : null)}
+                />
               </div>
-            {/if}
+
+              <TaskStage
+                eyebrow="Две руки · {pattern.title} · Шаг {Math.min(activeTwoHand.index + 1, pattern.steps.length)}/{pattern.steps.length}"
+                promptText={isPair
+                  ? `Левая: <span class='note' style='color:#c084fc;'>${pairStep?.left}</span> &nbsp;+&nbsp; Правая: <span class='note' style='color:#38bdf8;'>${pairStep?.right}</span>`
+                  : `${altStep?.hand === 'L' ? 'Левая рука' : 'Правая рука'}: <span class='note' style='color:${altStep?.hand === 'L' ? '#c084fc' : '#38bdf8'};'>${altStep?.key}</span>`}
+                instructionText={pattern.mode === 'pair'
+                  ? 'Сыграйте обе ноты одновременно (по MIDI или поочередно кликом)'
+                  : pattern.mode === 'anchor'
+                    ? `Удерживайте левой рукой ${pairStep?.left} и нажмите ${pairStep?.right}`
+                    : `Сыграйте ${altStep?.hand === 'L' ? 'левой рукой (фиолетовая)' : 'правой рукой (голубая)'}`}
+                reactionTime="—"
+                reactionStatus={activeTwoHand.bpm ? '60 BPM' : 'Wait Mode'}
+                {feedbackText}
+                {feedbackClass}
+                isCompleted={activeTwoHand.completed}
+                showDontKnow={false}
+                showAnswerButtons={false}
+                onNextQuestion={nextRound}
+              />
+
+              {#if activeTwoHand.completed}
+                <div style="display:flex; justify-content:center; gap:12px; margin: 4px 0;">
+                  <button
+                    type="button"
+                    class="btn primary"
+                    style="font-size:14px; padding:8px 16px; font-weight:600;"
+                    onclick={restartTwoHand}
+                  >
+                    Повторить упражнение 🔁
+                  </button>
+                  <button
+                    type="button"
+                    class="btn"
+                    style="padding:8px 14px; font-size:14px;"
+                    onclick={leaveTwoHand}
+                  >
+                    К списку упражнений
+                  </button>
+                </div>
+              {/if}
+            </div>
           {/if}
         {:else if currentCard}
           {@const promptHtml = currentCard.skill === 'notationToKey'

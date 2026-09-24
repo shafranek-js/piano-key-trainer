@@ -6,7 +6,6 @@
     singleNoteToMusicXml,
     twoHandToMusicXml
   } from '../../core/repertoire/musicXmlGenerator';
-  import { getSongMeasureCount, getMeasureForNoteIndex } from '../../core/repertoire/repertoireData';
 
   let {
     keyId = 'C4' as string,
@@ -212,19 +211,13 @@
 </script>
 
 {#if mode === 'repertoire' && repertoireSong}
-  {@const measureCount = getSongMeasureCount(repertoireSong)}
-  {@const curMeasure = getMeasureForNoteIndex(repertoireSong, currentNoteIndex)}
   {@const timeTop = repertoireSong.timeSignature ? repertoireSong.timeSignature[0] : (repertoireSong.measureBeats || 4)}
   {@const timeBottom = repertoireSong.timeSignature ? repertoireSong.timeSignature[1] : 4}
 
   <div class="osmd-repertoire-shell" aria-label="Нотный стан мелодии {timeTop}/{timeBottom}">
-    <div class="osmd-repertoire-meta">
-      <span class="osmd-meta-pill">🎼 OSMD · {timeTop}/{timeBottom}</span>
-      <span class="osmd-meta-pill">Такт {curMeasure} из {measureCount}</span>
-      {#if loopMeasure != null}
-        <span class="osmd-meta-pill loop">🔁 Зациклен такт {loopMeasure}</span>
-      {/if}
-    </div>
+    {#if loopMeasure != null}
+      <span class="osmd-floating-loop-pill">🔁 Цикл: такт {loopMeasure}</span>
+    {/if}
     <div class="osmd-sheet-scroll custom-scrollbar" bind:this={scrollWrapperEl}>
       <div class="osmd-canvas osmd-dark" bind:this={osmdContainerEl}></div>
     </div>

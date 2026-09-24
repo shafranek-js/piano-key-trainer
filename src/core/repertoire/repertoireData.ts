@@ -15,6 +15,11 @@ export interface SongDef {
   fullBeats?: number[];
   measureBeats: number;
   pickupBeats?: number;
+  defaultBpm?: number;
+  rawXml?: string;
+  fullRawXml?: string;
+  cursorStepByNote?: number[];
+  fullCursorStepByNote?: number[];
   timeSignature?: [number, number];
   phraseBars: number;
   restsAfter?: Record<number, number>;
@@ -566,6 +571,49 @@ export const REPERTOIRE: readonly SongDef[] = [
   }
 ];
 
+export const DEFAULT_BPM_BY_SONG_ID: Record<string, number> = {
+  'five-note-c': 84,
+  'ode-joy': 104,
+  'mary-lamb': 100,
+  'twinkle': 96,
+  'bach-minuet-g': 108,
+  'beethoven-fur-elise': 116,
+  'burgmuller-arabesque': 120,
+  'mozart-nachtmusik': 120,
+  'hanon-1': 96,
+  'czerny-599-1': 100,
+  'beyer-101-8': 96,
+  'satie-gymnopedie-1': 66,
+  'pachelbel-canon-d': 72,
+  'tchaikovsky-swan-lake': 84,
+  'grieg-morning-mood': 96,
+  'vivaldi-spring': 108,
+  'dvorak-new-world-largo': 64,
+  'brahms-wiegenlied': 76,
+  'korobeiniki-tetris': 132,
+  'leontovych-shchedryk': 138,
+  'greensleeves': 88,
+  'bella-ciao': 116,
+  'sakura-traditional': 72,
+  'kocka-leze-dirou': 104,
+  'joplin-entertainer': 100
+};
+
+export function getEffectiveSongBpm(
+  song: SongDef,
+  tempoMode: 'wait' | 'slow' | 'normal' = 'wait',
+  forDemo = false
+): number | null {
+  const nativeBpm = song.defaultBpm || DEFAULT_BPM_BY_SONG_ID[song.id] || 92;
+  if (tempoMode === 'wait') {
+    return forDemo ? nativeBpm : null;
+  }
+  if (tempoMode === 'slow') {
+    return Math.max(48, Math.round(nativeBpm * 0.72));
+  }
+  return nativeBpm;
+}
+
 export function hasFullVersion(song: SongDef): boolean {
   const full = song.fullNotes && song.fullBeats
     ? { notes: song.fullNotes, beats: song.fullBeats }
@@ -576,7 +624,13 @@ export function hasFullVersion(song: SongDef): boolean {
 export function getSongVersion(song: SongDef, lengthMode: RepertoireLengthMode = 'excerpt'): SongDef {
   if (lengthMode !== 'full') return song;
   const full = song.fullNotes && song.fullBeats
-    ? { notes: song.fullNotes, beats: song.fullBeats, pickupBeats: song.pickupBeats }
+    ? {
+        notes: song.fullNotes,
+        beats: song.fullBeats,
+        pickupBeats: song.pickupBeats,
+        rawXml: song.fullRawXml ?? song.rawXml,
+        cursorStepByNote: song.fullCursorStepByNote ?? song.cursorStepByNote
+      }
     : FULL_REPERTOIRE_DATA[song.id];
   if (!full || full.notes.length === 0) return song;
   return {
@@ -584,6 +638,8 @@ export function getSongVersion(song: SongDef, lengthMode: RepertoireLengthMode =
     notes: full.notes,
     beats: full.beats,
     pickupBeats: full.pickupBeats !== undefined ? full.pickupBeats : song.pickupBeats,
+    rawXml: (full as any).rawXml ?? undefined,
+    cursorStepByNote: (full as any).cursorStepByNote ?? undefined,
     restsAfter: undefined
   };
 }
@@ -655,16 +711,17 @@ export function getMeasureNoteRange(song: SongDef, measureNumber: number): { sta
   };
 }
 
-export function getSongDurationMs(song: SongDef, bpm = 80): number {
-  const beatMs = 60000 / bpm;
+export function getSongDurationMs(song: SongDef, bpm?: number): number {
+  const effectiveBpm = bpm ?? song.defaultBpm ?? DEFAULT_BPM_BY_SONG_ID[song.id] ?? 80;
+  const beatMs = 60000 / effectiveBpm;
   const totalBeats = song.beats.reduce((sum, b) => sum + b, 0);
   return Math.round(totalBeats * beatMs);
 }
 
 export const TEMPO_MODES = {
   wait: { label: 'Wait', bpm: null },
-  slow: { label: 'Slow · 60', bpm: 60 },
-  normal: { label: 'Normal · 90', bpm: 90 }
+  slow: { label: 'Slow · 72%', bpm: 60 },
+  normal: { label: 'Normal · 100%', bpm: 90 }
 } as const;
 
 export const DYNAMIC_MODES = {
@@ -679,3 +736,4 @@ export const ARTICULATION_MODES = {
   legato: { label: 'Legato', short: 'legato', minRatio: 0.72, maxRatio: 1.25 },
   detached: { label: 'Detached', short: 'detached', minRatio: 0.25, maxRatio: 0.62 }
 } as const;
+

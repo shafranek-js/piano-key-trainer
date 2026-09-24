@@ -130,8 +130,16 @@
           data-note={k.note}
           data-type={k.type}
           aria-label="Клавиша {DISPLAY_NAMES[k.note]} · {k.id}"
-          onmousedown={(e) => e.preventDefault()}
-          onclick={() => onKeyClick?.(k.id, k.note)}
+          onpointerdown={(e) => {
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            e.preventDefault();
+            onKeyClick?.(k.id, k.note);
+          }}
+          onclick={(e) => {
+            if (e.detail === 0) {
+              onKeyClick?.(k.id, k.note);
+            }
+          }}
         >
           <span class="focus-indicator" aria-hidden="true"></span>
           {#if fingerGuides.has(k.id)}

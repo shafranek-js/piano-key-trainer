@@ -4,7 +4,9 @@
   import {
     songToMusicXml,
     singleNoteToMusicXml,
-    twoHandToMusicXml
+    twoHandToMusicXml,
+    getCursorStepForNoteIndex,
+    decomposeDurationSpecs
   } from '../../core/repertoire/musicXmlGenerator';
 
   let {
@@ -27,7 +29,18 @@
   let lastLoadedXml = '';
   let lastLoadedMode = '';
   let lastCursorIndex: number | null = null;
+  let cachedStaveNotes: Element[] = [];
   let renderSeq = 0;
+
+  const scoreXml = $derived.by(() => {
+    if (mode === 'repertoire' && repertoireSong) {
+      return songToMusicXml(repertoireSong);
+    }
+    if (mode === 'twohand') {
+      return twoHandToMusicXml(twoHandLeft, twoHandRight);
+    }
+    return singleNoteToMusicXml(keyId || 'C4', clef);
+  });
 
   function styleOsmdCursor(cursorElement: HTMLElement | null, durationMs = 160) {
     if (!cursorElement) return;
@@ -69,13 +82,25 @@
 
   function highlightSvgNotes(container: HTMLElement | null, activeIdx: number, completed: boolean) {
     if (!container) return;
-    const staveNotes = Array.from(container.querySelectorAll('.vf-stavenote'));
+    const staveNotes =
+      cachedStaveNotes.length > 0
+        ? cachedStaveNotes
+        : Array.from(container.querySelectorAll('.vf-stavenote'));
+    const cursorStart =
+      mode === 'repertoire' && repertoireSong
+        ? getCursorStepForNoteIndex(repertoireSong, activeIdx)
+        : activeIdx;
+    const activeSpan =
+      mode === 'repertoire' && repertoireSong
+        ? decomposeDurationSpecs(repertoireSong.beats?.[activeIdx] ?? 1).length
+        : 1;
+
     staveNotes.forEach((el, idx) => {
       el.classList.remove('osmd-vf-done', 'osmd-vf-current');
       if (mode === 'repertoire') {
-        if (idx < activeIdx || completed) {
+        if (idx < cursorStart || completed) {
           el.classList.add('osmd-vf-done');
-        } else if (idx === activeIdx && !completed) {
+        } else if (idx >= cursorStart && idx < cursorStart + activeSpan && !completed) {
           el.classList.add('osmd-vf-current');
         }
       } else if (mode === 'single' && pulseGuide) {
@@ -86,6 +111,7 @@
 
   function syncRepertoireCursor(activeIdx: number, completed: boolean) {
     if (!osmdInstance || mode !== 'repertoire') return;
+    const targetStep = repertoireSong ? getCursorStepForNoteIndex(repertoireSong, activeIdx) : activeIdx;
     const cursor = osmdInstance.cursor;
     if (cursor) {
       if (completed) {
@@ -93,24 +119,24 @@
         lastCursorIndex = null;
       } else {
         cursor.show();
-        if (lastCursorIndex === null || activeIdx < lastCursorIndex) {
+        if (lastCursorIndex === null || targetStep < lastCursorIndex) {
           styleOsmdCursor(cursor.cursorElement, 0);
           cursor.reset();
-          for (let i = 0; i < activeIdx; i++) {
+          for (let i = 0; i < targetStep; i++) {
             cursor.next();
           }
-          lastCursorIndex = activeIdx;
+          lastCursorIndex = targetStep;
           styleOsmdCursor(cursor.cursorElement, 0);
-          scrollSheetToCursor(cursor.cursorElement, scrollWrapperEl, activeIdx === 0 ? 'auto' : 'smooth');
-        } else if (activeIdx > lastCursorIndex) {
-          styleOsmdCursor(cursor.cursorElement, 150);
-          for (let i = lastCursorIndex; i < activeIdx; i++) {
+          scrollSheetToCursor(cursor.cursorElement, scrollWrapperEl, targetStep === 0 ? 'auto' : 'smooth');
+        } else if (targetStep > lastCursorIndex) {
+          styleOsmdCursor(cursor.cursorElement, 120);
+          for (let i = lastCursorIndex; i < targetStep; i++) {
             cursor.next();
           }
-          lastCursorIndex = activeIdx;
+          lastCursorIndex = targetStep;
           scrollSheetToCursor(cursor.cursorElement, scrollWrapperEl, 'smooth');
         } else {
-          styleOsmdCursor(cursor.cursorElement, 150);
+          styleOsmdCursor(cursor.cursorElement, 120);
           scrollSheetToCursor(cursor.cursorElement, scrollWrapperEl, 'smooth');
         }
       }
@@ -174,6 +200,7 @@
         osmdInstance.render();
         lastLoadedXml = xml;
         lastCursorIndex = null;
+        cachedStaveNotes = Array.from(osmdContainerEl.querySelectorAll('.vf-stavenote'));
 
         // Remove any empty trailing SVGs created by OSMD
         Array.from(osmdContainerEl.querySelectorAll('svg')).forEach((svg) => {
@@ -194,15 +221,7 @@
   $effect(() => {
     if (!osmdContainerEl) return;
 
-    let xml = '';
-    if (mode === 'repertoire' && repertoireSong) {
-      xml = songToMusicXml(repertoireSong);
-    } else if (mode === 'twohand') {
-      xml = twoHandToMusicXml(twoHandLeft, twoHandRight);
-    } else {
-      xml = singleNoteToMusicXml(keyId || 'C4', clef);
-    }
-
+    const xml = scoreXml;
     const idx = currentNoteIndex;
     const done = isCompleted;
     const guide = pulseGuide;

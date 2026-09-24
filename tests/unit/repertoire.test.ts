@@ -5,6 +5,7 @@ import {
   getMeasureForNoteIndex,
   getMeasureNoteRange,
   getSongDurationMs,
+  getEffectiveSongBpm,
   hasFullVersion,
   getSongVersion,
   type SongDef
@@ -14,7 +15,9 @@ import {
   singleNoteToMusicXml,
   twoHandToMusicXml,
   parseMusicXmlToSongDef,
-  pitchToKeyboardNoteId
+  pitchToKeyboardNoteId,
+  decomposeDurationSpecs,
+  getCursorStepForNoteIndex
 } from '../../src/core/repertoire/musicXmlGenerator';
 
 describe('Repertoire Data & Measure Logic', () => {
@@ -101,16 +104,23 @@ describe('Repertoire Data & Measure Logic', () => {
     }
   });
 
-  it('calculates total song duration in ms for demo playback', () => {
+  it('calculates total song duration in ms and piece-specific effective BPM for demo playback', () => {
     const ode = REPERTOIRE.find(s => s.id === 'ode-joy')!;
     const dur60 = getSongDurationMs(ode, 60);
     expect(dur60).toBe(16000);
 
     const dur120 = getSongDurationMs(ode, 120);
     expect(dur120).toBe(8000);
+
+    const gym = REPERTOIRE.find(s => s.id === 'satie-gymnopedie-1')!;
+    const tetris = REPERTOIRE.find(s => s.id === 'korobeiniki-tetris')!;
+    expect(getEffectiveSongBpm(gym, 'wait', false)).toBeNull();
+    expect(getEffectiveSongBpm(gym, 'wait', true)).toBe(66);
+    expect(getEffectiveSongBpm(tetris, 'normal', false)).toBe(132);
+    expect(getEffectiveSongBpm(tetris, 'slow', false)).toBeLessThan(132);
   });
 
-  it('generates valid MusicXML 4.0 with beams, dots, and durations for OSMD (both excerpt and full)', () => {
+  it('generates valid MusicXML 4.0 with beams, dots, compound ties, and cursor step mapping', () => {
     for (const song of REPERTOIRE) {
       const xml = songToMusicXml(song);
       expect(xml).toContain('<score-partwise version="4.0">');
@@ -127,6 +137,15 @@ describe('Repertoire Data & Measure Logic', () => {
     expect(eliseXml).toContain('<accidental>sharp</accidental>');
     expect(eliseXml).toContain('<dot/>');
 
+    // Compound 2.5-beat note decomposes into half (2) + eighth (0.5) tied together
+    const joplin = REPERTOIRE.find(s => s.id === 'joplin-entertainer')!;
+    expect(decomposeDurationSpecs(2.5)).toHaveLength(2);
+    const joplinXml = songToMusicXml(joplin);
+    expect(joplinXml).toContain('<tie type="start"/>');
+    expect(joplinXml).toContain('<tie type="stop"/>');
+    // Note index 7 in joplin is C5[2.5]; note index 8 is after the 2-element tied note, so cursor step increases by 2
+    expect(getCursorStepForNoteIndex(joplin, 8) - getCursorStepForNoteIndex(joplin, 7)).toBe(2);
+
     const singleGrand = singleNoteToMusicXml('C3', 'grand');
     expect(singleGrand).toContain('<staves>2</staves>');
     expect(singleGrand).toContain('<sign>F</sign>');
@@ -137,12 +156,8 @@ describe('Repertoire Data & Measure Logic', () => {
     expect(twoHandXml).toContain('<staff>2</staff>');
   });
 
-  it('includes curated MelodicaTrainer pieces and parses imported MusicXML into SongDef', () => {
+  it('parses MusicXML using MelodicaTrainer timeline rules (resolveTiedNotes, backup/voice filtering, pickup, tempo)', () => {
     expect(REPERTOIRE.length).toBeGreaterThanOrEqual(25);
-    expect(REPERTOIRE.some(s => s.id === 'satie-gymnopedie-1')).toBe(true);
-    expect(REPERTOIRE.some(s => s.id === 'korobeiniki-tetris')).toBe(true);
-    expect(REPERTOIRE.some(s => s.id === 'leontovych-shchedryk')).toBe(true);
-
     const gymnopedie = REPERTOIRE.find(s => s.id === 'satie-gymnopedie-1')!;
     const xml = songToMusicXml(gymnopedie);
     const parsed = parseMusicXmlToSongDef(xml);
@@ -154,5 +169,49 @@ describe('Repertoire Data & Measure Logic', () => {
     // Enharmonic flat-to-sharp conversion for keyboard compatibility (Bb4 -> A#4, Eb4 -> D#4)
     expect(pitchToKeyboardNoteId('B', -1, 4)).toBe('A#4');
     expect(pitchToKeyboardNoteId('E', -1, 4)).toBe('D#4');
+
+    // Verify tied note duration accumulation + <backup> secondary voice & staff 2 filtering + pickup detection
+    const multiVoiceTiedXml = `<?xml version="1.0" encoding="UTF-8"?>
+      <score-partwise version="4.0">
+        <work><work-title>Tie &amp; Backup Test</work-title></work>
+        <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+        <part id="P1">
+          <measure number="1" implicit="yes">
+            <attributes>
+              <divisions>4</divisions>
+              <time><beats>3</beats><beat-type>4</beat-type></time>
+            </attributes>
+            <direction><sound tempo="112"/></direction>
+            <note><pitch><step>E</step><octave>5</octave></pitch><duration>2</duration><voice>1</voice><staff>1</staff></note>
+            <note><pitch><step>D</step><alter>1</alter><octave>5</octave></pitch><duration>2</duration><voice>1</voice><staff>1</staff></note>
+          </measure>
+          <measure number="2">
+            <note>
+              <pitch><step>A</step><octave>4</octave></pitch>
+              <duration>8</duration>
+              <tie type="start"/>
+              <voice>1</voice>
+              <staff>1</staff>
+            </note>
+            <note>
+              <pitch><step>A</step><octave>4</octave></pitch>
+              <duration>4</duration>
+              <tie type="stop"/>
+              <voice>1</voice>
+              <staff>1</staff>
+            </note>
+            <backup><duration>12</duration></backup>
+            <note><pitch><step>C</step><octave>3</octave></pitch><duration>12</duration><voice>2</voice><staff>2</staff></note>
+          </measure>
+        </part>
+      </score-partwise>`;
+
+    const polyParsed = parseMusicXmlToSongDef(multiVoiceTiedXml);
+    expect(polyParsed.pickupBeats).toBe(1);
+    expect(polyParsed.defaultBpm).toBe(112);
+    expect(polyParsed.notes).toEqual(['E5', 'D#5', 'A4']);
+    // Tied A4 (2 beats + 1 beat) is merged into a single 3-beat note, and Staff 2 C3 is excluded!
+    expect(polyParsed.beats).toEqual([0.5, 0.5, 3]);
   });
 });
+

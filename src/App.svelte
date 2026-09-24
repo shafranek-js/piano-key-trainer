@@ -38,6 +38,7 @@
     getSongMeasureCount,
     getMeasureForNoteIndex,
     getMeasureNoteRange,
+    getEffectiveSongBpm,
     hasFullVersion,
     getSongVersion,
     type RepertoireLengthMode,
@@ -1295,12 +1296,15 @@
     return getSongVersion(baseSong, activeRepertoire.lengthMode);
   }
 
+  let repertoireDemoRunId = 0;
+
   function startSong(songId: string, options?: { autoDemo?: boolean; lengthMode?: RepertoireLengthMode }) {
     stopRepertoireDemo();
     const baseSong = REPERTOIRE.find(s => s.id === songId);
     if (!baseSong) return;
     practiceActivity = 'repertoire';
-    const bpm = TEMPO_MODES[settings.repertoireTempoMode || 'wait']?.bpm || null;
+    const tempoMode = settings.repertoireTempoMode || 'wait';
+    const bpm = getEffectiveSongBpm(baseSong, tempoMode, false);
     const requestedLengthMode = options?.lengthMode || settings.repertoireLengthMode || 'excerpt';
     const resolvedLengthMode: RepertoireLengthMode =
       requestedLengthMode === 'full' && hasFullVersion(baseSong) ? 'full' : 'excerpt';
@@ -1308,6 +1312,10 @@
     if (options?.lengthMode) {
       persistSettings({ repertoireLengthMode: options.lengthMode });
     }
+
+    const selectedSong = getSongVersion(baseSong, resolvedLengthMode);
+    // Immediately preload and warm up all piano samples when the user selects a melody
+    void AudioEngine.getInstance().prepareForPlayback(selectedSong.notes);
 
     activeRepertoire = {
       id: songId,
@@ -1369,6 +1377,9 @@
     isCompleted = false;
 
     const song = activeRepertoireSong();
+    if (song) {
+      void AudioEngine.getInstance().prepareForPlayback(song.notes);
+    }
     const measures = song ? getSongMeasureCount(song) : 1;
     feedbackText = resolved === 'full'
       ? `🎼 Включена полная мелодия (${song?.notes.length || 0} нот · ${measures} тактов)`
@@ -1378,10 +1389,12 @@
   }
 
   function stopRepertoireDemo() {
+    repertoireDemoRunId++;
     if (repertoireDemoTimer != null) {
       clearTimeout(repertoireDemoTimer);
       repertoireDemoTimer = null;
     }
+    AudioEngine.getInstance().stopAllVoices();
     correctKeyIds = [];
     pulseCorrectKeyIds = [];
     if (activeRepertoire) {
@@ -1389,19 +1402,36 @@
     }
   }
 
-  function startRepertoireDemo() {
+  async function startRepertoireDemo() {
     if (!activeRepertoire) return;
     stopRepertoireDemo();
     const song = activeRepertoireSong();
     if (!song) return;
 
+    const runId = ++repertoireDemoRunId;
     activeRepertoire.isDemoPlaying = true;
     activeRepertoire.completed = false;
     isCompleted = false;
 
-    AudioEngine.getInstance().ensureContext();
+    const engine = AudioEngine.getInstance();
+    if (!engine.isSamplesReady()) {
+      feedbackText = '⏳ Загружаю звуки пианино перед воспроизведением…';
+      feedbackClass = '';
+    }
 
-    const bpm = activeRepertoire.bpm || (settings.repertoireTempoMode === 'slow' ? 60 : 80);
+    const ready = await engine.prepareForPlayback(song.notes);
+    if (runId !== repertoireDemoRunId || !activeRepertoire || !activeRepertoire.isDemoPlaying) {
+      return;
+    }
+    if (!ready) {
+      stopRepertoireDemo();
+      feedbackText = 'Не удалось подготовить аудио-движок.';
+      feedbackClass = 'bad';
+      return;
+    }
+
+    const tempoMode = settings.repertoireTempoMode || 'wait';
+    const bpm = activeRepertoire.bpm || getEffectiveSongBpm(song, tempoMode, true) || 92;
     const beatMs = 60000 / bpm;
 
     const startIndex = activeRepertoire.loopMeasure != null
@@ -1411,8 +1441,10 @@
       ? getMeasureNoteRange(song, activeRepertoire.loopMeasure).end
       : song.notes.length;
 
+    let expectedStepPerf = performance.now();
+
     function playDemoStep(stepIdx: number) {
-      if (!activeRepertoire || !activeRepertoire.isDemoPlaying) return;
+      if (runId !== repertoireDemoRunId || !activeRepertoire || !activeRepertoire.isDemoPlaying) return;
       const currentSong = activeRepertoireSong();
       if (!currentSong) return;
 
@@ -1427,7 +1459,7 @@
 
       const note = currentSong.notes[stepIdx];
       const noteBeats = currentSong.beats[stepIdx] || 1;
-      const durMs = Math.max(180, noteBeats * beatMs);
+      const durMs = Math.max(80, noteBeats * beatMs);
 
       activeRepertoire.index = stepIdx;
       targetKeyId = note;
@@ -1435,15 +1467,19 @@
       correctKeyIds = [note];
       pulseCorrectKeyIds = [note];
 
-      AudioEngine.getInstance().playPianoByKeyId(note, 92);
-      feedbackText = `▶ Демо: нота ${note} (${stepIdx + 1}/${endIndex}) · слушайте ритм и мелодию`;
+      void engine.playPianoByKeyId(note, 92, durMs);
+      feedbackText = `▶ Демо (${bpm} BPM): нота ${note} (${stepIdx + 1}/${endIndex}) · слушайте ритм и мелодию`;
       feedbackClass = 'good';
 
+      expectedStepPerf += durMs;
+      const nextDelayMs = Math.max(16, expectedStepPerf - performance.now());
+
       repertoireDemoTimer = window.setTimeout(() => {
+        if (runId !== repertoireDemoRunId) return;
         correctKeyIds = [];
         pulseCorrectKeyIds = [];
         playDemoStep(stepIdx + 1);
-      }, durMs);
+      }, nextDelayMs);
     }
 
     playDemoStep(startIndex);
@@ -1463,7 +1499,7 @@
       feedbackText = 'Демо остановлено. Теперь можете сыграть сами.';
       feedbackClass = '';
     } else {
-      startRepertoireDemo();
+      void startRepertoireDemo();
     }
   }
 
@@ -1502,8 +1538,12 @@
     setRepertoireLoop(activeRepertoire.loopMeasure + 1);
   }
 
-  function beginRepertoireCountIn(bpm: number) {
+  async function beginRepertoireCountIn(bpm: number) {
     if (!activeRepertoire) return;
+    const song = activeRepertoireSong();
+    await AudioEngine.getInstance().prepareForPlayback(song?.notes);
+    if (!activeRepertoire) return;
+
     const beatMs = 60000 / bpm;
     activeRepertoire.countingIn = true;
     activeRepertoire.countInValue = 4;
@@ -1573,7 +1613,10 @@
 
     if (ok) {
       const now = performance.now();
-      correctKeyIds = [keyId];
+      pulseCorrectKeyIds = [keyId];
+      setTimeout(() => {
+        pulseCorrectKeyIds = pulseCorrectKeyIds.filter(id => id !== keyId);
+      }, 180);
 
       if (activeRepertoire.bpm && activeRepertoire.lastCorrectPerf != null && activeRepertoire.index > 0) {
         const beatMs = 60000 / activeRepertoire.bpm;
@@ -1616,11 +1659,11 @@
         activeRepertoire.lastCorrectPerf = null;
         feedbackText = `🔁 Такт ${activeRepertoire.loopMeasure} сыгран! Повтор #${activeRepertoire.loopCount}`;
         feedbackClass = 'good';
-        setTimeout(renderRepertoireStep, 150);
+        renderRepertoireStep();
       } else if (!isLooping && activeRepertoire.index >= song.notes.length) {
         finishSong();
       } else {
-        setTimeout(renderRepertoireStep, 150);
+        renderRepertoireStep();
       }
     } else {
       activeRepertoire.mistakes++;
@@ -2092,8 +2135,18 @@
 
     loadData();
 
+    const unlockAudioOnFirstGesture = () => {
+      void audioEngine.ensureContext();
+      window.removeEventListener('pointerdown', unlockAudioOnFirstGesture, true);
+      window.removeEventListener('keydown', unlockAudioOnFirstGesture, true);
+    };
+    window.addEventListener('pointerdown', unlockAudioOnFirstGesture, true);
+    window.addEventListener('keydown', unlockAudioOnFirstGesture, true);
+
     window.addEventListener('keydown', handleWindowKeydown);
     return () => {
+      window.removeEventListener('pointerdown', unlockAudioOnFirstGesture, true);
+      window.removeEventListener('keydown', unlockAudioOnFirstGesture, true);
       window.removeEventListener('keydown', handleWindowKeydown);
       if (sessionClockInterval != null) clearInterval(sessionClockInterval);
       if (repertoireCountInTimer != null) clearInterval(repertoireCountInTimer);

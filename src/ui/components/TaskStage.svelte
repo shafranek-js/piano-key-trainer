@@ -9,6 +9,7 @@
     reactionTime = '0,0 с',
     reactionStatus = 'калибровка',
     reactionClass = '',
+    showReactionPanel = true,
     feedbackText = '',
     feedbackClass = '',
     showSoundRepeat = false,
@@ -42,12 +43,14 @@
           <div class="instruction" title={instructionText}>{instructionText}</div>
         </div>
 
-        <div class="feedback-wrap">
-          <div class="reaction-panel {reactionClass}" id="reactionPanel" aria-label="Время реакции">
-            <span>⏱ Время ответа</span>
-            <b>{reactionTime}</b>
-            <small id="reactionStatus">{reactionStatus}</small>
-          </div>
+        <div class="feedback-wrap {showReactionPanel ? '' : 'no-reaction-panel'}">
+          {#if showReactionPanel}
+            <div class="reaction-panel {reactionClass}" id="reactionPanel" aria-label="Время реакции">
+              <span>⏱ Время ответа</span>
+              <b>{reactionTime}</b>
+              <small id="reactionStatus">{reactionStatus}</small>
+            </div>
+          {/if}
 
           <div class="feedback {feedbackClass}" aria-live="polite" title={feedbackText}>
             {feedbackText}

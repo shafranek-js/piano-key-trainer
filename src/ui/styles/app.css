@@ -2429,6 +2429,15 @@ body::before{opacity:.9}
   overflow: hidden !important;
 }
 
+.practice-stage-center .operation-stage .feedback-wrap.no-reaction-panel {
+  grid-template-columns: minmax(0, 1fr) auto !important;
+}
+
+.practice-stage-center .operation-stage .feedback-wrap.no-reaction-panel .feedback {
+  text-align: center !important;
+  padding-left: 210px !important;
+}
+
 .practice-stage-center .operation-stage .reaction-panel {
   width: 190px !important;
   min-width: 190px !important;

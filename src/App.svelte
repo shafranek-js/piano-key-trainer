@@ -2349,9 +2349,7 @@
                   eyebrow="Мелодия · {song.level} · {activeRepertoire.lengthMode === 'full' ? '🎼 Полная мелодия' : '✂️ Отрывок'}{activeRepertoire.loopMeasure != null ? ` · 🔁 Зациклен такт ${activeRepertoire.loopMeasure}` : ''}"
                   promptText={activeRepertoire.displayMode === 'staff' ? 'Читайте ноты на стане' : `<span class="note">${song.notes[activeRepertoire.index] || 'Конец'}</span>`}
                   instructionText={activeRepertoire.countingIn ? `Счёт 4–3–2–1... приготовьтесь к первому такту` : activeRepertoire.displayMode === 'staff' ? 'Найдите и сыграйте выделенную на стане ноту на клавиатуре' : `Найдите клавишу ${song.notes[activeRepertoire.index] || 'Завершено'} на клавиатуре`}
-                  reactionTime="—"
-                  reactionStatus={activeRepertoire.bpm ? `${activeRepertoire.bpm} BPM` : 'Wait Mode'}
-                  {reactionClass}
+                  showReactionPanel={false}
                   {feedbackText}
                   {feedbackClass}
                   {isCompleted}

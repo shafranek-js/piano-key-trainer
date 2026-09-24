@@ -1646,6 +1646,11 @@
     }
 
     if (e.code === 'Space' || e.key === ' ') {
+      if (practiceActivity === 'lesson' && lessonCanContinue) {
+        e.preventDefault();
+        advanceLesson();
+        return;
+      }
       if (isCompleted) {
         e.preventDefault();
         clearAutoAdvance();
@@ -1656,6 +1661,10 @@
 
     if (e.key === 'Enter') {
       e.preventDefault();
+      if (practiceActivity === 'lesson' && lessonCanContinue) {
+        advanceLesson();
+        return;
+      }
       if (isCompleted) {
         clearAutoAdvance();
         nextRound();
@@ -1752,19 +1761,13 @@
         <!-- 1. Guided Lessons Banner -->
         {#if practiceActivity === 'lesson' && activeLesson}
           {@const lesson = activeLessonDef()}
-          {#if lesson}
-            {@const step = lesson.steps[activeLesson.stepIndex]}
-            <LessonBanner
-              stepNumber={activeLesson.stepIndex + 1}
-              totalSteps={lesson.steps.length}
-              title={step.title}
-              body={step.body}
-              canContinue={lessonCanContinue}
-              continueLabel={lessonContinueLabel}
-              onContinue={advanceLesson}
-              onExit={leaveLesson}
-            />
-          {/if}
+          <SessionStrip
+            sessionLabel="Урок · {lesson?.title || 'Ориентиры'}"
+            sessionDetail="Шаг {(activeLesson.stepIndex + 1)} из {lesson?.steps.length || 5}"
+            progressPct={lesson ? (((activeLesson.stepIndex + 1) / lesson.steps.length) * 100) : 0}
+            isEnded={false}
+            onEndSession={leaveLesson}
+          />
         <!-- 2. Repertoire Banner -->
         {:else if practiceActivity === 'repertoire' && activeRepertoire}
           {@const song = REPERTOIRE.find(s => s.id === activeRepertoire!.id)}
@@ -1804,7 +1807,45 @@
         {/if}
 
         <!-- Interactive Task Stage Area -->
-        {#if practiceActivity === 'repertoire' && activeRepertoire}
+        {#if practiceActivity === 'lesson' && activeLesson}
+          {@const lesson = activeLessonDef()}
+          {#if lesson}
+            {@const step = lesson.steps[activeLesson.stepIndex]}
+            <TaskStage
+              eyebrow="Мини-урок · {lesson.title} · Шаг {activeLesson.stepIndex + 1}/{lesson.steps.length}"
+              promptText="<span class='lesson-prompt-title'>{step.title}</span>"
+              instructionText={step.body}
+              reactionTime="—"
+              reactionStatus={step.type === 'info' ? 'Теория' : step.type === 'complete' ? 'Завершено' : 'Практика'}
+              {feedbackText}
+              {feedbackClass}
+              isCompleted={lessonCanContinue}
+              showDontKnow={false}
+              showAnswerButtons={false}
+              onNextQuestion={advanceLesson}
+            />
+            <div style="display:flex; justify-content:center; gap:12px; margin: 12px 0; flex-wrap:wrap;">
+              {#if lessonCanContinue}
+                <button
+                  type="button"
+                  class="btn primary"
+                  style="min-width:160px; font-size:15px; padding:10px 20px; font-weight:600;"
+                  onclick={advanceLesson}
+                >
+                  {lessonContinueLabel} →
+                </button>
+              {/if}
+              <button
+                type="button"
+                class="btn"
+                style="padding:10px 16px;"
+                onclick={leaveLesson}
+              >
+                Выйти из урока
+              </button>
+            </div>
+          {/if}
+        {:else if practiceActivity === 'repertoire' && activeRepertoire}
           {@const song = REPERTOIRE.find(s => s.id === activeRepertoire!.id)}
           {#if song}
             {#if activeRepertoire.displayMode === 'staff'}
@@ -1899,6 +1940,23 @@
               🌧️ Минор (задумчивое)
             </button>
           </div>
+        {:else if practiceActivity === 'twohand' && activeTwoHand}
+          {@const pattern = activeTwoHandPattern()}
+          {#if pattern}
+            {@const step = pattern.steps[activeTwoHand.index]}
+            <TaskStage
+              eyebrow="Две руки · {pattern.title} · Шаг {activeTwoHand.index + 1}/{pattern.steps.length}"
+              promptText="Левая: <span class='note' style='color:#c084fc;'>{step.leftKeyId}</span> · Правая: <span class='note' style='color:#38bdf8;'>{step.rightKeyId}</span>"
+              instructionText={activeTwoHand.waitingFor === 'both' ? 'Нажмите обе клавиши одновременно' : activeTwoHand.waitingFor === 'right' ? 'Нажмите правую клавишу (голубая)' : 'Нажмите левую клавишу (фиолетовая)'}
+              reactionTime="—"
+              reactionStatus="Координация"
+              {feedbackText}
+              {feedbackClass}
+              isCompleted={false}
+              showDontKnow={false}
+              showAnswerButtons={false}
+            />
+          {/if}
         {:else if currentCard}
           {@const promptHtml = currentCard.skill === 'notationToKey'
             ? ''

@@ -1394,9 +1394,15 @@
       clearTimeout(repertoireDemoTimer);
       repertoireDemoTimer = null;
     }
+    if (repertoireKeyFeedbackTimer != null) {
+      clearTimeout(repertoireKeyFeedbackTimer);
+      repertoireKeyFeedbackTimer = null;
+    }
     AudioEngine.getInstance().stopAllVoices();
+    targetKeyIds = [];
     correctKeyIds = [];
     pulseCorrectKeyIds = [];
+    wrongKeyIds = [];
     if (activeRepertoire) {
       activeRepertoire.isDemoPlaying = false;
     }
@@ -1463,7 +1469,7 @@
 
       activeRepertoire.index = stepIdx;
       targetKeyId = note;
-      targetKeyIds = [note];
+      targetKeyIds = [];
       correctKeyIds = [note];
       pulseCorrectKeyIds = [note];
 
@@ -1568,6 +1574,8 @@
     }, beatMs);
   }
 
+  let repertoireKeyFeedbackTimer: number | null = null;
+
   function renderRepertoireStep() {
     if (!activeRepertoire) return;
     const song = activeRepertoireSong();
@@ -1592,9 +1600,34 @@
     }
 
     targetKeyId = song.notes[activeRepertoire.index];
-    targetKeyIds = [targetKeyId];
-    correctKeyIds = [];
-    wrongKeyIds = [];
+    // Never pre-highlight the target key on the piano keyboard in melody practice mode
+    targetKeyIds = [];
+  }
+
+  function flashRepertoirePressedKey(keyId: string, isCorrect: boolean) {
+    if (repertoireKeyFeedbackTimer != null) {
+      clearTimeout(repertoireKeyFeedbackTimer);
+      repertoireKeyFeedbackTimer = null;
+    }
+
+    if (isCorrect) {
+      wrongKeyIds = [];
+      correctKeyIds = [keyId];
+      pulseCorrectKeyIds = [keyId];
+      repertoireKeyFeedbackTimer = window.setTimeout(() => {
+        correctKeyIds = correctKeyIds.filter(id => id !== keyId);
+        pulseCorrectKeyIds = pulseCorrectKeyIds.filter(id => id !== keyId);
+        repertoireKeyFeedbackTimer = null;
+      }, 280);
+    } else {
+      correctKeyIds = [];
+      pulseCorrectKeyIds = [];
+      wrongKeyIds = [keyId];
+      repertoireKeyFeedbackTimer = window.setTimeout(() => {
+        wrongKeyIds = wrongKeyIds.filter(id => id !== keyId);
+        repertoireKeyFeedbackTimer = null;
+      }, 380);
+    }
   }
 
   function handleRepertoireInput(keyId: string, meta: { input: 'mouse' | 'midi'; velocity?: number; voiceKey?: string }) {
@@ -1613,10 +1646,7 @@
 
     if (ok) {
       const now = performance.now();
-      pulseCorrectKeyIds = [keyId];
-      setTimeout(() => {
-        pulseCorrectKeyIds = pulseCorrectKeyIds.filter(id => id !== keyId);
-      }, 180);
+      flashRepertoirePressedKey(keyId, true);
 
       if (activeRepertoire.bpm && activeRepertoire.lastCorrectPerf != null && activeRepertoire.index > 0) {
         const beatMs = 60000 / activeRepertoire.bpm;
@@ -1663,13 +1693,14 @@
       } else if (!isLooping && activeRepertoire.index >= song.notes.length) {
         finishSong();
       } else {
+        feedbackText = `✓ Верно: ${keyId}`;
+        feedbackClass = 'good';
         renderRepertoireStep();
       }
     } else {
       activeRepertoire.mistakes++;
-      wrongKeyIds = [keyId];
-      setTimeout(() => { wrongKeyIds = wrongKeyIds.filter(id => id !== keyId); }, 380);
-      feedbackText = `Нужна ${target}. Позиция в такте сохранена.`;
+      flashRepertoirePressedKey(keyId, false);
+      feedbackText = `✗ Нажата ${keyId}, а нужна ${target}. Позиция в такте сохранена.`;
       feedbackClass = 'bad';
     }
   }
@@ -2314,7 +2345,7 @@
               <TaskStage
                 eyebrow="Мелодия · {song.level} · {activeRepertoire.lengthMode === 'full' ? '🎼 Полная мелодия' : '✂️ Отрывок'}{activeRepertoire.loopMeasure != null ? ` · 🔁 Зациклен такт ${activeRepertoire.loopMeasure}` : ''}"
                 promptText={activeRepertoire.displayMode === 'staff' ? 'Читайте ноты на стане' : `<span class="note">${song.notes[activeRepertoire.index] || 'Конец'}</span>`}
-                instructionText={activeRepertoire.countingIn ? `Счёт 4–3–2–1... приготовьтесь к первому такту` : `Сыграйте ноту: ${song.notes[activeRepertoire.index] || 'Завершено'}`}
+                instructionText={activeRepertoire.countingIn ? `Счёт 4–3–2–1... приготовьтесь к первому такту` : activeRepertoire.displayMode === 'staff' ? 'Найдите и сыграйте выделенную на стане ноту на клавиатуре' : `Найдите клавишу ${song.notes[activeRepertoire.index] || 'Завершено'} на клавиатуре`}
                 reactionTime="—"
                 reactionStatus={activeRepertoire.bpm ? `${activeRepertoire.bpm} BPM` : 'Wait Mode'}
                 {reactionClass}

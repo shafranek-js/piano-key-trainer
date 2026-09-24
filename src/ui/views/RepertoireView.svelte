@@ -4,6 +4,7 @@
     TEMPO_MODES,
     DYNAMIC_MODES,
     ARTICULATION_MODES,
+    getSongMeasureCount,
     type SongDef
   } from '../../core/repertoire/repertoireData';
   import type { UserSettings } from '../../core/fsrs/types';
@@ -13,20 +14,36 @@
     onSettingsChange,
     onStartSong
   } = $props();
+
+  let selectedCategory = $state<'all' | 'warmup' | 'study' | 'classical'>('all');
+
+  const filteredRepertoire = $derived(
+    selectedCategory === 'all'
+      ? REPERTOIRE
+      : REPERTOIRE.filter(s => (s.category || 'classical') === selectedCategory)
+  );
+
+  const categoryCounts = $derived({
+    all: REPERTOIRE.length,
+    warmup: REPERTOIRE.filter(s => s.category === 'warmup').length,
+    study: REPERTOIRE.filter(s => s.category === 'study').length,
+    classical: REPERTOIRE.filter(s => (s.category || 'classical') === 'classical').length
+  });
 </script>
 
 <div class="page-heading">
   <div>
-    <h2>Мелодии</h2>
-    <p>Играйте по названиям клавиш или непосредственно по нотному стану. Точность нот (Pitch), ритм (Timing), динамика и артикуляция оцениваются независимо.</p>
+    <h2>Мелодии и Шедевры</h2>
+    <p>Играйте по названиям клавиш или непосредственно по нотному стану. Доступна отработка отдельных тактов по кругу (Measure Looping).</p>
   </div>
 </div>
 
 <div class="repertoire-intro">
   <section class="card">
-    <h2>Музыкальная выразительность <span class="pill">v6.1</span></h2>
+    <h2>Музыкальная выразительность и Отработка <span class="pill">v6.2</span></h2>
     <div class="help">
-      <strong>Pitch</strong>, <strong>timing</strong>, <strong>динамика</strong> и <strong>артикуляция</strong> оцениваются раздельно. Для p/mf/f используется MIDI velocity; для legato/detached — длительность удержания клавиши относительно ноты в Slow/Normal. Ни одна из этих метрик не изменяет FSRS.
+      <strong>Pitch</strong>, <strong>timing</strong>, <strong>динамика</strong> и <strong>артикуляция</strong> оцениваются раздельно.<br>
+      🔁 <strong>Зацикливание тактов (Measure Looping):</strong> во время игры вы можете включить повтор любого такта с помощью панели управления вверху, чтобы отточить сложный фрагмент перед исполнением всей пьесы.
     </div>
 
     <div class="rhythm-controls" style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px;">
@@ -106,22 +123,59 @@
   </section>
 
   <section class="card">
-    <h2>Ввод</h2>
+    <h2>Ввод и Классика</h2>
     <div class="help">
-      <strong>MIDI</strong> — предпочтительный вариант. Без MIDI кликайте по точной клавише экранного пианино.<br><br>
-      В Tempo Mode перед стартом идёт визуальный отсчёт 4–3–2–1. Мышь продолжает проверять pitch/timing, но для динамики и артикуляции требуется MIDI-клавиатура.
+      В репертуар добавлены классические шедевры: <strong>К Элизе</strong> (Бетховен), <strong>Менуэт G-dur</strong> (Бах), <strong>Арабеска</strong> (Бургмюллер), <strong>Маленькая ночная серенада</strong> (Моцарт).<br><br>
+      В Tempo Mode перед стартом идёт визуальный отсчёт 4–3–2–1. Мышь проверяет pitch/timing, а для динамики и артикуляции подключите MIDI-клавиатуру.
     </div>
   </section>
 </div>
 
+<div class="repertoire-categories" style="display:flex; gap:8px; margin: 16px 0; flex-wrap:wrap;">
+  <button
+    type="button"
+    class="btn {selectedCategory === 'all' ? 'primary' : ''}"
+    style="font-size:13px; padding:6px 14px;"
+    onclick={() => { selectedCategory = 'all'; }}
+  >
+    Все произведения ({categoryCounts.all})
+  </button>
+  <button
+    type="button"
+    class="btn {selectedCategory === 'classical' ? 'primary' : ''}"
+    style="font-size:13px; padding:6px 14px;"
+    onclick={() => { selectedCategory = 'classical'; }}
+  >
+    Классика ({categoryCounts.classical})
+  </button>
+  <button
+    type="button"
+    class="btn {selectedCategory === 'study' ? 'primary' : ''}"
+    style="font-size:13px; padding:6px 14px;"
+    onclick={() => { selectedCategory = 'study'; }}
+  >
+    Этюды ({categoryCounts.study})
+  </button>
+  <button
+    type="button"
+    class="btn {selectedCategory === 'warmup' ? 'primary' : ''}"
+    style="font-size:13px; padding:6px 14px;"
+    onclick={() => { selectedCategory = 'warmup'; }}
+  >
+    Разминка ({categoryCounts.warmup})
+  </button>
+</div>
+
 <div class="repertoire-grid">
-  {#each REPERTOIRE as song (song.id)}
+  {#each filteredRepertoire as song (song.id)}
+    {@const measureCount = getSongMeasureCount(song)}
+    {@const timeSig = song.timeSignature ? `${song.timeSignature[0]}/${song.timeSignature[1]}` : `${song.measureBeats}/4`}
     <article class="repertoire-card">
       <small>{song.level} · {song.source}</small>
       <h3>{song.title}</h3>
       <p>{song.description}</p>
       <div class="repertoire-meta">
-        <span>Такты: {song.measureBeats}/4 · Фразы: {song.phraseBars}</span>
+        <span>Размер: {timeSig} · Тактов: {measureCount} · Ноты: {song.notes.length}</span>
       </div>
       <button
         type="button"

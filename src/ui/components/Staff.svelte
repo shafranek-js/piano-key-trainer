@@ -7,6 +7,7 @@
     mode = 'single' as 'single' | 'repertoire',
     repertoireSong = null as any,
     currentNoteIndex = 0,
+    loopMeasure = null as number | null,
     isCompleted = false,
     pulseGuide = false
   } = $props();
@@ -88,6 +89,9 @@
         {#if y <= 20}
           <line class="ledger" x1="119" x2="153" y1={y} y2={y} />
         {/if}
+        {#if keyId.includes('#')}
+          <text class="accidental" x="112" y={y + 6} font-size="20" fill="currentColor">♯</text>
+        {/if}
         <ellipse class="notehead {pulseGuide ? 'pulse-guide' : ''}" cx="135" cy={y} rx="10" ry="6.5" transform="rotate(-18 135 {y})" />
         {#if stemUp}
           <line class="stem" x1="143" y1={y} x2="143" y2={y - 44} />
@@ -115,6 +119,9 @@
         {/if}
         {#if y >= 108}
           <line class="ledger" x1="119" x2="153" y1={y} y2={y} />
+        {/if}
+        {#if keyId.includes('#')}
+          <text class="accidental" x="112" y={y + 6} font-size="20" fill="currentColor">♯</text>
         {/if}
         <ellipse class="notehead {pulseGuide ? 'pulse-guide' : ''}" cx="135" cy={y} rx="10" ry="6.5" transform="rotate(-18 135 {y})" />
         {#if stemUp}
@@ -157,6 +164,9 @@
           <line class="ledger" x1="144" x2="178" y1={y} y2={y} />
         {/if}
 
+        {#if keyId.includes('#')}
+          <text class="accidental" x="138" y={y + 6} font-size="20" fill="currentColor">♯</text>
+        {/if}
         <ellipse class="notehead {pulseGuide ? 'pulse-guide' : ''}" cx="160" cy={y} rx="9.5" ry="6" transform="rotate(-18 160 {y})" />
         {#if stemUp}
           <line class="stem" x1="168" y1={y} x2="168" y2={y - 38} />
@@ -174,13 +184,31 @@
   {@const width = Math.max(820, left + measureCount * measureW + 22)}
   {@const height = 142}
   {@const curMeasure = Math.floor(currentNoteIndex / (repertoireSong.measureBeats || 4)) + 1}
+  {@const timeTop = repertoireSong.timeSignature ? repertoireSong.timeSignature[0] : (repertoireSong.measureBeats || 4)}
+  {@const timeBottom = repertoireSong.timeSignature ? repertoireSong.timeSignature[1] : 4}
 
-  <svg class="repertoire-staff-svg phrase-staff" viewBox="0 0 {width} {height}" role="img" aria-label="Нотный стан мелодии 4/4">
+  <svg class="repertoire-staff-svg phrase-staff" viewBox="0 0 {width} {height}" role="img" aria-label="Нотный стан мелодии {timeTop}/{timeBottom}">
     <text class="rep-clef" x="14" y="104">&#119070;</text>
     <g class="rep-time-signature">
-      <text x="86" y="63">4</text>
-      <text x="86" y="91">4</text>
+      <text x="86" y="63">{timeTop}</text>
+      <text x="86" y="91">{timeBottom}</text>
     </g>
+
+    {#if loopMeasure != null}
+      <rect 
+        class="rep-measure-loop-highlight" 
+        x={left + (loopMeasure - 1) * measureW + 2} 
+        y="22" 
+        width={measureW - 4} 
+        height="92" 
+        rx="8" 
+        fill="rgba(245, 158, 11, 0.12)"
+        stroke="#f59e0b"
+        stroke-width="2"
+        stroke-dasharray="4 2"
+      />
+      <text x={left + (loopMeasure - 1) * measureW + 10} y="34" fill="#f59e0b" font-size="11" font-weight="bold">🔁 LOOP</text>
+    {/if}
 
     {#if !isCompleted}
       <rect 
@@ -211,6 +239,7 @@
       {@const current = i === currentNoteIndex && !isCompleted}
       {@const stemUp = y > 68}
       {@const stemX = stemUp ? x + 8 : x - 8}
+      {@const isSharp = noteId.includes('#')}
 
       <g class="rep-note {done ? 'done' : ''} {current ? 'current' : ''}">
         {#if current}
@@ -218,6 +247,9 @@
         {/if}
         {#if y >= 112}
           <line class="rep-ledger" x1={x - 13} x2={x + 13} y1="116" y2="116" />
+        {/if}
+        {#if isSharp}
+          <text class="rep-accidental" x={x - 13} y={y + 5} font-size="16" fill="currentColor">♯</text>
         {/if}
         <ellipse class="rep-notehead" cx={x} cy={y} rx="8.5" ry="6" transform="rotate(-18 {x} {y})" fill="currentColor" />
         <line class="rep-stem" x1={stemX} x2={stemX} y1={y} y2={stemUp ? y - 32 : y + 32} />

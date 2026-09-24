@@ -283,6 +283,8 @@
     heldMidi: Map<string, { noteIndex: number; onPerf: number; expectedMs: number }>;
     awaitingRelease: boolean;
     lastExpressionText: string;
+    loopMeasure: number | null;
+    loopCount: number;
     completed: boolean;
   } | null>(null);
   let repertoireCountInTimer: number | null = null;
@@ -1305,6 +1307,8 @@
       heldMidi: new Map(),
       awaitingRelease: false,
       lastExpressionText: '',
+      loopMeasure: null,
+      loopCount: 0,
       completed: false
     };
 
@@ -1315,6 +1319,40 @@
     } else {
       nextRound();
     }
+  }
+
+  function setRepertoireLoop(measure: number | null) {
+    if (!activeRepertoire) return;
+    const song = REPERTOIRE.find(s => s.id === activeRepertoire!.id);
+    if (!song) return;
+    const beats = song.measureBeats || 4;
+    const totalMeasures = Math.max(1, Math.ceil(song.notes.length / beats));
+
+    if (measure === null) {
+      activeRepertoire.loopMeasure = null;
+      activeRepertoire.loopCount = 0;
+      feedbackText = 'Режим: вся пьеса целиком';
+      feedbackClass = '';
+    } else {
+      const validMeasure = Math.max(1, Math.min(totalMeasures, measure));
+      activeRepertoire.loopMeasure = validMeasure;
+      activeRepertoire.loopCount = 0;
+      activeRepertoire.index = (validMeasure - 1) * beats;
+      activeRepertoire.lastCorrectPerf = null;
+      feedbackText = `🔁 Зациклен такт ${validMeasure} (ноты ${(validMeasure - 1) * beats + 1}–${Math.min(song.notes.length, validMeasure * beats)}). Повторяйте фрагмент до автоматизма!`;
+      feedbackClass = 'good';
+    }
+    renderRepertoireStep();
+  }
+
+  function prevRepertoireMeasure() {
+    if (!activeRepertoire || activeRepertoire.loopMeasure == null) return;
+    setRepertoireLoop(activeRepertoire.loopMeasure - 1);
+  }
+
+  function nextRepertoireMeasure() {
+    if (!activeRepertoire || activeRepertoire.loopMeasure == null) return;
+    setRepertoireLoop(activeRepertoire.loopMeasure + 1);
   }
 
   function beginRepertoireCountIn(bpm: number) {
@@ -1348,9 +1386,17 @@
     const song = REPERTOIRE.find(s => s.id === activeRepertoire!.id);
     if (!song) return;
 
-    if (activeRepertoire.index >= song.notes.length) {
-      finishSong();
-      return;
+    const beats = song.measureBeats || 4;
+    const isLooping = activeRepertoire.loopMeasure != null;
+    const loopEnd = isLooping ? Math.min(song.notes.length, activeRepertoire.loopMeasure! * beats) : song.notes.length;
+
+    if (activeRepertoire.index >= loopEnd) {
+      if (isLooping) {
+        activeRepertoire.index = (activeRepertoire.loopMeasure! - 1) * beats;
+      } else {
+        finishSong();
+        return;
+      }
     }
 
     targetKeyId = song.notes[activeRepertoire.index];
@@ -1396,7 +1442,19 @@
       }
 
       activeRepertoire.index++;
-      if (activeRepertoire.index >= song.notes.length) {
+
+      const beats = song.measureBeats || 4;
+      const isLooping = activeRepertoire.loopMeasure != null;
+      const loopEndIndex = isLooping ? Math.min(song.notes.length, activeRepertoire.loopMeasure! * beats) : song.notes.length;
+
+      if (isLooping && activeRepertoire.index >= loopEndIndex) {
+        activeRepertoire.loopCount++;
+        activeRepertoire.index = (activeRepertoire.loopMeasure! - 1) * beats;
+        activeRepertoire.lastCorrectPerf = null;
+        feedbackText = `🔁 Такт ${activeRepertoire.loopMeasure} сыгран! Повтор #${activeRepertoire.loopCount}`;
+        feedbackClass = 'good';
+        setTimeout(renderRepertoireStep, 150);
+      } else if (!isLooping && activeRepertoire.index >= song.notes.length) {
         finishSong();
       } else {
         setTimeout(renderRepertoireStep, 150);
@@ -1920,13 +1978,23 @@
         {:else if practiceActivity === 'repertoire' && activeRepertoire}
           {@const song = REPERTOIRE.find(s => s.id === activeRepertoire!.id)}
           {#if song}
+            {@const beats = song.measureBeats || 4}
+            {@const totalMeasures = Math.max(1, Math.ceil(song.notes.length / beats))}
+            {@const currentMeasure = Math.floor(activeRepertoire.index / beats) + 1}
             <SongBanner
               title={song.title}
-              progressText="{activeRepertoire.displayMode === 'staff' ? 'Ноты' : 'Клавиши'} · {activeRepertoire.bpm ? `${activeRepertoire.bpm} BPM` : 'Wait Mode'} · {activeRepertoire.index}/{song.notes.length}"
+              progressText="{activeRepertoire.displayMode === 'staff' ? 'Ноты' : 'Клавиши'} · {activeRepertoire.bpm ? `${activeRepertoire.bpm} BPM` : 'Wait Mode'} · {activeRepertoire.index + 1}/{song.notes.length}"
               subtitle={activeRepertoire.countingIn ? `Приготовьтесь: счёт ${activeRepertoire.countInValue}` : song.description}
               dynamicsMode={settings.repertoireDynamicsTarget || 'off'}
               articulationMode={settings.repertoireArticulationTarget || 'off'}
               lastExpressionText={activeRepertoire.lastExpressionText}
+              {totalMeasures}
+              {currentMeasure}
+              loopMeasure={activeRepertoire.loopMeasure}
+              loopCount={activeRepertoire.loopCount}
+              onSetLoopMeasure={setRepertoireLoop}
+              onPrevMeasure={prevRepertoireMeasure}
+              onNextMeasure={nextRepertoireMeasure}
               onRestart={restartSong}
               onExit={leaveRepertoire}
             />
@@ -2002,12 +2070,13 @@
                   mode="repertoire"
                   repertoireSong={song}
                   currentNoteIndex={activeRepertoire.index}
+                  loopMeasure={activeRepertoire.loopMeasure}
                   isCompleted={activeRepertoire.completed}
                 />
               </div>
             {/if}
             <TaskStage
-              eyebrow="Мелодия · {song.level}"
+              eyebrow="Мелодия · {song.level}{activeRepertoire.loopMeasure != null ? ` · 🔁 Зациклен такт ${activeRepertoire.loopMeasure}` : ''}"
               promptText={activeRepertoire.displayMode === 'staff' ? 'Читайте ноты на стане' : `<span class="note">${song.notes[activeRepertoire.index] || 'Конец'}</span>`}
               instructionText={activeRepertoire.countingIn ? `Счёт 4–3–2–1... приготовьтесь к первому такту` : `Сыграйте ноту: ${song.notes[activeRepertoire.index] || 'Завершено'}`}
               reactionTime="—"

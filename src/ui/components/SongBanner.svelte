@@ -8,6 +8,13 @@
     dynamicsMode = 'off',
     articulationMode = 'off',
     lastExpressionText = '',
+    totalMeasures = 1,
+    currentMeasure = 1,
+    loopMeasure = null as number | null,
+    loopCount = 0,
+    onSetLoopMeasure,
+    onPrevMeasure,
+    onNextMeasure,
     onRestart,
     onExit
   } = $props();
@@ -17,7 +24,18 @@
 
 <section class="song-banner active" id="songBanner">
   <div class="song-banner-main">
-    <span class="song-progress-chip" id="songProgressChip">{progressText}</span>
+    <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:4px;">
+      <span class="song-progress-chip" id="songProgressChip">{progressText}</span>
+      <span class="song-progress-chip" style="background:rgba(59,130,246,0.18); border-color:rgba(59,130,246,0.4); color:#93c5fd;">
+        Такт {currentMeasure} / {totalMeasures}
+      </span>
+      {#if loopMeasure != null}
+        <span class="song-progress-chip" style="background:rgba(245,158,11,0.2); border-color:rgba(245,158,11,0.5); color:#fde68a; font-weight:600;">
+          🔁 Зациклен такт {loopMeasure} · #{loopCount}
+        </span>
+      {/if}
+    </div>
+
     <h3 id="songBannerTitle">{title}</h3>
     <p id="songBannerSub">{@html subtitle}</p>
 
@@ -40,6 +58,74 @@
         {/if}
       </div>
     {/if}
+
+    <div class="song-loop-bar" style="margin-top:8px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+      <span style="font-size:11px; color:#94a3b8; font-weight:500;">Режим:</span>
+      <button
+        type="button"
+        class="btn btn-sm {loopMeasure == null ? 'primary' : ''}"
+        style="padding:2px 8px; font-size:11px; height:24px; min-height:24px;"
+        onclick={() => onSetLoopMeasure?.(null)}
+      >
+        Вся пьеса
+      </button>
+
+      <div style="display:inline-flex; align-items:center; gap:3px;">
+        {#if loopMeasure != null}
+          <button
+            type="button"
+            class="btn btn-sm"
+            style="padding:2px 6px; font-size:11px; height:24px; min-height:24px;"
+            disabled={loopMeasure <= 1}
+            onclick={() => onPrevMeasure?.()}
+            title="Предыдущий такт"
+          >
+            ◀
+          </button>
+        {/if}
+
+        <select
+          class="measure-dropdown"
+          value={loopMeasure ?? ''}
+          onchange={(e) => {
+            const val = (e.currentTarget as HTMLSelectElement).value;
+            onSetLoopMeasure?.(val === '' ? null : Number(val));
+          }}
+          aria-label="Выбрать такт для зацикливания"
+          style="padding:2px 6px; border-radius:6px; background:#0f172a; color:#f8fafc; border:1px solid #334155; font-size:11px; height:24px;"
+        >
+          <option value="">Вся мелодия</option>
+          {#each Array(totalMeasures) as _, idx}
+            <option value={idx + 1}>Зациклить такт {idx + 1}</option>
+          {/each}
+        </select>
+
+        {#if loopMeasure != null}
+          <button
+            type="button"
+            class="btn btn-sm"
+            style="padding:2px 6px; font-size:11px; height:24px; min-height:24px;"
+            disabled={loopMeasure >= totalMeasures}
+            onclick={() => onNextMeasure?.()}
+            title="Следующий такт"
+          >
+            ▶
+          </button>
+        {/if}
+      </div>
+
+      {#if loopMeasure == null}
+        <button
+          type="button"
+          class="btn btn-sm"
+          style="padding:2px 8px; font-size:11px; height:24px; min-height:24px; color:#fbbf24; border-color:rgba(245,158,11,0.4);"
+          onclick={() => onSetLoopMeasure?.(currentMeasure)}
+          title="Зациклить текущий такт для отработки"
+        >
+          🔁 Зациклить такт {currentMeasure}
+        </button>
+      {/if}
+    </div>
   </div>
 
   <div class="song-banner-actions">

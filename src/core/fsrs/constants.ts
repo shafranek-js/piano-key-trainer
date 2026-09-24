@@ -29,7 +29,8 @@ export const DEFAULT_SETTINGS: UserSettings = {
   twoHandTempoMode: 'wait',
   autoAdvanceDelaySeconds: 3.0,
   level: 'white',
-  mode: 'smart'
+  mode: 'smart',
+  notationClef: 'treble'
 };
 
 export const LEARN_ORDER: readonly NoteName[] = [

@@ -7,7 +7,9 @@
     midiConnected = false,
     onClose,
     onSettingsChange,
-    onConnectMidi
+    onConnectMidi,
+    onExportData,
+    onImportData
   } = $props();
 </script>
 
@@ -58,6 +60,19 @@
         >
           <option value="white">Белые клавиши · C D E F G A B</option>
           <option value="all">Все клавиши · + ♯ / ♭</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="clefSelect">Нотный стан</label>
+        <select 
+          id="clefSelect" 
+          value={settings.notationClef || 'treble'}
+          onchange={(e) => onSettingsChange?.({ notationClef: (e.target as HTMLSelectElement).value as any })}
+        >
+          <option value="treble">Скрипичный ключ · C4–B4</option>
+          <option value="bass">Басовый ключ · C3–C4</option>
+          <option value="grand">Двойной стан · Grand Staff</option>
         </select>
       </div>
 
@@ -134,6 +149,35 @@
       >
         {midiConnected ? 'MIDI: подключено' : 'MIDI: подключить'}
       </button>
+
+      <div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(148,163,184,0.14); display: flex; flex-direction: column; gap: 8px;">
+        <span style="font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em;">Резервная копия</span>
+        <div style="display: flex; gap: 8px;">
+          <button 
+            type="button" 
+            class="btn" 
+            style="flex: 1; font-size: 12px; padding: 8px 6px; white-space: nowrap;"
+            onclick={() => onExportData?.()}
+          >
+            💾 Экспорт JSON
+          </button>
+          <label 
+            class="btn" 
+            style="flex: 1; font-size: 12px; padding: 8px 6px; text-align: center; cursor: pointer; white-space: nowrap;"
+          >
+            📂 Импорт JSON
+            <input 
+              type="file" 
+              accept=".json" 
+              style="display: none;" 
+              onchange={(e) => {
+                const file = (e.target as HTMLInputElement).files?.[0];
+                if (file) onImportData?.(file);
+              }}
+            />
+          </label>
+        </div>
+      </div>
     </section>
   </div>
 </div>

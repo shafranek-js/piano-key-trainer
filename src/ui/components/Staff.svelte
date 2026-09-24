@@ -3,6 +3,7 @@
 
   let {
     keyId = 'C4' as string,
+    clef = 'auto' as 'auto' | 'treble' | 'bass' | 'grand',
     mode = 'single' as 'single' | 'repertoire',
     repertoireSong = null as any,
     currentNoteIndex = 0,
@@ -10,26 +11,69 @@
     pulseGuide = false
   } = $props();
 
-  // Y-coordinate calculation for treble clef
-  function staffYForKeyId(id: string): number {
-    const m = /^([A-G])(4)$/.exec(id || '');
-    if (!m) return 64;
-    const order: Record<string, number> = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };
-    return 112 - (order[m[1]] ?? 0) * 8;
+  const diatonicMap: Record<string, number> = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };
+
+  // Determine effective clef
+  function effectiveClef(): 'treble' | 'bass' | 'grand' {
+    if (clef === 'grand') return 'grand';
+    if (clef === 'bass') return 'bass';
+    if (clef === 'treble') return 'treble';
+    // auto:
+    const m = /^([A-G])(#?)(\d)$/.exec(keyId || '');
+    if (m && Number(m[3]) <= 3) return 'bass';
+    return 'treble';
+  }
+
+  // Y for Treble single staff (viewBox 0 0 300 140, lines: 32, 48, 64, 80, 96)
+  function staffYForTreble(id: string): number {
+    const m = /^([A-G])(#?)(\d)$/.exec(id || '');
+    if (!m) return 112;
+    const note = m[1];
+    const octave = Number(m[3]);
+    const step = (octave - 4) * 7 + (diatonicMap[note] ?? 0);
+    return 112 - step * 8;
+  }
+
+  // Y for Bass single staff (viewBox 0 0 300 140, lines: 32, 48, 64, 80, 96)
+  // C3 is Space 2 (y = 72), F3 is Line 4 (y = 48), C4 is Ledger Line 1 above staff (y = 16)
+  function staffYForBass(id: string): number {
+    const m = /^([A-G])(#?)(\d)$/.exec(id || '');
+    if (!m) return 72;
+    const note = m[1];
+    const octave = Number(m[3]);
+    const step = (octave - 3) * 7 + (diatonicMap[note] ?? 0);
+    return 72 - step * 8;
+  }
+
+  // Y for Grand Staff (viewBox 0 0 320 226)
+  function staffYForGrand(id: string): number {
+    const m = /^([A-G])(#?)(\d)$/.exec(id || '');
+    if (!m) return 113;
+    const note = m[1];
+    const octave = Number(m[3]);
+    const stepFromC4 = (octave - 4) * 7 + (diatonicMap[note] ?? 0);
+    if (stepFromC4 === 0) return 113; // Middle C
+    if (stepFromC4 > 0) {
+      // Treble: D4=100, E4=92 (Line 1), G4=76, B4=60, D5=44, F5=28
+      return 100 - (stepFromC4 - 1) * 8;
+    } else {
+      // Bass: B3=126, A3=134 (Line 5), F3=150, D3=166, C3=174, G2=198
+      const bassStepFromC4 = -stepFromC4;
+      return 126 + (bassStepFromC4 - 1) * 8;
+    }
   }
 
   function diatonicY(id: string): number {
     const m = /^([A-G])(#?)(\d)$/.exec(id || '');
     if (!m) return 64;
-    const order: Record<string, number> = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };
-    const idx = Number(m[3]) * 7 + order[m[1]];
+    const idx = Number(m[3]) * 7 + (diatonicMap[m[1]] ?? 0);
     const e4 = 4 * 7 + 2;
     return 96 - (idx - e4) * 8;
   }
 </script>
 
-{#if mode === 'single'}
-  {@const y = staffYForKeyId(keyId)}
+{#if mode === 'single' && effectiveClef() === 'treble'}
+  {@const y = staffYForTreble(keyId)}
   {@const stemUp = y >= 64}
   <div class="notation-wrap">
     <div class="notation-card">
@@ -41,6 +85,9 @@
         {#if y >= 108}
           <line class="ledger" x1="119" x2="153" y1={y} y2={y} />
         {/if}
+        {#if y <= 20}
+          <line class="ledger" x1="119" x2="153" y1={y} y2={y} />
+        {/if}
         <ellipse class="notehead {pulseGuide ? 'pulse-guide' : ''}" cx="135" cy={y} rx="10" ry="6.5" transform="rotate(-18 135 {y})" />
         {#if stemUp}
           <line class="stem" x1="143" y1={y} x2="143" y2={y - 44} />
@@ -49,7 +96,76 @@
         {/if}
       </svg>
     </div>
-    <div class="notation-caption">Скрипичный ключ · диапазон: C4–B4</div>
+    <div class="notation-caption">Скрипичный ключ (правая рука) · диапазон: C4–B4</div>
+  </div>
+{:else if mode === 'single' && effectiveClef() === 'bass'}
+  {@const y = staffYForBass(keyId)}
+  {@const stemUp = y >= 64}
+  <div class="notation-wrap">
+    <div class="notation-card">
+      <svg class="notation-svg" viewBox="0 0 300 140" role="img" aria-label="Нота на басовом стане">
+        <text class="clef bass-clef-symbol" x="24" y="80">&#119074;</text>
+        <circle cx="68" cy="40" r="3.2" fill="#f8fafc" />
+        <circle cx="68" cy="56" r="3.2" fill="#f8fafc" />
+        {#each [32, 48, 64, 80, 96] as lineY}
+          <line class="staff" x1="92" x2="278" y1={lineY} y2={lineY} />
+        {/each}
+        {#if y <= 20}
+          <line class="ledger" x1="119" x2="153" y1={y} y2={y} />
+        {/if}
+        {#if y >= 108}
+          <line class="ledger" x1="119" x2="153" y1={y} y2={y} />
+        {/if}
+        <ellipse class="notehead {pulseGuide ? 'pulse-guide' : ''}" cx="135" cy={y} rx="10" ry="6.5" transform="rotate(-18 135 {y})" />
+        {#if stemUp}
+          <line class="stem" x1="143" y1={y} x2="143" y2={y - 44} />
+        {:else}
+          <line class="stem" x1="127" y1={y} x2="127" y2={y + 44} />
+        {/if}
+      </svg>
+    </div>
+    <div class="notation-caption">Басовый ключ (левая рука) · диапазон: C3–C4</div>
+  </div>
+{:else if mode === 'single' && effectiveClef() === 'grand'}
+  {@const y = staffYForGrand(keyId)}
+  {@const stemUp = y >= 113 ? y >= 166 : y >= 60}
+  <div class="notation-wrap">
+    <div class="notation-card" style="max-width:440px;">
+      <svg class="notation-svg" viewBox="0 0 320 226" style="height:210px;" role="img" aria-label="Двойной нотный стан (Grand Staff)">
+        <line class="staff" x1="84" x2="84" y1="28" y2="198" style="stroke-width:2.5px;" />
+        <path d="M84,28 C74,28 70,100 60,113 C70,126 74,198 84,198" fill="none" stroke="#94a3b8" stroke-width="2" />
+
+        <text class="clef" x="16" y="94" style="font-size:62px;">&#119070;</text>
+        {#each [28, 44, 60, 76, 92] as lineY}
+          <line class="staff" x1="84" x2="300" y1={lineY} y2={lineY} />
+        {/each}
+
+        <text class="clef bass-clef-symbol" x="18" y="174" style="font-size:50px;">&#119074;</text>
+        <circle cx="58" cy="140" r="2.8" fill="#f8fafc" />
+        <circle cx="58" cy="156" r="2.8" fill="#f8fafc" />
+        {#each [134, 150, 166, 182, 198] as lineY}
+          <line class="staff" x1="84" x2="300" y1={lineY} y2={lineY} />
+        {/each}
+
+        {#if Math.abs(y - 113) < 4}
+          <line class="ledger" x1="144" x2="178" y1="113" y2="113" />
+        {/if}
+        {#if y < 24}
+          <line class="ledger" x1="144" x2="178" y1={y} y2={y} />
+        {/if}
+        {#if y > 200}
+          <line class="ledger" x1="144" x2="178" y1={y} y2={y} />
+        {/if}
+
+        <ellipse class="notehead {pulseGuide ? 'pulse-guide' : ''}" cx="160" cy={y} rx="9.5" ry="6" transform="rotate(-18 160 {y})" />
+        {#if stemUp}
+          <line class="stem" x1="168" y1={y} x2="168" y2={y - 38} />
+        {:else}
+          <line class="stem" x1="152" y1={y} x2="152" y2={y + 38} />
+        {/if}
+      </svg>
+    </div>
+    <div class="notation-caption">Двойной стан (Grand Staff) · Скрипичный и басовый ключи</div>
   </div>
 {:else if repertoireSong}
   {@const measureW = 220}
@@ -66,7 +182,6 @@
       <text x="86" y="91">4</text>
     </g>
 
-    <!-- Measure highlight -->
     {#if !isCompleted}
       <rect 
         class="rep-measure-highlight" 
@@ -78,18 +193,15 @@
       />
     {/if}
 
-    <!-- 5 staff lines -->
     {#each [36, 52, 68, 84, 100] as lineY}
       <line class="rep-staff-line" x1="72" x2={width - 14} y1={lineY} y2={lineY} />
     {/each}
 
-    <!-- Bar lines -->
     {#each Array(measureCount + 1) as _, m}
       {@const x = left + m * measureW}
       <line class="rep-barline {m === 0 || m === measureCount ? 'edge' : ''}" x1={x} x2={x} y1="36" y2="100" />
     {/each}
 
-    <!-- Notes -->
     {#each repertoireSong.notes as noteId, i}
       {@const m = Math.floor(i / (repertoireSong.measureBeats || 4))}
       {@const within = i % (repertoireSong.measureBeats || 4)}

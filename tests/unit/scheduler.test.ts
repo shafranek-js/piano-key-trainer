@@ -154,4 +154,18 @@ describe('Scheduler and Queue Logic', () => {
     expect(fifth?.semitones).toBe(7);
     expect(fifth?.targetKeyId).toBe('G4');
   });
+
+  it('includes Lesson 11 (Bass Clef) and Lesson 12 (Grand Staff) definitions', async () => {
+    const { LESSONS } = await import('../../src/core/lessons/lessonsData');
+    const bassLesson = LESSONS.find(l => l.id === 'bass-clef-intro');
+    const grandLesson = LESSONS.find(l => l.id === 'grand-staff-intro');
+
+    expect(bassLesson).toBeDefined();
+    expect(bassLesson?.title).toContain('Басовый ключ');
+    expect(bassLesson?.steps.length).toBeGreaterThanOrEqual(5);
+
+    expect(grandLesson).toBeDefined();
+    expect(grandLesson?.title).toContain('Grand Staff');
+    expect(grandLesson?.steps.some(s => s.keyId === 'C4')).toBe(true);
+  });
 });

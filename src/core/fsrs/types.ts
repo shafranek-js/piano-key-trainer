@@ -100,4 +100,5 @@ export interface UserSettings {
   autoAdvanceDelaySeconds: number;
   level?: 'white' | 'all';
   mode?: string;
+  notationClef?: 'treble' | 'bass' | 'grand';
 }

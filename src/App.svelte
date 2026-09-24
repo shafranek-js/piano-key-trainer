@@ -109,6 +109,75 @@
     });
   }
 
+  async function exportProfileData() {
+    try {
+      const cardsList = await db.cards.toArray();
+      const logsList = await db.reviewLogs.toArray();
+      const coldList = await db.coldTests.toArray();
+      const progressList = await db.lessonProgress.toArray();
+      const backup = {
+        app: 'piano-key-trainer',
+        version: '6.2.0',
+        exportedAt: new Date().toISOString(),
+        settings: $state.snapshot(settings),
+        cards: cardsList,
+        reviewLogs: logsList,
+        coldTests: coldList,
+        lessonProgress: progressList
+      };
+      const jsonStr = JSON.stringify(backup, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `piano-key-trainer-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Export failed:', e);
+      alert('Ошибка при экспорте данных: ' + e);
+    }
+  }
+
+  async function importProfileData(file: File) {
+    try {
+      const text = await file.text();
+      const backup = JSON.parse(text);
+      if (!backup || typeof backup !== 'object') {
+        alert('Неверный формат файла резервной копии.');
+        return;
+      }
+      if (backup.settings) {
+        persistSettings(backup.settings);
+      }
+      if (Array.isArray(backup.cards) && backup.cards.length) {
+        await db.cards.clear();
+        await db.cards.bulkPut(backup.cards);
+        cards = backup.cards;
+      }
+      if (Array.isArray(backup.reviewLogs)) {
+        await db.reviewLogs.clear();
+        await db.reviewLogs.bulkPut(backup.reviewLogs);
+        reviewLogs = backup.reviewLogs;
+      }
+      if (Array.isArray(backup.coldTests)) {
+        await db.coldTests.clear();
+        await db.coldTests.bulkPut(backup.coldTests);
+        coldTests = backup.coldTests;
+      }
+      if (Array.isArray(backup.lessonProgress)) {
+        await db.lessonProgress.clear();
+        await db.lessonProgress.bulkPut(backup.lessonProgress);
+        lessonProgressMap = new Map(backup.lessonProgress.map((p: any) => [p.id, p]));
+      }
+      alert('Данные профиля успешно восстановлены из резервной копии!');
+      nextRound();
+    } catch (e) {
+      console.error('Import failed:', e);
+      alert('Ошибка при чтении файла резервной копии: ' + e);
+    }
+  }
+
   let cards = $state<Card[]>([]);
   let reviewLogs = $state<ReviewLogEvent[]>([]);
   let coldTests = $state<ColdTestRecord[]>([]);
@@ -767,7 +836,17 @@
       targetKeyId = `${picked.note}4`;
       targetKeyIds = [targetKeyId];
     } else if (picked.skill === 'notationToKey' || picked.skill === 'soundToKey') {
-      targetKeyId = `${picked.note}4`;
+      if (picked.skill === 'notationToKey') {
+        if (settings.notationClef === 'bass') {
+          targetKeyId = `${picked.note}3`;
+        } else if (settings.notationClef === 'grand') {
+          targetKeyId = Math.random() < 0.5 ? `${picked.note}3` : `${picked.note}4`;
+        } else {
+          targetKeyId = `${picked.note}4`;
+        }
+      } else {
+        targetKeyId = `${picked.note}4`;
+      }
       if (picked.skill === 'soundToKey') {
         setTimeout(() => playSoundPrompt(), 200);
       }
@@ -1971,7 +2050,12 @@
 
           {#if currentCard.skill === 'notationToKey'}
             <div style="display:flex; justify-content:center; margin-bottom: 12px;">
-              <Staff keyId={targetKeyId || 'C4'} mode="single" pulseGuide={staffPulseGuide} />
+              <Staff 
+                keyId={targetKeyId || 'C4'} 
+                mode="single" 
+                pulseGuide={staffPulseGuide} 
+                clef={settings.notationClef || 'auto'} 
+              />
             </div>
           {/if}
 
@@ -2108,7 +2192,7 @@
         startLearningSession(patch.sessionPreset as SessionPreset);
         nextRound();
       }
-      if (patch.level) {
+      if (patch.level || patch.notationClef) {
         nextRound();
       }
       if (patch.mode === 'earIntervals') startEarIntervalTraining();
@@ -2121,6 +2205,8 @@
       }
     }}
     onConnectMidi={() => MidiController.getInstance().connect()}
+    onExportData={exportProfileData}
+    onImportData={importProfileData}
   />
 
   <InspectorRail

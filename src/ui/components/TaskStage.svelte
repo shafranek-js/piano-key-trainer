@@ -34,62 +34,62 @@
       <div class="challenge-inner">
         <div class="prompt-wrap">
           <div class="eyebrow">{eyebrow}</div>
-          <div class="prompt">
-            <!-- Render HTML or slot for custom prompt (e.g. staff) -->
-            {@html promptText}
-          </div>
-          <div class="instruction">{instructionText}</div>
+          {#if promptText}
+            <div class="prompt">
+              {@html promptText}
+            </div>
+          {/if}
+          <div class="instruction" title={instructionText}>{instructionText}</div>
         </div>
 
         <div class="feedback-wrap">
-          <div class="reaction-panel {reactionClass}" aria-label="Время реакции">
+          <div class="reaction-panel {reactionClass}" id="reactionPanel" aria-label="Время реакции">
             <span>⏱ Время ответа</span>
             <b>{reactionTime}</b>
-            <small>{reactionStatus}</small>
+            <small id="reactionStatus">{reactionStatus}</small>
           </div>
 
-          {#if feedbackText}
-            <div class="feedback {feedbackClass}" aria-live="polite">
-              {feedbackText}
-            </div>
-          {/if}
+          <div class="feedback {feedbackClass}" aria-live="polite" title={feedbackText}>
+            {feedbackText}
+          </div>
 
-          {#if showSoundRepeat}
-            <button type="button" class="btn" onclick={() => onReplaySound?.()}>
-              🔊 Повторить звук
-            </button>
-          {/if}
-
-          {#if isCompleted}
-            <div class="auto-advance-wrap" style="width:100%; display:flex; flex-direction:column; gap:6px; margin-top:6px;">
-              {#if autoAdvanceCountdown != null && autoAdvanceCountdown > 0}
-                <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--muted);">
-                  <span>Следующее задание через <b>{autoAdvanceCountdown.toFixed(1)} с</b>…</span>
-                  <span style="opacity:0.8; font-size:11px;">Пробел для пропуска</span>
-                </div>
-                <div style="width:100%; height:4px; background:rgba(255,255,255,0.12); border-radius:999px; overflow:hidden;">
-                  <div style="height:100%; background:var(--accent); width:{(autoAdvanceCountdown / (autoAdvanceTotal || 3)) * 100}%; transition:width 0.1s linear;"></div>
-                </div>
-              {/if}
+          <div class="feedback-actions">
+            {#if showSoundRepeat}
               <button
                 type="button"
-                class="btn primary"
-                style="margin-top:4px; width:100%; font-size:14px;"
+                class="btn feedback-action-btn"
+                id="replaySoundBtn"
+                onclick={() => onReplaySound?.()}
+              >
+                🔊 Повторить звук
+              </button>
+            {/if}
+
+            {#if isCompleted}
+              <button
+                type="button"
+                class="btn primary feedback-action-btn next-question-inline-btn"
                 onclick={() => onNextQuestion?.()}
               >
-                Следующее задание → <small style="opacity:0.8; font-weight:normal;">(Пробел или Enter)</small>
+                <span>Следующее →</span>
+                {#if autoAdvanceCountdown != null && autoAdvanceCountdown > 0}
+                  <small class="inline-countdown">({autoAdvanceCountdown.toFixed(1)} с)</small>
+                {:else}
+                  <small style="opacity:0.85; font-weight:normal;">(Пробел)</small>
+                {/if}
               </button>
-            </div>
-          {:else if showDontKnow}
-            <button
-              type="button"
-              class="btn warn"
-              disabled={dontKnowDisabled}
-              onclick={() => onDontKnow?.()}
-            >
-              Не знаю <small style="opacity:0.75">(Enter)</small>
-            </button>
-          {/if}
+            {:else if showDontKnow}
+              <button
+                type="button"
+                class="btn warn feedback-action-btn"
+                id="dontKnowBtn"
+                disabled={dontKnowDisabled}
+                onclick={() => onDontKnow?.()}
+              >
+                Не знаю <small style="opacity:0.75">(Enter)</small>
+              </button>
+            {/if}
+          </div>
         </div>
       </div>
     </section>

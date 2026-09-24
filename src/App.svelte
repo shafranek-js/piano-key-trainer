@@ -2287,272 +2287,284 @@
           />
         {/if}
 
-        <!-- Interactive Task Stage Area -->
-        {#if practiceActivity === 'lesson' && activeLesson}
-          {@const lesson = activeLessonDef()}
-          {#if lesson}
-            {@const step = lesson.steps[activeLesson.stepIndex]}
-            <TaskStage
-              eyebrow="Мини-урок · {lesson.title} · Шаг {activeLesson.stepIndex + 1}/{lesson.steps.length}"
-              promptText="<span class='lesson-prompt-title'>{step.title}</span>"
-              instructionText={step.body}
-              reactionTime="—"
-              reactionStatus={step.type === 'info' ? 'Теория' : step.type === 'complete' ? 'Завершено' : 'Практика'}
-              {feedbackText}
-              {feedbackClass}
-              isCompleted={lessonCanContinue}
-              showDontKnow={false}
-              showAnswerButtons={false}
-              onNextQuestion={advanceLesson}
-            />
-            <div style="display:flex; justify-content:center; gap:12px; margin: 12px 0; flex-wrap:wrap;">
-              {#if lessonCanContinue}
-                <button
-                  type="button"
-                  class="btn primary"
-                  style="min-width:160px; font-size:15px; padding:10px 20px; font-weight:600;"
-                  onclick={advanceLesson}
-                >
-                  {lessonContinueLabel} →
-                </button>
-              {/if}
-              <button
-                type="button"
-                class="btn"
-                style="padding:10px 16px;"
-                onclick={leaveLesson}
-              >
-                Выйти из урока
-              </button>
-            </div>
-          {/if}
-        {:else if practiceActivity === 'repertoire' && activeRepertoire}
-          {@const baseSong = REPERTOIRE.find(s => s.id === activeRepertoire!.id)}
-          {#if baseSong}
-            {@const song = getSongVersion(baseSong, activeRepertoire.lengthMode)}
-            <div class="repertoire-stage-wrap {activeRepertoire.displayMode === 'staff' ? 'is-staff-mode' : ''}">
-              {#if activeRepertoire.displayMode === 'staff'}
-                <div class="repertoire-staff-holder">
-                  <Staff
-                    mode="repertoire"
-                    repertoireSong={song}
-                    currentNoteIndex={activeRepertoire.index}
-                    loopMeasure={activeRepertoire.loopMeasure}
-                    isCompleted={activeRepertoire.completed}
-                  />
-                </div>
-              {/if}
-              <TaskStage
-                eyebrow="Мелодия · {song.level} · {activeRepertoire.lengthMode === 'full' ? '🎼 Полная мелодия' : '✂️ Отрывок'}{activeRepertoire.loopMeasure != null ? ` · 🔁 Зациклен такт ${activeRepertoire.loopMeasure}` : ''}"
-                promptText={activeRepertoire.displayMode === 'staff' ? 'Читайте ноты на стане' : `<span class="note">${song.notes[activeRepertoire.index] || 'Конец'}</span>`}
-                instructionText={activeRepertoire.countingIn ? `Счёт 4–3–2–1... приготовьтесь к первому такту` : activeRepertoire.displayMode === 'staff' ? 'Найдите и сыграйте выделенную на стане ноту на клавиатуре' : `Найдите клавишу ${song.notes[activeRepertoire.index] || 'Завершено'} на клавиатуре`}
-                reactionTime="—"
-                reactionStatus={activeRepertoire.bpm ? `${activeRepertoire.bpm} BPM` : 'Wait Mode'}
-                {reactionClass}
-                {feedbackText}
-                {feedbackClass}
-                {isCompleted}
-                showDontKnow={false}
-                onNextQuestion={nextRound}
-              />
-            </div>
-          {/if}
-        {:else if practiceActivity === 'earIntervals' && activeEarInterval}
-          <TaskStage
-            eyebrow="Тренировка слуха · Интервалы (Direction 5)"
-            promptText="<span class='note'>C4</span> → 🔊 → ?"
-            instructionText="Послушайте интервал от C4 и определите его"
-            reactionTime="{((reactionElapsedMs || 0) / 1000).toFixed(1)} с"
-            {reactionStatus}
-            {reactionClass}
-            {feedbackText}
-            {feedbackClass}
-            {isCompleted}
-            autoAdvanceTotal={3.0}
-            {autoAdvanceCountdown}
-            showSoundRepeat={true}
-            showDontKnow={false}
-            onReplaySound={() => playIntervalSequence(activeEarInterval!.item.targetKeyId, 'C4')}
-            onNextQuestion={nextRound}
-          />
-          <div style="display:flex; justify-content:center; gap:8px; flex-wrap:wrap; margin:10px 0;">
-            {#each INTERVALS as interval (interval.id)}
-              <button
-                type="button"
-                class="btn {activeEarInterval.answered && activeEarInterval.item.id === interval.id ? 'primary' : ''}"
-                disabled={activeEarInterval.answered}
-                onclick={() => handleEarIntervalAnswer(interval.id)}
-              >
-                {interval.shortName} ({interval.name})
-              </button>
-            {/each}
-          </div>
-        {:else if practiceActivity === 'earTriads' && activeEarTriad}
-          <TaskStage
-            eyebrow="Тренировка слуха · Трезвучия (Direction 5)"
-            promptText="🔊 Трезвучие: Мажор или Минор?"
-            instructionText="Послушайте аккорд и определите его ладовую окраску"
-            reactionTime="{((reactionElapsedMs || 0) / 1000).toFixed(1)} с"
-            {reactionStatus}
-            {reactionClass}
-            {feedbackText}
-            {feedbackClass}
-            {isCompleted}
-            autoAdvanceTotal={3.0}
-            {autoAdvanceCountdown}
-            showSoundRepeat={true}
-            showDontKnow={false}
-            onReplaySound={() => playTriadSequence(activeEarTriad!.item.notes, 'arpeggio')}
-            onNextQuestion={nextRound}
-          />
-          <div style="display:flex; justify-content:center; gap:16px; margin:12px 0;">
-            <button
-              type="button"
-              class="btn primary"
-              style="min-width:140px; font-size:16px; padding:12px 20px;"
-              disabled={activeEarTriad.answered}
-              onclick={() => handleEarTriadAnswer('major')}
-            >
-              ☀️ Мажор (светлое)
-            </button>
-            <button
-              type="button"
-              class="btn"
-              style="min-width:140px; font-size:16px; padding:12px 20px;"
-              disabled={activeEarTriad.answered}
-              onclick={() => handleEarTriadAnswer('minor')}
-            >
-              🌧️ Минор (задумчивое)
-            </button>
-          </div>
-        {:else if practiceActivity === 'earEcho' && activeEarEcho}
-          <TaskStage
-            eyebrow="Тренировка слуха · Мелодическое эхо · {activeEarEcho.item.level === 'easy' ? '3 ноты' : activeEarEcho.item.level === 'medium' ? '4 ноты' : '5 нот'}"
-            promptText="<div class='echo-slots-container' style='display:flex; justify-content:center; gap:10px; margin: 4px 0;'>{activeEarEcho.item.notes.map((n, i) => `<span class='echo-slot ${i < activeEarEcho.currentIndex ? 'done' : i === activeEarEcho.currentIndex ? 'current' : ''}' style='display:inline-flex; align-items:center; justify-content:center; min-width:44px; height:44px; padding:0 8px; border-radius:12px; font-weight:700; font-size:16px; border:2px solid ${i < activeEarEcho.currentIndex ? '#22c55e' : i === activeEarEcho.currentIndex ? '#38bdf8' : 'rgba(148,163,184,0.3)'}; background:${i < activeEarEcho.currentIndex ? 'rgba(34,197,94,0.18)' : i === activeEarEcho.currentIndex ? 'rgba(56,189,248,0.15)' : 'rgba(15,23,42,0.4)'}; color:${i < activeEarEcho.currentIndex ? '#4ade80' : i === activeEarEcho.currentIndex ? '#38bdf8' : '#64748b'};'>${i < activeEarEcho.currentIndex ? n : (i === activeEarEcho.currentIndex ? '?' : '·')}</span>`).join('')}</div>"
-            instructionText="Послушайте фразу и сыграйте её на клавиатуре фортепиано (нота {Math.min(activeEarEcho.currentIndex + 1, activeEarEcho.item.notes.length)} из {activeEarEcho.item.notes.length})"
-            reactionTime="—"
-            reactionStatus="Слух · Эхо"
-            {feedbackText}
-            {feedbackClass}
-            isCompleted={activeEarEcho.completed}
-            autoAdvanceTotal={2.5}
-            {autoAdvanceCountdown}
-            showSoundRepeat={true}
-            showDontKnow={false}
-            onReplaySound={() => playEchoPhrase(activeEarEcho!.item.notes)}
-            onNextQuestion={nextRound}
-          />
-        {:else if practiceActivity === 'twohand' && activeTwoHand}
-          {@const pattern = activeTwoHandPattern()}
-          {#if pattern}
-            {@const step = pattern.steps[activeTwoHand.index]}
-            {@const isPair = pattern.mode === 'pair' || pattern.mode === 'anchor'}
-            {@const pairStep = isPair ? (step as { left: string; right: string }) : null}
-            {@const altStep = !isPair ? (step as { key: string; hand: 'L' | 'R' }) : null}
-
-            <div style="display:flex; flex-direction:column; justify-content:center; gap:6px; min-height:0;">
-              <div style="display:flex; justify-content:center;">
-                <Staff
-                  mode="twohand"
-                  twoHandLeft={isPair ? pairStep?.left : (altStep?.hand === 'L' ? altStep.key : null)}
-                  twoHandRight={isPair ? pairStep?.right : (altStep?.hand === 'R' ? altStep.key : null)}
+        <!-- Interactive Task Stage Area (Fixed Grid Row 2) -->
+        <div class="practice-stage-center">
+          {#if practiceActivity === 'lesson' && activeLesson}
+            {@const lesson = activeLessonDef()}
+            {#if lesson}
+              {@const step = lesson.steps[activeLesson.stepIndex]}
+              <div class="lesson-stage-wrap">
+                <TaskStage
+                  eyebrow="Мини-урок · {lesson.title} · Шаг {activeLesson.stepIndex + 1}/{lesson.steps.length}"
+                  promptText="<span class='lesson-prompt-title'>{step.title}</span>"
+                  instructionText={step.body}
+                  reactionTime="—"
+                  reactionStatus={step.type === 'info' ? 'Теория' : step.type === 'complete' ? 'Завершено' : 'Практика'}
+                  {feedbackText}
+                  {feedbackClass}
+                  isCompleted={lessonCanContinue}
+                  showDontKnow={false}
+                  showAnswerButtons={false}
+                  onNextQuestion={advanceLesson}
                 />
-              </div>
-
-              <TaskStage
-                eyebrow="Две руки · {pattern.title} · Шаг {Math.min(activeTwoHand.index + 1, pattern.steps.length)}/{pattern.steps.length}"
-                promptText={isPair
-                  ? `Левая: <span class='note' style='color:#c084fc;'>${pairStep?.left}</span> &nbsp;+&nbsp; Правая: <span class='note' style='color:#38bdf8;'>${pairStep?.right}</span>`
-                  : `${altStep?.hand === 'L' ? 'Левая рука' : 'Правая рука'}: <span class='note' style='color:${altStep?.hand === 'L' ? '#c084fc' : '#38bdf8'};'>${altStep?.key}</span>`}
-                instructionText={pattern.mode === 'pair'
-                  ? 'Сыграйте обе ноты одновременно (по MIDI или поочередно кликом)'
-                  : pattern.mode === 'anchor'
-                    ? `Удерживайте левой рукой ${pairStep?.left} и нажмите ${pairStep?.right}`
-                    : `Сыграйте ${altStep?.hand === 'L' ? 'левой рукой (фиолетовая)' : 'правой рукой (голубая)'}`}
-                reactionTime="—"
-                reactionStatus={activeTwoHand.bpm ? '60 BPM' : 'Wait Mode'}
-                {feedbackText}
-                {feedbackClass}
-                isCompleted={activeTwoHand.completed}
-                showDontKnow={false}
-                showAnswerButtons={false}
-                onNextQuestion={nextRound}
-              />
-
-              {#if activeTwoHand.completed}
-                <div style="display:flex; justify-content:center; gap:12px; margin: 4px 0;">
-                  <button
-                    type="button"
-                    class="btn primary"
-                    style="font-size:14px; padding:8px 16px; font-weight:600;"
-                    onclick={restartTwoHand}
-                  >
-                    Повторить упражнение 🔁
-                  </button>
+                <div class="practice-inline-actions">
+                  {#if lessonCanContinue}
+                    <button
+                      type="button"
+                      class="btn primary"
+                      style="min-width:160px; font-size:14px; padding:8px 18px; font-weight:600;"
+                      onclick={advanceLesson}
+                    >
+                      {lessonContinueLabel} →
+                    </button>
+                  {/if}
                   <button
                     type="button"
                     class="btn"
                     style="padding:8px 14px; font-size:14px;"
-                    onclick={leaveTwoHand}
+                    onclick={leaveLesson}
                   >
-                    К списку упражнений
+                    Выйти из урока
                   </button>
                 </div>
-              {/if}
+              </div>
+            {/if}
+          {:else if practiceActivity === 'repertoire' && activeRepertoire}
+            {@const baseSong = REPERTOIRE.find(s => s.id === activeRepertoire!.id)}
+            {#if baseSong}
+              {@const song = getSongVersion(baseSong, activeRepertoire.lengthMode)}
+              <div class="repertoire-stage-wrap {activeRepertoire.displayMode === 'staff' ? 'is-staff-mode' : ''}">
+                {#if activeRepertoire.displayMode === 'staff'}
+                  <div class="repertoire-staff-holder">
+                    <Staff
+                      mode="repertoire"
+                      repertoireSong={song}
+                      currentNoteIndex={activeRepertoire.index}
+                      loopMeasure={activeRepertoire.loopMeasure}
+                      isCompleted={activeRepertoire.completed}
+                    />
+                  </div>
+                {/if}
+                <TaskStage
+                  eyebrow="Мелодия · {song.level} · {activeRepertoire.lengthMode === 'full' ? '🎼 Полная мелодия' : '✂️ Отрывок'}{activeRepertoire.loopMeasure != null ? ` · 🔁 Зациклен такт ${activeRepertoire.loopMeasure}` : ''}"
+                  promptText={activeRepertoire.displayMode === 'staff' ? 'Читайте ноты на стане' : `<span class="note">${song.notes[activeRepertoire.index] || 'Конец'}</span>`}
+                  instructionText={activeRepertoire.countingIn ? `Счёт 4–3–2–1... приготовьтесь к первому такту` : activeRepertoire.displayMode === 'staff' ? 'Найдите и сыграйте выделенную на стане ноту на клавиатуре' : `Найдите клавишу ${song.notes[activeRepertoire.index] || 'Завершено'} на клавиатуре`}
+                  reactionTime="—"
+                  reactionStatus={activeRepertoire.bpm ? `${activeRepertoire.bpm} BPM` : 'Wait Mode'}
+                  {reactionClass}
+                  {feedbackText}
+                  {feedbackClass}
+                  {isCompleted}
+                  showDontKnow={false}
+                  onNextQuestion={nextRound}
+                />
+              </div>
+            {/if}
+          {:else if practiceActivity === 'earIntervals' && activeEarInterval}
+            <div class="ear-stage-wrap">
+              <TaskStage
+                eyebrow="Тренировка слуха · Интервалы (Direction 5)"
+                promptText="<span class='note'>C4</span> → 🔊 → ?"
+                instructionText="Послушайте интервал от C4 и определите его"
+                reactionTime="{((reactionElapsedMs || 0) / 1000).toFixed(1)} с"
+                {reactionStatus}
+                {reactionClass}
+                {feedbackText}
+                {feedbackClass}
+                {isCompleted}
+                autoAdvanceTotal={3.0}
+                {autoAdvanceCountdown}
+                showSoundRepeat={true}
+                showDontKnow={false}
+                onReplaySound={() => playIntervalSequence(activeEarInterval!.item.targetKeyId, 'C4')}
+                onNextQuestion={nextRound}
+              />
+              <div class="practice-inline-actions">
+                {#each INTERVALS as interval (interval.id)}
+                  <button
+                    type="button"
+                    class="btn {activeEarInterval.answered && activeEarInterval.item.id === interval.id ? 'primary' : ''}"
+                    disabled={activeEarInterval.answered}
+                    onclick={() => handleEarIntervalAnswer(interval.id)}
+                  >
+                    {interval.shortName} ({interval.name})
+                  </button>
+                {/each}
+              </div>
             </div>
-          {/if}
-        {:else if currentCard}
-          {@const promptHtml = currentCard.skill === 'notationToKey'
-            ? ''
-            : currentCard.skill === 'find'
-              ? `Найдите ноту <span class="note">${DISPLAY_NAMES[currentCard.note]}</span>`
-              : currentCard.skill === 'identify'
-                ? `Какая нота подсвечена на клавиатуре?`
-                : currentCard.skill === 'soundToKey'
-                  ? `<span class="note">C4</span> → 🔊 → ?`
-                  : `Ориентир для ${DISPLAY_NAMES[currentCard.note]}`
-          }
+          {:else if practiceActivity === 'earTriads' && activeEarTriad}
+            <div class="ear-stage-wrap">
+              <TaskStage
+                eyebrow="Тренировка слуха · Трезвучия (Direction 5)"
+                promptText="🔊 Трезвучие: Мажор или Минор?"
+                instructionText="Послушайте аккорд и определите его ладовую окраску"
+                reactionTime="{((reactionElapsedMs || 0) / 1000).toFixed(1)} с"
+                {reactionStatus}
+                {reactionClass}
+                {feedbackText}
+                {feedbackClass}
+                {isCompleted}
+                autoAdvanceTotal={3.0}
+                {autoAdvanceCountdown}
+                showSoundRepeat={true}
+                showDontKnow={false}
+                onReplaySound={() => playTriadSequence(activeEarTriad!.item.notes, 'arpeggio')}
+                onNextQuestion={nextRound}
+              />
+              <div class="practice-inline-actions">
+                <button
+                  type="button"
+                  class="btn primary"
+                  style="min-width:140px; font-size:15px; padding:8px 18px;"
+                  disabled={activeEarTriad.answered}
+                  onclick={() => handleEarTriadAnswer('major')}
+                >
+                  ☀️ Мажор (светлое)
+                </button>
+                <button
+                  type="button"
+                  class="btn"
+                  style="min-width:140px; font-size:15px; padding:8px 18px;"
+                  disabled={activeEarTriad.answered}
+                  onclick={() => handleEarTriadAnswer('minor')}
+                >
+                  🌧️ Минор (задумчивое)
+                </button>
+              </div>
+            </div>
+          {:else if practiceActivity === 'earEcho' && activeEarEcho}
+            <div class="ear-stage-wrap">
+              <TaskStage
+                eyebrow="Тренировка слуха · Мелодическое эхо · {activeEarEcho.item.level === 'easy' ? '3 ноты' : activeEarEcho.item.level === 'medium' ? '4 ноты' : '5 нот'}"
+                promptText="<div class='echo-slots-container' style='display:flex; justify-content:center; gap:10px; margin: 2px 0;'>{activeEarEcho.item.notes.map((n, i) => `<span class='echo-slot ${i < activeEarEcho.currentIndex ? 'done' : i === activeEarEcho.currentIndex ? 'current' : ''}' style='display:inline-flex; align-items:center; justify-content:center; min-width:40px; height:36px; padding:0 8px; border-radius:10px; font-weight:700; font-size:15px; border:2px solid ${i < activeEarEcho.currentIndex ? '#22c55e' : i === activeEarEcho.currentIndex ? '#38bdf8' : 'rgba(148,163,184,0.3)'}; background:${i < activeEarEcho.currentIndex ? 'rgba(34,197,94,0.18)' : i === activeEarEcho.currentIndex ? 'rgba(56,189,248,0.15)' : 'rgba(15,23,42,0.4)'}; color:${i < activeEarEcho.currentIndex ? '#4ade80' : i === activeEarEcho.currentIndex ? '#38bdf8' : '#64748b'};'>${i < activeEarEcho.currentIndex ? n : (i === activeEarEcho.currentIndex ? '?' : '·')}</span>`).join('')}</div>"
+                instructionText="Послушайте фразу и сыграйте её на клавиатуре фортепиано (нота {Math.min(activeEarEcho.currentIndex + 1, activeEarEcho.item.notes.length)} из {activeEarEcho.item.notes.length})"
+                reactionTime="—"
+                reactionStatus="Слух · Эхо"
+                {feedbackText}
+                {feedbackClass}
+                isCompleted={activeEarEcho.completed}
+                autoAdvanceTotal={2.5}
+                {autoAdvanceCountdown}
+                showSoundRepeat={true}
+                showDontKnow={false}
+                onReplaySound={() => playEchoPhrase(activeEarEcho!.item.notes)}
+                onNextQuestion={nextRound}
+              />
+            </div>
+          {:else if practiceActivity === 'twohand' && activeTwoHand}
+            {@const pattern = activeTwoHandPattern()}
+            {#if pattern}
+              {@const step = pattern.steps[activeTwoHand.index]}
+              {@const isPair = pattern.mode === 'pair' || pattern.mode === 'anchor'}
+              {@const pairStep = isPair ? (step as { left: string; right: string }) : null}
+              {@const altStep = !isPair ? (step as { key: string; hand: 'L' | 'R' }) : null}
 
-          {#if currentCard.skill === 'notationToKey'}
-            <div style="display:flex; justify-content:center; margin-bottom: 12px;">
-              <Staff 
-                keyId={targetKeyId || 'C4'} 
-                mode="single" 
-                pulseGuide={staffPulseGuide} 
-                clef={settings.notationClef || 'auto'} 
+              <div class="twohand-stage-wrap">
+                <div class="twohand-staff-holder">
+                  <Staff
+                    mode="twohand"
+                    twoHandLeft={isPair ? pairStep?.left : (altStep?.hand === 'L' ? altStep.key : null)}
+                    twoHandRight={isPair ? pairStep?.right : (altStep?.hand === 'R' ? altStep.key : null)}
+                  />
+                </div>
+
+                <TaskStage
+                  eyebrow="Две руки · {pattern.title} · Шаг {Math.min(activeTwoHand.index + 1, pattern.steps.length)}/{pattern.steps.length}"
+                  promptText={isPair
+                    ? `Левая: <span class='note' style='color:#c084fc;'>${pairStep?.left}</span> &nbsp;+&nbsp; Правая: <span class='note' style='color:#38bdf8;'>${pairStep?.right}</span>`
+                    : `${altStep?.hand === 'L' ? 'Левая рука' : 'Правая рука'}: <span class='note' style='color:${altStep?.hand === 'L' ? '#c084fc' : '#38bdf8'};'>${altStep?.key}</span>`}
+                  instructionText={pattern.mode === 'pair'
+                    ? 'Сыграйте обе ноты одновременно (по MIDI или поочередно кликом)'
+                    : pattern.mode === 'anchor'
+                      ? `Удерживайте левой рукой ${pairStep?.left} и нажмите ${pairStep?.right}`
+                      : `Сыграйте ${altStep?.hand === 'L' ? 'левой рукой (фиолетовая)' : 'правой рукой (голубая)'}`}
+                  reactionTime="—"
+                  reactionStatus={activeTwoHand.bpm ? '60 BPM' : 'Wait Mode'}
+                  {feedbackText}
+                  {feedbackClass}
+                  isCompleted={activeTwoHand.completed}
+                  showDontKnow={false}
+                  showAnswerButtons={false}
+                  onNextQuestion={nextRound}
+                />
+
+                <div class="practice-inline-actions">
+                  {#if activeTwoHand.completed}
+                    <button
+                      type="button"
+                      class="btn primary"
+                      style="font-size:13px; padding:6px 14px; font-weight:600;"
+                      onclick={restartTwoHand}
+                    >
+                      Повторить упражнение 🔁
+                    </button>
+                    <button
+                      type="button"
+                      class="btn"
+                      style="padding:6px 12px; font-size:13px;"
+                      onclick={leaveTwoHand}
+                    >
+                      К списку упражнений
+                    </button>
+                  {/if}
+                </div>
+              </div>
+            {/if}
+          {:else if currentCard}
+            {@const promptHtml = currentCard.skill === 'notationToKey'
+              ? 'Читайте ноту на стане'
+              : currentCard.skill === 'find'
+                ? `Найдите ноту <span class="note">${DISPLAY_NAMES[currentCard.note]}</span>`
+                : currentCard.skill === 'identify'
+                  ? `Какая нота подсвечена на клавиатуре?`
+                  : currentCard.skill === 'soundToKey'
+                    ? `<span class="note">C4</span> → 🔊 → ?`
+                    : `Ориентир для ${DISPLAY_NAMES[currentCard.note]}`
+            }
+
+            <div class="card-stage-wrap {currentCard.skill === 'notationToKey' ? 'has-staff' : ''}">
+              {#if currentCard.skill === 'notationToKey'}
+                <div class="single-staff-holder {settings.notationClef === 'grand' ? 'is-grand' : ''}">
+                  <Staff 
+                    keyId={targetKeyId || 'C4'} 
+                    mode="single" 
+                    pulseGuide={staffPulseGuide} 
+                    clef={settings.notationClef || 'auto'} 
+                  />
+                </div>
+              {/if}
+
+              <TaskStage
+                eyebrow="{currentKind === 'cold' ? `Cold Test · ${Math.min(coldIndex + 1, 20)}/20` : currentKind === 'confusion' ? 'Контрастная тренировка' : currentKind === 'scheduled' ? 'Плановое повторение' : currentKind === 'new' ? 'Новая карточка' : 'Свободная практика'} · {currentCard.skill}"
+                promptText={promptHtml}
+                instructionText={currentKind === 'cold' ? 'Одна попытка без подсказок. Результат не меняет расписание FSRS.' : currentCard.skill === 'identify' ? 'Назовите клавишу, подсвеченную голубым' : 'Нажмите клавишу на клавиатуре (буквы C–B, цифры 1–7) или сыграйте по MIDI'}
+                reactionTime="{((reactionElapsedMs || 0) / 1000).toFixed(1)} с"
+                {reactionStatus}
+                {reactionClass}
+                {feedbackText}
+                {feedbackClass}
+                {isCompleted}
+                {autoAdvanceCountdown}
+                autoAdvanceTotal={settings.autoAdvanceDelaySeconds ?? 3.0}
+                showSoundRepeat={currentCard.skill === 'soundToKey'}
+                showAnswerButtons={currentCard.skill === 'identify'}
+                showDontKnow={currentKind !== 'cold'}
+                answerNotes={NATURAL_NOTES}
+                wrongAnswerNotes={pulseWrongAnswerNotes}
+                correctAnswerNotes={pulseCorrectAnswerNotes}
+                onAnswerClick={(n) => {
+                  const octave = targetKeyId ? targetKeyId.slice(-1) : '4';
+                  const keyId = `${n}${octave}`;
+                  AudioEngine.getInstance().playPianoByKeyId(keyId, 96);
+                  handleAnswerSubmit(n, keyId);
+                }}
+                onDontKnow={handleDontKnow}
+                onReplaySound={playSoundPrompt}
+                onNextQuestion={() => { clearAutoAdvance(); nextRound(); }}
               />
             </div>
           {/if}
-
-          <TaskStage
-            eyebrow="{currentKind === 'cold' ? `Cold Test · ${Math.min(coldIndex + 1, 20)}/20` : currentKind === 'confusion' ? 'Контрастная тренировка' : currentKind === 'scheduled' ? 'Плановое повторение' : currentKind === 'new' ? 'Новая карточка' : 'Свободная практика'} · {currentCard.skill}"
-            promptText={promptHtml}
-            instructionText={currentKind === 'cold' ? 'Одна попытка без подсказок. Результат не меняет расписание FSRS.' : currentCard.skill === 'identify' ? 'Назовите клавишу, подсвеченную голубым' : 'Нажмите клавишу на клавиатуре (буквы C–B, цифры 1–7) или сыграйте по MIDI'}
-            reactionTime="{((reactionElapsedMs || 0) / 1000).toFixed(1)} с"
-            {reactionStatus}
-            {reactionClass}
-            {feedbackText}
-            {feedbackClass}
-            {isCompleted}
-            {autoAdvanceCountdown}
-            autoAdvanceTotal={settings.autoAdvanceDelaySeconds ?? 3.0}
-            showSoundRepeat={currentCard.skill === 'soundToKey'}
-            showAnswerButtons={currentCard.skill === 'identify'}
-            showDontKnow={currentKind !== 'cold'}
-            answerNotes={NATURAL_NOTES}
-            wrongAnswerNotes={pulseWrongAnswerNotes}
-            correctAnswerNotes={pulseCorrectAnswerNotes}
-            onAnswerClick={(n) => {
-              const octave = targetKeyId ? targetKeyId.slice(-1) : '4';
-              const keyId = `${n}${octave}`;
-              AudioEngine.getInstance().playPianoByKeyId(keyId, 96);
-              handleAnswerSubmit(n, keyId);
-            }}
-            onDontKnow={handleDontKnow}
-            onReplaySound={playSoundPrompt}
-            onNextQuestion={() => { clearAutoAdvance(); nextRound(); }}
-          />
-        {/if}
+        </div>
 
         <!-- Anchored 4-Octave Piano Keyboard -->
         <Keyboard

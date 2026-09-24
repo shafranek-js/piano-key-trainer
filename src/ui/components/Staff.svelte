@@ -144,6 +144,64 @@
     highlightSvgNotes(osmdContainerEl, activeIdx, completed);
   }
 
+  function lockStaffVerticalPosition(container: HTMLElement | null, currentMode: string, currentClef: string) {
+    if (!container) return;
+    const svg = container.querySelector('svg') as SVGSVGElement | null;
+    if (!svg) return;
+
+    container.style.transform = 'translateY(0px)';
+    svg.style.transform = 'translate(0px, 0px)';
+
+    // Find all horizontal staff-line paths (M x1 y1 L x2 y2 where y1 == y2 and width > 45)
+    const paths = Array.from(svg.querySelectorAll('path'));
+    let topStaffLinePath: SVGPathElement | null = null;
+    let minLineY = Infinity;
+
+    for (const p of paths) {
+      if (p.closest('.vf-stavenote') || p.closest('.vf-clef') || p.closest('.vf-timesig')) continue;
+      const d = p.getAttribute('d') || '';
+      const m = /^M\s*([\d.-]+)\s+([\d.-]+)\s*L\s*([\d.-]+)\s+([\d.-]+)/i.exec(d.trim());
+      if (!m) continue;
+      const x1 = Number(m[1]);
+      const y1 = Number(m[2]);
+      const x2 = Number(m[3]);
+      const y2 = Number(m[4]);
+      if (Math.abs(y1 - y2) < 0.5 && Math.abs(x2 - x1) > 45) {
+        if (y1 < minLineY) {
+          minLineY = y1;
+          topStaffLinePath = p;
+        }
+      }
+    }
+
+    if (!topStaffLinePath) return;
+
+    const refEl = currentMode === 'repertoire' && scrollWrapperEl ? scrollWrapperEl : container;
+    const refRect = refEl.getBoundingClientRect();
+    const lineRect = topStaffLinePath.getBoundingClientRect();
+    if (refRect.height <= 0) return;
+
+    const actualTopPx = lineRect.top - refRect.top;
+    const isGrand = currentMode === 'twohand' || currentClef === 'grand';
+    const targetTopPx =
+      currentMode === 'repertoire'
+        ? 38
+        : isGrand
+          ? 24
+          : 46;
+
+    const shiftY = Math.round((targetTopPx - actualTopPx) * 10) / 10;
+
+    if (currentMode === 'repertoire') {
+      container.style.transform = `translateY(${shiftY}px)`;
+    } else {
+      const actualLeftPx = lineRect.left - refRect.left;
+      const targetLeftPx = Math.round((refRect.width - 136) / 2);
+      const shiftX = refRect.width > 160 ? Math.round((targetLeftPx - actualLeftPx) * 10) / 10 : 0;
+      svg.style.transform = `translate(${shiftX}px, ${shiftY}px)`;
+    }
+  }
+
   async function renderScore(xml: string, currentMode: string, activeIdx: number, completed: boolean) {
     if (!osmdContainerEl || !xml) return;
     const seq = ++renderSeq;
@@ -190,13 +248,15 @@
         osmdInstance.EngravingRules.LedgerLineWidth = 0.14;
         osmdInstance.EngravingRules.LedgerLineColorDefault = '#9ca3af';
         osmdInstance.EngravingRules.SystemThinLineWidth = 0.12;
+        osmdInstance.EngravingRules.PageTopMargin = 1.5;
+        osmdInstance.EngravingRules.PageBottomMargin = 1.5;
         lastLoadedMode = currentMode;
       }
 
       if (lastLoadedXml !== xml) {
         await osmdInstance.load(xml);
         if (seq !== renderSeq) return;
-        osmdInstance.Zoom = isRepertoire ? 1.05 : currentMode === 'twohand' ? 1.12 : 1.22;
+        osmdInstance.Zoom = isRepertoire ? 1.05 : currentMode === 'twohand' ? 1.08 : 1.18;
         osmdInstance.render();
         lastLoadedXml = xml;
         lastCursorIndex = null;
@@ -206,6 +266,8 @@
         Array.from(osmdContainerEl.querySelectorAll('svg')).forEach((svg) => {
           if (svg.childElementCount === 0) svg.remove();
         });
+
+        lockStaffVerticalPosition(osmdContainerEl, currentMode, clef);
       }
 
       if (isRepertoire) {
@@ -268,8 +330,8 @@
     </div>
   </div>
 {:else if mode === 'twohand'}
-  <div class="notation-wrap">
-    <div class="notation-card osmd-card-single">
+  <div class="notation-wrap is-grand-staff">
+    <div class="notation-card osmd-card-single is-grand">
       <div class="osmd-single-container osmd-dark" bind:this={osmdContainerEl}></div>
     </div>
     <div class="notation-caption" style="display:flex; justify-content:center; gap:20px;">
@@ -278,8 +340,8 @@
     </div>
   </div>
 {:else}
-  <div class="notation-wrap">
-    <div class="notation-card osmd-card-single">
+  <div class="notation-wrap {clef === 'grand' ? 'is-grand-staff' : ''}">
+    <div class="notation-card osmd-card-single {clef === 'grand' ? 'is-grand' : ''}">
       <div class="osmd-single-container osmd-dark" bind:this={osmdContainerEl}></div>
     </div>
     <div class="notation-caption">{effectiveClefCaption()}</div>

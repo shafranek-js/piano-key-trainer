@@ -1,0 +1,1 @@
+if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/piano-key-trainer/sw.js', { scope: '/piano-key-trainer/' })})}

@@ -2005,8 +2005,8 @@
           {#if pattern}
             <TwoHandBanner
               title={pattern.title}
-              progressText="Шаг {activeTwoHand.index + 1}/{pattern.steps.length}"
-              subtitle="Левая рука — фиолетовая, правая — голубая"
+              progressText="Шаг {Math.min(activeTwoHand.index + 1, pattern.steps.length)}/{pattern.steps.length}"
+              subtitle={pattern.description}
               onRestart={restartTwoHand}
               onExit={leaveTwoHand}
             />
@@ -2178,18 +2178,58 @@
           {@const pattern = activeTwoHandPattern()}
           {#if pattern}
             {@const step = pattern.steps[activeTwoHand.index]}
+            {@const isPair = pattern.mode === 'pair' || pattern.mode === 'anchor'}
+            {@const pairStep = isPair ? (step as { left: string; right: string }) : null}
+            {@const altStep = !isPair ? (step as { key: string; hand: 'L' | 'R' }) : null}
+
+            <div style="display:flex; justify-content:center; margin-bottom:12px;">
+              <Staff
+                mode="twohand"
+                twoHandLeft={isPair ? pairStep?.left : (altStep?.hand === 'L' ? altStep.key : null)}
+                twoHandRight={isPair ? pairStep?.right : (altStep?.hand === 'R' ? altStep.key : null)}
+              />
+            </div>
+
             <TaskStage
-              eyebrow="Две руки · {pattern.title} · Шаг {activeTwoHand.index + 1}/{pattern.steps.length}"
-              promptText="Левая: <span class='note' style='color:#c084fc;'>{step.leftKeyId}</span> · Правая: <span class='note' style='color:#38bdf8;'>{step.rightKeyId}</span>"
-              instructionText={activeTwoHand.waitingFor === 'both' ? 'Нажмите обе клавиши одновременно' : activeTwoHand.waitingFor === 'right' ? 'Нажмите правую клавишу (голубая)' : 'Нажмите левую клавишу (фиолетовая)'}
+              eyebrow="Две руки · {pattern.title} · Шаг {Math.min(activeTwoHand.index + 1, pattern.steps.length)}/{pattern.steps.length}"
+              promptText={isPair
+                ? `Левая: <span class='note' style='color:#c084fc;'>${pairStep?.left}</span> &nbsp;+&nbsp; Правая: <span class='note' style='color:#38bdf8;'>${pairStep?.right}</span>`
+                : `${altStep?.hand === 'L' ? 'Левая рука' : 'Правая рука'}: <span class='note' style='color:${altStep?.hand === 'L' ? '#c084fc' : '#38bdf8'};'>${altStep?.key}</span>`}
+              instructionText={pattern.mode === 'pair'
+                ? 'Сыграйте обе ноты одновременно (по MIDI или поочередно кликом)'
+                : pattern.mode === 'anchor'
+                  ? `Удерживайте левой рукой ${pairStep?.left} и нажмите ${pairStep?.right}`
+                  : `Сыграйте ${altStep?.hand === 'L' ? 'левой рукой (фиолетовая)' : 'правой рукой (голубая)'}`}
               reactionTime="—"
-              reactionStatus="Координация"
+              reactionStatus={activeTwoHand.bpm ? '60 BPM' : 'Wait Mode'}
               {feedbackText}
               {feedbackClass}
-              isCompleted={false}
+              isCompleted={activeTwoHand.completed}
               showDontKnow={false}
               showAnswerButtons={false}
+              onNextQuestion={nextRound}
             />
+
+            {#if activeTwoHand.completed}
+              <div style="display:flex; justify-content:center; gap:12px; margin: 12px 0;">
+                <button
+                  type="button"
+                  class="btn primary"
+                  style="font-size:15px; padding:10px 20px; font-weight:600;"
+                  onclick={restartTwoHand}
+                >
+                  Повторить упражнение 🔁
+                </button>
+                <button
+                  type="button"
+                  class="btn"
+                  style="padding:10px 16px;"
+                  onclick={leaveTwoHand}
+                >
+                  К списку упражнений
+                </button>
+              </div>
+            {/if}
           {/if}
         {:else if currentCard}
           {@const promptHtml = currentCard.skill === 'notationToKey'

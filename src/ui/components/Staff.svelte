@@ -4,10 +4,12 @@
   let {
     keyId = 'C4' as string,
     clef = 'auto' as 'auto' | 'treble' | 'bass' | 'grand',
-    mode = 'single' as 'single' | 'repertoire',
+    mode = 'single' as 'single' | 'repertoire' | 'twohand',
     repertoireSong = null as any,
     currentNoteIndex = 0,
     loopMeasure = null as number | null,
+    twoHandLeft = null as string | null,
+    twoHandRight = null as string | null,
     isCompleted = false,
     pulseGuide = false
   } = $props();
@@ -176,6 +178,72 @@
       </svg>
     </div>
     <div class="notation-caption">Двойной стан (Grand Staff) · Скрипичный и басовый ключи</div>
+  </div>
+{:else if mode === 'twohand'}
+  <div class="notation-wrap">
+    <div class="notation-card" style="max-width:440px;">
+      <svg class="notation-svg" viewBox="0 0 320 226" style="height:210px;" role="img" aria-label="Две руки на двойном стане">
+        <line class="staff" x1="84" x2="84" y1="28" y2="198" style="stroke-width:2.5px;" />
+        <path d="M84,28 C74,28 70,100 60,113 C70,126 74,198 84,198" fill="none" stroke="#94a3b8" stroke-width="2" />
+
+        <!-- Treble Clef -->
+        <text class="clef" x="16" y="94" style="font-size:62px;">&#119070;</text>
+        {#each [28, 44, 60, 76, 92] as lineY}
+          <line class="staff" x1="84" x2="300" y1={lineY} y2={lineY} />
+        {/each}
+
+        <!-- Bass Clef -->
+        <text class="clef bass-clef-symbol" x="18" y="174" style="font-size:50px;">&#119074;</text>
+        <circle cx="58" cy="140" r="2.8" fill="#f8fafc" />
+        <circle cx="58" cy="156" r="2.8" fill="#f8fafc" />
+        {#each [134, 150, 166, 182, 198] as lineY}
+          <line class="staff" x1="84" x2="300" y1={lineY} y2={lineY} />
+        {/each}
+
+        <!-- Middle C Guide line -->
+        <line class="staff" x1="100" x2="280" y1="113" y2="113" stroke-dasharray="3 3" opacity="0.3" />
+
+        <!-- Left Hand Note (Bass) -->
+        {#if twoHandLeft}
+          {@const yL = staffYForGrand(twoHandLeft)}
+          {@const stemUpL = yL >= 166}
+          {#if Math.abs(yL - 113) < 4}
+            <line class="ledger" x1="124" x2="162" y1="113" y2="113" />
+          {/if}
+          {#if yL > 200}
+            <line class="ledger" x1="124" x2="162" y1={yL} y2={yL} />
+          {/if}
+          {#if twoHandLeft.includes('#')}
+            <text class="accidental" x="120" y={yL + 6} font-size="18" fill="#c084fc">♯</text>
+          {/if}
+          <ellipse class="notehead" cx="142" cy={yL} rx="9.5" ry="6" fill="#c084fc" transform="rotate(-18 142 {yL})" />
+          <line class="stem" x1={stemUpL ? 150 : 134} y1={yL} x2={stemUpL ? 150 : 134} y2={stemUpL ? yL - 36 : yL + 36} stroke="#c084fc" stroke-width="2" />
+          <text x="142" y={yL > 166 ? yL - 12 : yL + 22} font-size="11" font-weight="700" fill="#c084fc" text-anchor="middle">Л.Р. {twoHandLeft}</text>
+        {/if}
+
+        <!-- Right Hand Note (Treble) -->
+        {#if twoHandRight}
+          {@const yR = staffYForGrand(twoHandRight)}
+          {@const stemUpR = yR >= 60}
+          {#if Math.abs(yR - 113) < 4}
+            <line class="ledger" x1="184" x2="222" y1="113" y2="113" />
+          {/if}
+          {#if yR < 24}
+            <line class="ledger" x1="184" x2="222" y1={yR} y2={yR} />
+          {/if}
+          {#if twoHandRight.includes('#')}
+            <text class="accidental" x="180" y={yR + 6} font-size="18" fill="#38bdf8">♯</text>
+          {/if}
+          <ellipse class="notehead" cx="202" cy={yR} rx="9.5" ry="6" fill="#38bdf8" transform="rotate(-18 202 {yR})" />
+          <line class="stem" x1={stemUpR ? 210 : 194} y1={yR} x2={stemUpR ? 210 : 194} y2={stemUpR ? yR - 36 : yR + 36} stroke="#38bdf8" stroke-width="2" />
+          <text x="202" y={yR < 60 ? yR + 22 : yR - 12} font-size="11" font-weight="700" fill="#38bdf8" text-anchor="middle">П.Р. {twoHandRight}</text>
+        {/if}
+      </svg>
+    </div>
+    <div class="notation-caption" style="display:flex; justify-content:center; gap:20px;">
+      <span style="color:#c084fc; font-weight:600;">● Левая рука: басовый ключ</span>
+      <span style="color:#38bdf8; font-weight:600;">● Правая рука: скрипичный ключ</span>
+    </div>
   </div>
 {:else if repertoireSong}
   {@const measureW = 220}

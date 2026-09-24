@@ -75,14 +75,30 @@ describe('Repertoire Data & Measure Logic', () => {
     expect(over.end).toBe(furElise.notes.length);
   });
 
-  it('supports 3/4 and 4/4 pieces correctly', () => {
+  it('supports 3/4 and 4/4 pieces and pickup measures correctly', () => {
     const bach = REPERTOIRE.find(s => s.id === 'bach-minuet-g')!;
     expect(bach.timeSignature).toEqual([3, 4]);
 
     const elise = REPERTOIRE.find(s => s.id === 'beethoven-fur-elise')!;
-    expect(elise.timeSignature).toEqual([4, 4]);
-    expect(elise.notes).toContain('D#4');
+    expect(elise.timeSignature).toEqual([3, 4]);
+    expect(elise.pickupBeats).toBe(1);
+    expect(elise.notes).toContain('D#5');
     expect(elise.notes).toContain('G#4');
+  });
+
+  it('aligns every measure to measureBeats (and pickupBeats) across all 25 excerpt and full scores', () => {
+    for (const song of REPERTOIRE) {
+      for (const mode of ['excerpt', 'full'] as const) {
+        const version = getSongVersion(song, mode);
+        const totalMeasures = getSongMeasureCount(version);
+        for (let m = 1; m < totalMeasures; m++) {
+          const range = getMeasureNoteRange(version, m);
+          const sumBeats = version.beats.slice(range.start, range.end).reduce((a, b) => a + b, 0);
+          const expected = (m === 1 && version.pickupBeats) ? version.pickupBeats : version.measureBeats;
+          expect(sumBeats, `${song.id} (${mode}) measure ${m} should sum to ${expected} beats`).toBeCloseTo(expected, 5);
+        }
+      }
+    }
   });
 
   it('calculates total song duration in ms for demo playback', () => {

@@ -124,6 +124,8 @@ export function songToMusicXml(song: SongDef): string {
   const measures: MeasureNoteItem[][] = [];
   let currentMeasure: MeasureNoteItem[] = [];
   let accBeats = 0;
+  let targetMeasureBeats =
+    song.pickupBeats && song.pickupBeats > 0 ? song.pickupBeats : measureBeats;
 
   for (let i = 0; i < song.notes.length; i++) {
     const noteId = song.notes[i];
@@ -138,11 +140,12 @@ export function songToMusicXml(song: SongDef): string {
     });
     accBeats += b;
 
-    if (accBeats >= measureBeats - 0.001 || i === song.notes.length - 1) {
+    if (accBeats >= targetMeasureBeats - 0.001 || i === song.notes.length - 1) {
       assignBeamsForMeasure(currentMeasure);
       measures.push(currentMeasure);
       currentMeasure = [];
       accBeats = 0;
+      targetMeasureBeats = measureBeats;
     }
   }
 
@@ -195,7 +198,9 @@ export function songToMusicXml(song: SongDef): string {
           ? `\n      <barline location="right"><bar-style>light-heavy</bar-style></barline>`
           : '';
 
-      return `    <measure number="${mIdx + 1}">${attrXml}
+      const implicitAttr = mIdx === 0 && song.pickupBeats && song.pickupBeats > 0 ? ' implicit="yes"' : '';
+
+      return `    <measure number="${mIdx + 1}"${implicitAttr}>${attrXml}
 ${notesXml}${barlineXml}
     </measure>`;
     })

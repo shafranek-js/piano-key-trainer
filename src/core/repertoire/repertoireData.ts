@@ -14,6 +14,7 @@ export interface SongDef {
   fullNotes?: string[];
   fullBeats?: number[];
   measureBeats: number;
+  pickupBeats?: number;
   timeSignature?: [number, number];
   phraseBars: number;
   restsAfter?: Record<number, number>;
@@ -28,7 +29,7 @@ export const REPERTOIRE: readonly SongDef[] = [
     category: 'warmup',
     description: 'Короткий ход C–D–E–F–G и обратно. Читается по тактам и фразам.',
     notes: ['C4', 'D4', 'E4', 'F4', 'G4', 'F4', 'E4', 'D4', 'C4'],
-    beats: [1, 1, 1, 1, 1, 1, 1, 1, 2],
+    beats: [1, 1, 1, 1, 1, 1, 1, 1, 4],
     measureBeats: 4,
     timeSignature: [4, 4],
     phraseBars: 2
@@ -36,10 +37,10 @@ export const REPERTOIRE: readonly SongDef[] = [
   {
     id: 'ode-joy',
     title: 'Ode to Joy · тема',
-    source: 'L. van Beethoven · public domain',
+    source: 'L. van Beethoven · Симфония № 9',
     level: 'Легко',
     category: 'classical',
-    description: 'Четыре такта 4/4: знакомый мотив Бетховена с пунктирным ритмом и половинной нотой в каденции.',
+    description: 'Четыре такта 4/4: знаменитый гимн Бетховена с пунктирным ритмом и половинной нотой в каденции.',
     notes: ['E4', 'E4', 'F4', 'G4', 'G4', 'F4', 'E4', 'D4', 'C4', 'C4', 'D4', 'E4', 'E4', 'D4', 'D4'],
     beats: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.5, 0.5, 2],
     measureBeats: 4,
@@ -55,21 +56,19 @@ export const REPERTOIRE: readonly SongDef[] = [
     description: 'Классическая детская мелодия: чередование четвертных (1 счёт) и протяжных половинных нот (2 счёта).',
     notes: ['E4', 'D4', 'C4', 'D4', 'E4', 'E4', 'E4', 'D4', 'D4', 'D4', 'E4', 'G4', 'G4'],
     beats: [1, 1, 1, 1, 1, 1, 2, 1, 1, 2, 1, 1, 2],
-    restsAfter: { 6: 1 },
     measureBeats: 4,
     timeSignature: [4, 4],
     phraseBars: 2
   },
   {
     id: 'twinkle',
-    title: 'Twinkle · первая фраза',
-    source: 'Traditional · public domain',
+    title: 'Twinkle, Twinkle, Little Star',
+    source: 'Traditional / W. A. Mozart · public domain',
     level: 'Легко +',
     category: 'classical',
     description: 'Четыре такта 4/4: скачки на квинту со светлыми половинными каденциями на нотах G4 и C4.',
     notes: ['C4', 'C4', 'G4', 'G4', 'A4', 'A4', 'G4', 'F4', 'F4', 'E4', 'E4', 'D4', 'D4', 'C4'],
     beats: [1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 2],
-    restsAfter: { 6: 1 },
     measureBeats: 4,
     timeSignature: [4, 4],
     phraseBars: 2
@@ -77,12 +76,30 @@ export const REPERTOIRE: readonly SongDef[] = [
   {
     id: 'bach-minuet-g',
     title: 'Minuet in G major (BWV Anh. 114)',
-    source: 'J. S. Bach / C. Petzold · Анна Магдалена',
+    source: 'J. S. Bach / C. Petzold · Нотная тетрадь Анны Магдалены',
     level: 'Классика · Барокко',
     category: 'classical',
-    description: 'Подлинный ритм барочного менуэта в размере 3/4: четверти сочетаются с грациозными пассажами восьмых нот и знаком F#4.',
-    notes: ['D5', 'G4', 'A4', 'B4', 'C5', 'D5', 'G4', 'G4', 'E5', 'C5', 'D5', 'E5', 'F#4', 'G4', 'D5', 'D5', 'C5', 'B4', 'A4', 'B4', 'A4', 'G4'],
-    beats: [1, 0.5, 0.5, 0.5, 0.5, 1, 1, 1, 1, 0.5, 0.5, 0.5, 0.5, 1, 1, 1, 1, 1, 1, 1, 0.5, 1.5],
+    description: 'Подлинный ритм барочного менуэта в размере 3/4: четверти сочетаются с грациозными пассажами восьмых нот.',
+    notes: [
+      'D5', 'G4', 'A4', 'B4', 'C5',
+      'D5', 'G4', 'G4',
+      'E5', 'C5', 'D5', 'E5', 'F#5',
+      'G5', 'G4', 'G4',
+      'C5', 'D5', 'C5', 'B4', 'A4',
+      'B4', 'C5', 'B4', 'A4', 'G4',
+      'F#4', 'G4', 'A4', 'B4', 'G4',
+      'B4', 'A4'
+    ],
+    beats: [
+      1, 0.5, 0.5, 0.5, 0.5,
+      1, 1, 1,
+      1, 0.5, 0.5, 0.5, 0.5,
+      1, 1, 1,
+      1, 0.5, 0.5, 0.5, 0.5,
+      1, 0.5, 0.5, 0.5, 0.5,
+      1, 0.5, 0.5, 0.5, 0.5,
+      1, 2
+    ],
     measureBeats: 3,
     timeSignature: [3, 4],
     phraseBars: 2
@@ -90,14 +107,35 @@ export const REPERTOIRE: readonly SongDef[] = [
   {
     id: 'beethoven-fur-elise',
     title: 'Für Elise (WoO 59) · Тема',
-    source: 'L. van Beethoven · Багатель',
+    source: 'L. van Beethoven · Багатель ля минор',
     level: 'Классика · Романтизм',
     category: 'classical',
-    description: 'Подлинный ритмический рисунок шедевра Бетховена: лёгкие восьмые опевания (E4–D#4) и выразительные точки покоя.',
-    notes: ['E4', 'D#4', 'E4', 'D#4', 'E4', 'B3', 'D4', 'C4', 'A3', 'C4', 'E4', 'A4', 'B4', 'E4', 'G#4', 'B4', 'C5'],
-    beats: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1, 0.5, 0.5, 0.5, 1.5, 0.5, 0.5, 1, 2],
-    measureBeats: 4,
-    timeSignature: [4, 4],
+    description: 'Подлинная тема Бетховена в правильном регистре: затакт E5–D#5, арпеджио ля минор (C4–E4–A4) и мажорный ответ (E4–G#4–B4).',
+    notes: [
+      'E5', 'D#5',
+      'E5', 'D#5', 'E5', 'B4', 'D5', 'C5',
+      'A4', 'C4', 'E4', 'A4',
+      'B4', 'E4', 'G#4', 'B4',
+      'C5', 'E4', 'E5', 'D#5',
+      'E5', 'D#5', 'E5', 'B4', 'D5', 'C5',
+      'A4', 'C4', 'E4', 'A4',
+      'B4', 'E4', 'C5', 'B4',
+      'A4'
+    ],
+    beats: [
+      0.5, 0.5,
+      0.5, 0.5, 0.5, 0.5, 0.5, 0.5,
+      1.5, 0.5, 0.5, 0.5,
+      1.5, 0.5, 0.5, 0.5,
+      1.5, 0.5, 0.5, 0.5,
+      0.5, 0.5, 0.5, 0.5, 0.5, 0.5,
+      1.5, 0.5, 0.5, 0.5,
+      1.5, 0.5, 0.5, 0.5,
+      2
+    ],
+    pickupBeats: 1,
+    measureBeats: 3,
+    timeSignature: [3, 4],
     phraseBars: 2
   },
   {
@@ -106,9 +144,23 @@ export const REPERTOIRE: readonly SongDef[] = [
     source: 'F. Burgmüller · 25 прогрессивных этюдов',
     level: 'Этюд · Беглость',
     category: 'study',
-    description: 'Виртуозная фортепианная фактура: быстрые жемчужные восьмые пассажи и акцентированные опорные аккорды.',
-    notes: ['A4', 'B4', 'C5', 'B4', 'A4', 'E4', 'E4', 'E4', 'B4', 'C5', 'D5', 'C5', 'B4', 'E4', 'E4', 'E4', 'C5', 'D5', 'E5', 'D5', 'C5', 'B4', 'A4', 'G#4', 'A4', 'B4', 'A4'],
-    beats: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1, 1, 2],
+    description: 'Знаменитый этюд Бургмюллера в ля миноре: стремительный пятипальцевый взлёт A4–B4–C5–D5–E5 и чёткие стаккато.',
+    notes: [
+      'A4', 'B4', 'C5', 'D5', 'E5', 'E5',
+      'A4', 'B4', 'C5', 'D5', 'E5', 'E5',
+      'D5', 'C5', 'B4', 'A4', 'G#4', 'E4',
+      'A4', 'B4', 'C5', 'D5', 'E5', 'E5',
+      'E5', 'F5', 'E5', 'D5', 'C5', 'A4',
+      'B4', 'C5', 'B4', 'A4', 'G#4', 'B4', 'A4'
+    ],
+    beats: [
+      0.5, 0.5, 0.5, 0.5, 1, 1,
+      0.5, 0.5, 0.5, 0.5, 1, 1,
+      0.5, 0.5, 0.5, 0.5, 1, 1,
+      0.5, 0.5, 0.5, 0.5, 1, 1,
+      0.5, 0.5, 0.5, 0.5, 1, 1,
+      0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1
+    ],
     measureBeats: 4,
     timeSignature: [4, 4],
     phraseBars: 2
@@ -132,9 +184,19 @@ export const REPERTOIRE: readonly SongDef[] = [
     source: 'C. L. Hanon · The Virtuoso Pianist',
     level: 'Разминка',
     category: 'warmup',
-    description: 'Классический паттерн на независимость пальцев: звенья C–E–F–G–A–G–F–E и D–F–G–A–B–A–G–F.',
-    notes: ['C4', 'E4', 'F4', 'G4', 'A4', 'G4', 'F4', 'E4', 'D4', 'F4', 'G4', 'A4', 'B4', 'A4', 'G4', 'F4', 'C4'],
-    beats: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2],
+    description: 'Классический паттерн Ганона восьмыми нотами на независимость пальцев: звенья C–E–F–G–A–G–F–E и D–F–G–A–B–A–G–F.',
+    notes: [
+      'C4', 'E4', 'F4', 'G4', 'A4', 'G4', 'F4', 'E4',
+      'D4', 'F4', 'G4', 'A4', 'B4', 'A4', 'G4', 'F4',
+      'E4', 'G4', 'A4', 'B4', 'C5', 'B4', 'A4', 'G4',
+      'C5'
+    ],
+    beats: [
+      0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5,
+      0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5,
+      0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5,
+      4
+    ],
     measureBeats: 4,
     timeSignature: [4, 4],
     phraseBars: 2
@@ -147,7 +209,7 @@ export const REPERTOIRE: readonly SongDef[] = [
     category: 'study',
     description: 'Плавное движение по белым клавишам в пятипальцевой позиции C4–G4.',
     notes: ['C4', 'D4', 'E4', 'F4', 'G4', 'G4', 'G4', 'F4', 'E4', 'D4', 'C4', 'C4'],
-    beats: [1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 2],
+    beats: [1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 4],
     measureBeats: 4,
     timeSignature: [4, 4],
     phraseBars: 2
@@ -159,8 +221,8 @@ export const REPERTOIRE: readonly SongDef[] = [
     level: 'Этюд',
     category: 'study',
     description: 'Терцовые ходы и поступенное движение для развития беглости правой руки.',
-    notes: ['C4', 'E4', 'D4', 'F4', 'E4', 'G4', 'F4', 'D4', 'C4'],
-    beats: [1, 1, 1, 1, 1, 1, 1, 1, 2],
+    notes: ['C4', 'E4', 'D4', 'F4', 'E4', 'G4', 'F4', 'D4', 'C4', 'E4', 'G4', 'C4'],
+    beats: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 4],
     measureBeats: 4,
     timeSignature: [4, 4],
     phraseBars: 2
@@ -171,9 +233,27 @@ export const REPERTOIRE: readonly SongDef[] = [
     source: 'Erik Satie (MuseTrainer CC0)',
     level: 'Классика · 3/4',
     category: 'classical',
-    description: 'Знаменитая медитативная мелодия Эрика Сати в размере 3/4 с плавным движением и долгими точками покоя.',
-    notes: ['F#5', 'A5', 'G5', 'F#5', 'C#5', 'B4', 'C#5', 'D5', 'A4', 'F#4', 'F#5', 'A5', 'G5', 'F#5', 'C#5', 'D5'],
-    beats: [1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1],
+    description: 'Знаменитая медитативная мелодия Эрика Сати в размере 3/4 с плавным движением и долгими точками покоя на A4 и F#4.',
+    notes: [
+      'D4', 'F#5', 'A5',
+      'G5', 'F#5', 'C#5',
+      'B4', 'C#5', 'D5',
+      'A4',
+      'F#4', 'F#5', 'A5',
+      'G5', 'F#5', 'C#5',
+      'B4', 'C#5', 'D5',
+      'A4'
+    ],
+    beats: [
+      1, 1, 1,
+      1, 1, 1,
+      1, 1, 1,
+      3,
+      1, 1, 1,
+      1, 1, 1,
+      1, 1, 1,
+      3
+    ],
     measureBeats: 3,
     timeSignature: [3, 4],
     phraseBars: 2
@@ -184,9 +264,21 @@ export const REPERTOIRE: readonly SongDef[] = [
     source: 'Johann Pachelbel (MuseTrainer)',
     level: 'Классика · 4/4',
     category: 'classical',
-    description: 'Торжественное нисходящее движение половинными нотами, переходящее в живую четвертную вариацию.',
-    notes: ['F#5', 'E5', 'D5', 'C#5', 'B4', 'A4', 'B4', 'C#5', 'D5', 'F#4', 'A4', 'G4', 'F#4', 'D4', 'F#4', 'E4'],
-    beats: [2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1],
+    description: 'Торжественное нисходящее движение половинными нотами, переходящее в певучую четвертную вариацию.',
+    notes: [
+      'F#5', 'E5', 'D5', 'C#5',
+      'B4', 'A4', 'B4', 'C#5',
+      'D5', 'C#5', 'B4', 'A4',
+      'G4', 'F#4', 'G4', 'E4',
+      'D4'
+    ],
+    beats: [
+      2, 2, 2, 2,
+      2, 2, 2, 2,
+      1, 1, 1, 1,
+      1, 1, 1, 1,
+      4
+    ],
     measureBeats: 4,
     timeSignature: [4, 4],
     phraseBars: 2
@@ -210,9 +302,19 @@ export const REPERTOIRE: readonly SongDef[] = [
     source: 'Edvard Grieg · Op. 23 (PDMX CC0)',
     level: 'Классика · 3/4',
     category: 'classical',
-    description: 'Светлая пасторальная тема рассвета: переливающиеся восьмые ноты по пентатонике с тремя диезами.',
-    notes: ['B4', 'G#4', 'F#4', 'E4', 'F#4', 'G#4', 'B4', 'G#4', 'F#4', 'E4', 'F#4', 'G#4', 'B4', 'G#4', 'B4', 'C#5', 'G#4', 'C#5', 'B4', 'G#4', 'E4'],
-    beats: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1, 1, 1],
+    description: 'Светлая пасторальная тема рассвета: переливающиеся восьмые ноты по пентатонике ми мажора.',
+    notes: [
+      'B4', 'G#4', 'F#4', 'E4', 'F#4', 'G#4',
+      'B4', 'G#4', 'F#4', 'E4', 'F#4', 'G#4',
+      'B4', 'G#4', 'B4', 'C#5', 'G#4', 'C#5',
+      'D#5', 'B4', 'F#4', 'E4'
+    ],
+    beats: [
+      0.5, 0.5, 0.5, 0.5, 0.5, 0.5,
+      0.5, 0.5, 0.5, 0.5, 0.5, 0.5,
+      0.5, 0.5, 0.5, 0.5, 0.5, 0.5,
+      0.5, 0.5, 0.5, 1.5
+    ],
     measureBeats: 3,
     timeSignature: [3, 4],
     phraseBars: 2
@@ -223,9 +325,26 @@ export const REPERTOIRE: readonly SongDef[] = [
     source: 'Antonio Vivaldi · RV 269 (PDMX CC0)',
     level: 'Классика · Барокко',
     category: 'classical',
-    description: 'Жизнерадостная тема барочного концерта Вивальди с упругими четвертными и лёгкими восьмыми распевами.',
-    notes: ['C5', 'E5', 'E5', 'E5', 'D5', 'C5', 'G5', 'G5', 'F5', 'E5', 'E5', 'E5', 'D5', 'C5', 'D5'],
-    beats: [1, 1, 1, 1, 0.5, 0.5, 1.5, 0.5, 0.5, 0.5, 1, 1, 0.5, 0.5, 1],
+    description: 'Жизнерадостная тема концерта «Весна» Вивальди с затактом C5, упругими четвертными и половинными с точкой на G5.',
+    notes: [
+      'C5',
+      'E5', 'E5', 'E5', 'D5', 'C5',
+      'G5', 'G5', 'F5',
+      'E5', 'E5', 'E5', 'D5', 'C5',
+      'G5', 'G5', 'F5',
+      'E5', 'F5', 'G5', 'F5', 'E5',
+      'D5'
+    ],
+    beats: [
+      1,
+      1, 1, 1, 0.5, 0.5,
+      3, 0.5, 0.5,
+      1, 1, 1, 0.5, 0.5,
+      3, 0.5, 0.5,
+      1, 0.5, 0.5, 1, 1,
+      3
+    ],
+    pickupBeats: 1,
     measureBeats: 4,
     timeSignature: [4, 4],
     phraseBars: 2
@@ -238,7 +357,7 @@ export const REPERTOIRE: readonly SongDef[] = [
     category: 'classical',
     description: 'Проникновенная тема Largo: идеальное упражнение на пунктирный ритм (четверть с точкой + восьмая) и кантилену.',
     notes: ['E4', 'G4', 'G4', 'E4', 'D4', 'C4', 'D4', 'E4', 'G4', 'E4', 'D4'],
-    beats: [1.5, 0.5, 2, 1.5, 0.5, 2, 1, 1, 1.5, 0.5, 4],
+    beats: [1.5, 0.5, 2, 1.5, 0.5, 2, 1.5, 0.5, 1.5, 0.5, 4],
     measureBeats: 4,
     timeSignature: [4, 4],
     phraseBars: 2
@@ -250,8 +369,29 @@ export const REPERTOIRE: readonly SongDef[] = [
     level: 'Классика · 3/4',
     category: 'classical',
     description: 'Знаменитая колыбельная Брамса в трёхдольном размере с мягкими восьмыми затактами.',
-    notes: ['E4', 'E4', 'G4', 'E4', 'E4', 'G4', 'G4', 'C5', 'B4', 'A4', 'A4', 'G4', 'D4', 'E4', 'F4'],
-    beats: [0.5, 0.5, 1.5, 0.5, 1, 1, 0.5, 0.5, 1, 1, 1, 1, 0.5, 0.5, 1],
+    notes: [
+      'E4', 'E4',
+      'G4', 'E4', 'E4',
+      'G4', 'E4', 'G4',
+      'C5', 'B4', 'A4',
+      'A4', 'G4', 'D4', 'E4',
+      'F4', 'D4', 'D4', 'E4',
+      'F4', 'D4', 'F4',
+      'B4', 'A4', 'G4', 'B4',
+      'C5'
+    ],
+    beats: [
+      0.5, 0.5,
+      1.5, 0.5, 1,
+      2, 0.5, 0.5,
+      1, 1.5, 0.5,
+      1, 1, 0.5, 0.5,
+      1, 1, 0.5, 0.5,
+      2, 0.5, 0.5,
+      0.5, 0.5, 1, 1,
+      2
+    ],
+    pickupBeats: 1,
     measureBeats: 3,
     timeSignature: [3, 4],
     phraseBars: 2
@@ -288,9 +428,30 @@ export const REPERTOIRE: readonly SongDef[] = [
     source: 'Английская баллада XVI в. (MuseTrainer)',
     level: 'Мелодия · 3/4',
     category: 'melody',
-    description: 'Старинная ренессансная мелодия в размере 3/4: сочетание половинных, четвертей с точкой и восьмых.',
-    notes: ['A4', 'C5', 'D5', 'E5', 'F5', 'E5', 'D5', 'B4', 'G4', 'A4', 'B4', 'C5', 'A4', 'A4', 'G#4', 'A4'],
-    beats: [1, 2, 1, 1.5, 0.5, 1, 2, 1, 1.5, 0.5, 1, 1, 1, 1.5, 0.5, 1],
+    description: 'Старинная ренессансная мелодия в размере 3/4: затакт A4, сочетание половинных, четвертей с точкой и восьмых.',
+    notes: [
+      'A4',
+      'C5', 'D5',
+      'E5', 'F5', 'E5',
+      'D5', 'B4',
+      'G4', 'A4', 'B4',
+      'C5', 'A4',
+      'A4', 'G#4', 'A4',
+      'B4', 'G#4',
+      'E4'
+    ],
+    beats: [
+      1,
+      2, 1,
+      1.5, 0.5, 1,
+      2, 1,
+      1.5, 0.5, 1,
+      2, 1,
+      1.5, 0.5, 1,
+      2, 1,
+      2
+    ],
+    pickupBeats: 1,
     measureBeats: 3,
     timeSignature: [3, 4],
     phraseBars: 2
@@ -301,9 +462,22 @@ export const REPERTOIRE: readonly SongDef[] = [
     source: 'Итальянская народная (MuseTrainer)',
     level: 'Мелодия · Ритмично',
     category: 'melody',
-    description: 'Энергичные восходящие группы из четырёх восьмых нот с акцентированной половинной вершиной.',
-    notes: ['E4', 'A4', 'B4', 'C5', 'A4', 'E4', 'A4', 'B4', 'C5', 'A4', 'E4', 'A4', 'B4', 'C5', 'B4', 'A4', 'C5', 'B4', 'A4', 'E5'],
-    beats: [0.5, 0.5, 0.5, 0.5, 2, 0.5, 0.5, 0.5, 0.5, 2, 0.5, 0.5, 0.5, 0.5, 1, 1, 1, 1, 1, 1],
+    description: 'Энергичный затакт из четырёх восьмых нот с акцентированной половинной вершиной и синкопированным припевом.',
+    notes: [
+      'E4', 'A4', 'B4', 'C5',
+      'A4', 'E4', 'A4', 'B4', 'C5',
+      'A4', 'E4', 'A4', 'B4', 'C5',
+      'B4', 'A4', 'C5', 'B4', 'A4', 'E5',
+      'E5', 'E5'
+    ],
+    beats: [
+      0.5, 0.5, 0.5, 0.5,
+      2, 0.5, 0.5, 0.5, 0.5,
+      2, 0.5, 0.5, 0.5, 0.5,
+      1, 0.5, 0.5, 1, 0.5, 0.5,
+      1, 1
+    ],
+    pickupBeats: 2,
     measureBeats: 4,
     timeSignature: [4, 4],
     phraseBars: 2
@@ -314,9 +488,23 @@ export const REPERTOIRE: readonly SongDef[] = [
     source: 'Японская традиционная (PDMX CC0)',
     level: 'Мелодия · Пентатоника',
     category: 'melody',
-    description: 'Традиционный японский звукоряд (A–B–C–E–F): созерцательные половинные и изящный распев восьмыми.',
-    notes: ['A4', 'A4', 'B4', 'A4', 'A4', 'B4', 'A4', 'B4', 'C5', 'B4', 'A4', 'B4', 'A4', 'F4', 'E4'],
-    beats: [1, 1, 2, 1, 1, 2, 0.5, 0.5, 0.5, 0.5, 1, 0.5, 0.5, 2, 2],
+    description: 'Традиционный японский звукоряд (A–B–C–E–F): созерцательные половинные и изящный распев.',
+    notes: [
+      'A4', 'A4', 'B4',
+      'A4', 'A4', 'B4',
+      'A4', 'B4', 'C5', 'B4',
+      'A4', 'B4', 'A4', 'F4',
+      'E4', 'C4', 'E4', 'F4',
+      'E4', 'E4', 'C4', 'B3'
+    ],
+    beats: [
+      1, 1, 2,
+      1, 1, 2,
+      1, 1, 1, 1,
+      1, 0.5, 0.5, 2,
+      1, 1, 1, 1,
+      1, 0.5, 0.5, 2
+    ],
     measureBeats: 4,
     timeSignature: [4, 4],
     phraseBars: 2
@@ -328,8 +516,24 @@ export const REPERTOIRE: readonly SongDef[] = [
     level: 'Этюд · Гамма + репетиции',
     category: 'study',
     description: 'Отличное упражнение из коллекции MelodicaTrainer: гаммообразный взлёт восьмыми (C4–F4) и чёткие репетиции.',
-    notes: ['C4', 'D4', 'E4', 'F4', 'G4', 'G4', 'A4', 'A4', 'G4', 'F4', 'F4', 'F4', 'F4', 'E4', 'E4', 'D4', 'D4', 'C4'],
-    beats: [0.5, 0.5, 0.5, 0.5, 1, 1, 1, 1, 2, 0.5, 0.5, 0.5, 0.5, 1, 1, 1, 1, 2],
+    notes: [
+      'C4', 'D4', 'E4', 'F4', 'G4', 'G4',
+      'A4', 'A4', 'G4',
+      'A4', 'A4', 'G4',
+      'F4', 'F4', 'F4', 'F4', 'E4', 'E4',
+      'D4', 'D4', 'G4',
+      'F4', 'F4', 'F4', 'F4', 'E4', 'E4',
+      'D4', 'D4', 'C4'
+    ],
+    beats: [
+      0.5, 0.5, 0.5, 0.5, 1, 1,
+      1, 1, 2,
+      1, 1, 2,
+      0.5, 0.5, 0.5, 0.5, 1, 1,
+      1, 1, 2,
+      0.5, 0.5, 0.5, 0.5, 1, 1,
+      1, 1, 2
+    ],
     measureBeats: 4,
     timeSignature: [4, 4],
     phraseBars: 2
@@ -338,11 +542,24 @@ export const REPERTOIRE: readonly SongDef[] = [
     id: 'joplin-entertainer',
     title: 'The Entertainer · Регтайм',
     source: 'Scott Joplin (MuseTrainer)',
-    level: 'Этюд · Хроматизм',
+    level: 'Этюд · Синкопы',
     category: 'study',
-    description: 'Классический регтайм Скотта Джоплина: хроматические подходы (D–D#–E) и широкие скачки на октаву.',
-    notes: ['D4', 'D#4', 'E4', 'C5', 'E4', 'C5', 'E4', 'C5', 'C5', 'D5', 'D#5', 'E5', 'C5', 'D5', 'E5', 'B4', 'D5', 'C5'],
-    beats: [0.5, 0.5, 0.5, 1, 0.5, 1, 1, 3, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1, 1, 1, 2],
+    description: 'Классический регтайм Скотта Джоплина: хроматический затакт (D4–D#4–E4), синкопированные скачки на C5 и регтаймовая каденция.',
+    notes: [
+      'D4', 'D#4', 'E4',
+      'C5', 'E4', 'C5', 'E4',
+      'C5', 'C5', 'D5', 'D#5',
+      'E5', 'C5', 'D5', 'E5', 'B4', 'D5',
+      'C5'
+    ],
+    beats: [
+      0.5, 0.5, 0.5,
+      1, 1, 1, 1,
+      2.5, 0.5, 0.5, 0.5,
+      0.5, 0.5, 0.5, 1, 0.5, 1,
+      2.5
+    ],
+    pickupBeats: 1.5,
     measureBeats: 4,
     timeSignature: [4, 4],
     phraseBars: 2
@@ -359,13 +576,14 @@ export function hasFullVersion(song: SongDef): boolean {
 export function getSongVersion(song: SongDef, lengthMode: RepertoireLengthMode = 'excerpt'): SongDef {
   if (lengthMode !== 'full') return song;
   const full = song.fullNotes && song.fullBeats
-    ? { notes: song.fullNotes, beats: song.fullBeats }
+    ? { notes: song.fullNotes, beats: song.fullBeats, pickupBeats: song.pickupBeats }
     : FULL_REPERTOIRE_DATA[song.id];
   if (!full || full.notes.length === 0) return song;
   return {
     ...song,
     notes: full.notes,
     beats: full.beats,
+    pickupBeats: full.pickupBeats !== undefined ? full.pickupBeats : song.pickupBeats,
     restsAfter: undefined
   };
 }
@@ -373,7 +591,11 @@ export function getSongVersion(song: SongDef, lengthMode: RepertoireLengthMode =
 export function getSongMeasureCount(song: SongDef): number {
   const beatsPerMeasure = song.measureBeats || 4;
   const totalBeats = song.beats.reduce((sum, b) => sum + b, 0);
-  return Math.max(1, Math.ceil(totalBeats / beatsPerMeasure));
+  if (song.pickupBeats && song.pickupBeats > 0) {
+    if (totalBeats <= song.pickupBeats + 0.001) return 1;
+    return 1 + Math.ceil((totalBeats - song.pickupBeats - 0.001) / beatsPerMeasure);
+  }
+  return Math.max(1, Math.ceil((totalBeats - 0.001) / beatsPerMeasure));
 }
 
 export function getMeasureForNoteIndex(song: SongDef, noteIndex: number): number {
@@ -382,15 +604,32 @@ export function getMeasureForNoteIndex(song: SongDef, noteIndex: number): number
   for (let i = 0; i < noteIndex && i < song.beats.length; i++) {
     acc += song.beats[i];
   }
-  return Math.floor(acc / beatsPerMeasure) + 1;
+  if (song.pickupBeats && song.pickupBeats > 0) {
+    if (acc < song.pickupBeats - 0.001) return 1;
+    return 2 + Math.floor((acc - song.pickupBeats + 0.001) / beatsPerMeasure);
+  }
+  return Math.floor((acc + 0.001) / beatsPerMeasure) + 1;
 }
 
 export function getMeasureNoteRange(song: SongDef, measureNumber: number): { start: number; end: number; notes: string[] } {
   const beatsPerMeasure = song.measureBeats || 4;
   const totalMeasures = getSongMeasureCount(song);
   const m = Math.max(1, Math.min(totalMeasures, measureNumber));
-  const startBeat = (m - 1) * beatsPerMeasure;
-  const endBeat = m * beatsPerMeasure;
+
+  let startBeat: number;
+  let endBeat: number;
+  if (song.pickupBeats && song.pickupBeats > 0) {
+    if (m === 1) {
+      startBeat = 0;
+      endBeat = song.pickupBeats;
+    } else {
+      startBeat = song.pickupBeats + (m - 2) * beatsPerMeasure;
+      endBeat = song.pickupBeats + (m - 1) * beatsPerMeasure;
+    }
+  } else {
+    startBeat = (m - 1) * beatsPerMeasure;
+    endBeat = m * beatsPerMeasure;
+  }
 
   let start = -1;
   let end = song.notes.length;

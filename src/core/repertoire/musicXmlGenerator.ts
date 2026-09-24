@@ -1,3 +1,4 @@
+import JSZip from 'jszip';
 import type { SongDef } from './repertoireData';
 
 const DIVISIONS = 4; // 4 divisions per quarter note
@@ -378,8 +379,8 @@ export function parseMusicXmlToSongDef(xmlText: string, fallbackTitle = 'Имп�
     timeBottom = Math.max(1, Number(beatsMatch[2]));
   }
 
-  const notes: string[] = [];
-  const beats: number[] = [];
+  const allNotes: string[] = [];
+  const allBeats: number[] = [];
 
   const noteRegex = /<note\b[^>]*>([\s\S]*?)<\/note>/gi;
   let m: RegExpExecArray | null;
@@ -395,9 +396,6 @@ export function parseMusicXmlToSongDef(xmlText: string, fallbackTitle = 'Имп�
 
     const staffMatch = /<staff>\s*(\d+)\s*<\/staff>/i.exec(noteBody);
     if (staffMatch && Number(staffMatch[1]) !== 1) continue;
-
-    const voiceMatch = /<voice>\s*(\d+)\s*<\/voice>/i.exec(noteBody);
-    if (voiceMatch && Number(voiceMatch[1]) !== 1) continue;
 
     const stepMatch = /<step>\s*([A-G])\s*<\/step>/i.exec(noteBody);
     const octMatch = /<octave>\s*(\d+)\s*<\/octave>/i.exec(noteBody);
@@ -415,18 +413,22 @@ export function parseMusicXmlToSongDef(xmlText: string, fallbackTitle = 'Имп�
       Math.abs(curr - rawBeats) < Math.abs(prev - rawBeats) ? curr : prev
     );
 
-    notes.push(pitchToKeyboardNoteId(stepMatch[1], alter, Number(octMatch[1])));
-    beats.push(snappedBeat);
+    allNotes.push(pitchToKeyboardNoteId(stepMatch[1], alter, Number(octMatch[1])));
+    allBeats.push(snappedBeat);
 
-    if (notes.length >= 64) break; // Keep imported excerpt concise and responsive
+    if (allNotes.length >= 512) break;
   }
 
-  if (notes.length === 0) {
-    notes.push('C4', 'D4', 'E4', 'F4', 'G4');
-    beats.push(1, 1, 1, 1, 2);
+  if (allNotes.length === 0) {
+    allNotes.push('C4', 'D4', 'E4', 'F4', 'G4');
+    allBeats.push(1, 1, 1, 1, 2);
   }
 
   const measureBeats = timeBottom === 8 ? Math.max(2, Math.round(timeTop / 2)) : timeTop;
+  const excerptCount = Math.min(allNotes.length, 24);
+  const notes = allNotes.slice(0, excerptCount);
+  const beats = allBeats.slice(0, excerptCount);
+  const hasLongerFull = allNotes.length > excerptCount;
 
   return {
     id: `custom-${Date.now()}`,
@@ -434,12 +436,52 @@ export function parseMusicXmlToSongDef(xmlText: string, fallbackTitle = 'Имп�
     source: composer,
     level: 'MusicXML Импорт',
     category: 'classical',
-    description: `Импортированная партитура MusicXML (${notes.length} нот, размер ${timeTop}/${timeBottom}).`,
+    description: `Импортированная партитура MusicXML (${allNotes.length} нот, размер ${timeTop}/${timeBottom}).`,
     notes,
     beats,
+    fullNotes: hasLongerFull ? allNotes : undefined,
+    fullBeats: hasLongerFull ? allBeats : undefined,
     measureBeats,
     timeSignature: [timeTop, timeBottom],
     phraseBars: 2
   };
 }
+
+/**
+ * Reads either an uncompressed (.musicxml / .xml) or compressed (.mxl) MusicXML file
+ * and converts it into a playable SongDef.
+ */
+export async function parseMusicXmlFileToSongDef(file: File): Promise<SongDef> {
+  const isMxl = /\.mxl$/i.test(file.name);
+  let xmlText = '';
+
+  if (isMxl) {
+    const buffer = await file.arrayBuffer();
+    const zip = await JSZip.loadAsync(buffer);
+    const containerEntry = zip.file('META-INF/container.xml');
+    let rootPath: string | null = null;
+    if (containerEntry) {
+      const containerXml = await containerEntry.async('string');
+      const rootMatch = /full-path=["']([^"']+)["']/i.exec(containerXml);
+      if (rootMatch) rootPath = rootMatch[1];
+    }
+    const targetEntry =
+      (rootPath && zip.file(rootPath)) ||
+      Object.values(zip.files).find(
+        (entry) =>
+          !entry.dir &&
+          /\.(musicxml|xml)$/i.test(entry.name) &&
+          entry.name !== 'META-INF/container.xml'
+      );
+    if (!targetEntry) {
+      throw new Error('В архиве .mxl не найден файл партитуры MusicXML.');
+    }
+    xmlText = await targetEntry.async('string');
+  } else {
+    xmlText = await file.text();
+  }
+
+  return parseMusicXmlToSongDef(xmlText, file.name);
+}
+
 

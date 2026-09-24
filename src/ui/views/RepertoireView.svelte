@@ -5,9 +5,11 @@
     DYNAMIC_MODES,
     ARTICULATION_MODES,
     getSongMeasureCount,
-    type SongDef
+    hasFullVersion,
+    getSongVersion,
+    type RepertoireLengthMode
   } from '../../core/repertoire/repertoireData';
-  import { parseMusicXmlToSongDef } from '../../core/repertoire/musicXmlGenerator';
+  import { parseMusicXmlFileToSongDef } from '../../core/repertoire/musicXmlGenerator';
   import type { UserSettings } from '../../core/fsrs/types';
 
   let {
@@ -20,6 +22,8 @@
   let repertoireVersion = $state(0);
   let importStatusText = $state('');
   let fileInputEl = $state<HTMLInputElement | null>(null);
+
+  const lengthMode = $derived<RepertoireLengthMode>(settings.repertoireLengthMode || 'excerpt');
 
   const allSongs = $derived.by(() => {
     void repertoireVersion;
@@ -46,15 +50,15 @@
     if (!file) return;
 
     try {
-      const xmlText = await file.text();
-      const importedSong = parseMusicXmlToSongDef(xmlText, file.name);
-      REPERTOIRE.unshift(importedSong);
+      const importedSong = await parseMusicXmlFileToSongDef(file);
+      (REPERTOIRE as any).unshift(importedSong);
       repertoireVersion++;
       selectedCategory = 'all';
-      importStatusText = `✓ Импортировано: «${importedSong.title}» (${importedSong.notes.length} нот)`;
+      const fullCount = getSongVersion(importedSong, 'full').notes.length;
+      importStatusText = `✓ Импортировано: «${importedSong.title}» (${fullCount} нот)`;
     } catch (err) {
       console.error('MusicXML import error:', err);
-      importStatusText = 'Ошибка чтения файла MusicXML';
+      importStatusText = 'Ошибка чтения файла MusicXML / MXL';
     } finally {
       input.value = '';
     }
@@ -64,19 +68,39 @@
 <div class="page-heading">
   <div>
     <h2>Мелодии и Шедевры</h2>
-    <p>Партитуры гравируются движком <strong>OpenSheetMusicDisplay (OSMD)</strong>. Поддерживается зацикливание тактов (Measure Looping), автопроигрывание (Демо) и импорт собственных <code>.musicxml</code> файлов.</p>
+    <p>Партитуры гравируются в одну непрерывную линию движком <strong>OpenSheetMusicDisplay (OSMD)</strong> с плавным сдвигом и центрированным курсором. Доступны как короткие отрывки, так и полные версии произведений.</p>
   </div>
 </div>
 
 <div class="repertoire-intro">
   <section class="card">
-    <h2>Музыкальная выразительность и Отработка <span class="pill">OSMD · v6.3</span></h2>
+    <h2>Музыкальная выразительность и Отработка <span class="pill">OSMD · v6.4</span></h2>
     <div class="help">
       <strong>Pitch</strong>, <strong>timing</strong>, <strong>динамика</strong> и <strong>артикуляция</strong> оцениваются раздельно.<br>
-      🔁 <strong>Зацикливание тактов (Measure Looping):</strong> во время игры вы можете включить повтор любого такта с помощью панели управления вверху, чтобы отточить сложный фрагмент перед исполнением всей пьесы.
+      🎼 <strong>Отрывок или Полная мелодия:</strong> тренируйте короткую тему (4–8 тактов) или играйте произведение целиком — нотный стан автоматически плавно прокручивается за курсором в центре.
     </div>
 
     <div class="rhythm-controls" style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px;">
+      <div class="rhythm-control-block">
+        <small>Объём пьесы</small>
+        <div class="rhythm-segment">
+          <button
+            type="button"
+            class="rhythm-btn {lengthMode === 'excerpt' ? 'active' : ''}"
+            onclick={() => onSettingsChange?.({ repertoireLengthMode: 'excerpt' })}
+          >
+            Отрывок (тема)
+          </button>
+          <button
+            type="button"
+            class="rhythm-btn {lengthMode === 'full' ? 'active' : ''}"
+            onclick={() => onSettingsChange?.({ repertoireLengthMode: 'full' })}
+          >
+            Полная мелодия
+          </button>
+        </div>
+      </div>
+
       <div class="rhythm-control-block">
         <small>Темп</small>
         <div class="rhythm-segment">
@@ -153,16 +177,16 @@
   </section>
 
   <section class="card">
-    <h2>Библиотека MelodicaTrainer & Импорт MusicXML</h2>
+    <h2>Библиотека MelodicaTrainer & Импорт MusicXML / MXL</h2>
     <div class="help">
-      Коллекция пополнена лучшими произведениями из <strong>MuseTrainer</strong>, <strong>PDMX (CC0)</strong> и <strong>OpenScore Lieder</strong>: <em>Gymnopédie No. 1</em> (Сати), <em>Canon in D</em> (Пахельбель), <em>Лебединое озеро</em> (Чайковский), <em>Утро</em> (Григ), <em>Весна</em> (Вивальди), <em>Largo</em> (Дворжак), <em>Коробейники</em>, <em>Щедрик</em>, <em>Greensleeves</em>, <em>Sakura</em> и <em>The Entertainer</em>.<br><br>
-      Вы также можете загрузить любой собственный файл <code>.musicxml</code> или <code>.xml</code>:
+      Все 25 произведений включают как короткий отрывок (главную тему), так и <strong>полную версию</strong> из архивов <strong>MuseTrainer</strong>, <strong>PDMX (CC0)</strong> и <strong>OpenScore Lieder</strong>.<br><br>
+      Вы также можете загрузить любой собственный файл <code>.musicxml</code>, <code>.xml</code> или сжатый архив <code>.mxl</code>:
     </div>
     <div style="margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
       <input
         bind:this={fileInputEl}
         type="file"
-        accept=".musicxml,.xml"
+        accept=".musicxml,.xml,.mxl"
         style="display:none;"
         onchange={handleImportMusicXml}
       />
@@ -172,7 +196,7 @@
         style="font-size:13px; padding:7px 14px;"
         onclick={() => fileInputEl?.click()}
       >
-        📂 Загрузить MusicXML (.musicxml / .xml)
+        📂 Загрузить партитуру (.musicxml / .xml / .mxl)
       </button>
       {#if importStatusText}
         <span style="font-size:12px; color:#6ee7a5; font-weight:600;">{importStatusText}</span>
@@ -226,29 +250,50 @@
 
 <div class="repertoire-grid">
   {#each filteredRepertoire as song (song.id)}
-    {@const measureCount = getSongMeasureCount(song)}
+    {@const activeSong = getSongVersion(song, lengthMode)}
+    {@const fullSong = getSongVersion(song, 'full')}
+    {@const hasFull = hasFullVersion(song)}
+    {@const measureCount = getSongMeasureCount(activeSong)}
+    {@const fullMeasureCount = getSongMeasureCount(fullSong)}
+    {@const excerptMeasureCount = getSongMeasureCount(song)}
     {@const timeSig = song.timeSignature ? `${song.timeSignature[0]}/${song.timeSignature[1]}` : `${song.measureBeats}/4`}
     <article class="repertoire-card">
       <small>{song.level} · {song.source}</small>
       <h3>{song.title}</h3>
       <p>{song.description}</p>
-      <div class="repertoire-meta">
-        <span>Размер: {timeSig} · Тактов: {measureCount} · Ноты: {song.notes.length}</span>
+      <div class="repertoire-meta" style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
+        <span>Размер: {timeSig} · Тактов: {measureCount} · Ноты: {activeSong.notes.length}</span>
+        {#if hasFull}
+          <span style="font-size:10.5px; color:#7dd3fc;">
+            Отрывок: {excerptMeasureCount} т. ({song.notes.length} н.) · Полная: {fullMeasureCount} т. ({fullSong.notes.length} н.)
+          </span>
+        {/if}
       </div>
-      <div style="display:flex; gap:6px; margin-top:8px;">
+      <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;">
         <button
           type="button"
           class="btn primary"
-          style="flex:1;"
-          onclick={() => onStartSong?.(song.id)}
+          style="flex:1.2;"
+          onclick={() => onStartSong?.(song.id, { lengthMode })}
         >
-          Играть
+          {lengthMode === 'full' ? 'Играть полную' : 'Играть отрывок'}
         </button>
+        {#if hasFull}
+          <button
+            type="button"
+            class="btn"
+            style="flex:1; font-size:12px;"
+            onclick={() => onStartSong?.(song.id, { lengthMode: lengthMode === 'full' ? 'excerpt' : 'full' })}
+            title={lengthMode === 'full' ? 'Сыграть короткий отрывок (тему)' : 'Сыграть полную версию произведения'}
+          >
+            {lengthMode === 'full' ? `Отрывок (${song.notes.length} н.)` : `Полная (${fullSong.notes.length} н.)`}
+          </button>
+        {/if}
         <button
           type="button"
           class="btn"
-          style="flex:1; border-color:rgba(56,189,248,0.4); color:#38bdf8; font-weight:600;"
-          onclick={() => onStartSong?.(song.id, { autoDemo: true })}
+          style="flex:0.8; border-color:rgba(56,189,248,0.4); color:#38bdf8; font-weight:600;"
+          onclick={() => onStartSong?.(song.id, { autoDemo: true, lengthMode })}
           title="Послушать автопроигрывание мелодии с подсветкой нот на стане и клавиатуре"
         >
           ▶ Демо
@@ -257,3 +302,4 @@
     </article>
   {/each}
 </div>
+

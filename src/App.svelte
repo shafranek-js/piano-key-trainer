@@ -38,6 +38,9 @@
     getSongMeasureCount,
     getMeasureForNoteIndex,
     getMeasureNoteRange,
+    hasFullVersion,
+    getSongVersion,
+    type RepertoireLengthMode,
     type SongDef
   } from './core/repertoire/repertoireData';
   import { TWO_HAND_PATTERNS, TWO_HAND_TEMPO, type TwoHandPatternDef } from './core/twohand/twoHandData';
@@ -271,6 +274,7 @@
     startedPerf: number;
     bpm: number | null;
     displayMode: 'keys' | 'staff';
+    lengthMode: RepertoireLengthMode;
     countingIn: boolean;
     countInValue: number;
     lastCorrectPerf: number | null;
@@ -1284,12 +1288,26 @@
   // ==========================================
   // 2. REPERTOIRE PLAYER (Roadmap Direction 3)
   // ==========================================
-  function startSong(songId: string, options?: { autoDemo?: boolean }) {
+  function activeRepertoireSong(): SongDef | null {
+    if (!activeRepertoire) return null;
+    const baseSong = REPERTOIRE.find(s => s.id === activeRepertoire!.id);
+    if (!baseSong) return null;
+    return getSongVersion(baseSong, activeRepertoire.lengthMode);
+  }
+
+  function startSong(songId: string, options?: { autoDemo?: boolean; lengthMode?: RepertoireLengthMode }) {
     stopRepertoireDemo();
-    const song = REPERTOIRE.find(s => s.id === songId);
-    if (!song) return;
+    const baseSong = REPERTOIRE.find(s => s.id === songId);
+    if (!baseSong) return;
     practiceActivity = 'repertoire';
     const bpm = TEMPO_MODES[settings.repertoireTempoMode || 'wait']?.bpm || null;
+    const requestedLengthMode = options?.lengthMode || settings.repertoireLengthMode || 'excerpt';
+    const resolvedLengthMode: RepertoireLengthMode =
+      requestedLengthMode === 'full' && hasFullVersion(baseSong) ? 'full' : 'excerpt';
+
+    if (options?.lengthMode) {
+      persistSettings({ repertoireLengthMode: options.lengthMode });
+    }
 
     activeRepertoire = {
       id: songId,
@@ -1298,6 +1316,7 @@
       startedPerf: performance.now(),
       bpm,
       displayMode: settings.repertoireDisplayMode || 'keys',
+      lengthMode: resolvedLengthMode,
       countingIn: !options?.autoDemo && !!bpm,
       countInValue: bpm ? 4 : 0,
       lastCorrectPerf: null,
@@ -1331,6 +1350,33 @@
     }
   }
 
+  function setRepertoireLengthMode(mode: RepertoireLengthMode) {
+    if (!activeRepertoire) return;
+    const baseSong = REPERTOIRE.find(s => s.id === activeRepertoire!.id);
+    if (!baseSong) return;
+    const resolved: RepertoireLengthMode = mode === 'full' && hasFullVersion(baseSong) ? 'full' : 'excerpt';
+    if (activeRepertoire.lengthMode === resolved) return;
+
+    stopRepertoireDemo();
+    persistSettings({ repertoireLengthMode: resolved });
+    activeRepertoire.lengthMode = resolved;
+    activeRepertoire.index = 0;
+    activeRepertoire.loopMeasure = null;
+    activeRepertoire.loopCount = 0;
+    activeRepertoire.mistakes = 0;
+    activeRepertoire.completed = false;
+    activeRepertoire.lastCorrectPerf = null;
+    isCompleted = false;
+
+    const song = activeRepertoireSong();
+    const measures = song ? getSongMeasureCount(song) : 1;
+    feedbackText = resolved === 'full'
+      ? `🎼 Включена полная мелодия (${song?.notes.length || 0} нот · ${measures} тактов)`
+      : `✂️ Включён учебный отрывок (${song?.notes.length || 0} нот · ${measures} тактов)`;
+    feedbackClass = 'good';
+    renderRepertoireStep();
+  }
+
   function stopRepertoireDemo() {
     if (repertoireDemoTimer != null) {
       clearTimeout(repertoireDemoTimer);
@@ -1346,7 +1392,7 @@
   function startRepertoireDemo() {
     if (!activeRepertoire) return;
     stopRepertoireDemo();
-    const song = REPERTOIRE.find(s => s.id === activeRepertoire!.id);
+    const song = activeRepertoireSong();
     if (!song) return;
 
     activeRepertoire.isDemoPlaying = true;
@@ -1367,6 +1413,8 @@
 
     function playDemoStep(stepIdx: number) {
       if (!activeRepertoire || !activeRepertoire.isDemoPlaying) return;
+      const currentSong = activeRepertoireSong();
+      if (!currentSong) return;
 
       if (stepIdx >= endIndex) {
         stopRepertoireDemo();
@@ -1377,8 +1425,8 @@
         return;
       }
 
-      const note = song.notes[stepIdx];
-      const noteBeats = song.beats[stepIdx] || 1;
+      const note = currentSong.notes[stepIdx];
+      const noteBeats = currentSong.beats[stepIdx] || 1;
       const durMs = Math.max(180, noteBeats * beatMs);
 
       activeRepertoire.index = stepIdx;
@@ -1405,7 +1453,7 @@
     if (!activeRepertoire) return;
     if (activeRepertoire.isDemoPlaying) {
       stopRepertoireDemo();
-      const song = REPERTOIRE.find(s => s.id === activeRepertoire!.id);
+      const song = activeRepertoireSong();
       let loopStart = 0;
       if (song && activeRepertoire.loopMeasure != null) {
         loopStart = getMeasureNoteRange(song, activeRepertoire.loopMeasure).start;
@@ -1422,7 +1470,7 @@
   function setRepertoireLoop(measure: number | null) {
     if (!activeRepertoire) return;
     stopRepertoireDemo();
-    const song = REPERTOIRE.find(s => s.id === activeRepertoire!.id);
+    const song = activeRepertoireSong();
     if (!song) return;
     const totalMeasures = getSongMeasureCount(song);
 
@@ -1482,7 +1530,7 @@
 
   function renderRepertoireStep() {
     if (!activeRepertoire) return;
-    const song = REPERTOIRE.find(s => s.id === activeRepertoire!.id);
+    const song = activeRepertoireSong();
     if (!song) return;
 
     const isLooping = activeRepertoire.loopMeasure != null;
@@ -1517,7 +1565,7 @@
       feedbackClass = '';
       return;
     }
-    const song = REPERTOIRE.find(s => s.id === activeRepertoire!.id);
+    const song = activeRepertoireSong();
     if (!song) return;
 
     const target = song.notes[activeRepertoire.index];
@@ -1586,7 +1634,6 @@
   function finishSong() {
     if (!activeRepertoire) return;
     activeRepertoire.completed = true;
-    const song = REPERTOIRE.find(s => s.id === activeRepertoire!.id);
     const timingAcc = activeRepertoire.timingCount ? Math.round((activeRepertoire.timingWithin / activeRepertoire.timingCount) * 100) : null;
     feedbackText = `✓ Мелодия сыграна! Ошибок: ${activeRepertoire.mistakes}${timingAcc != null ? ` · ритм ${timingAcc}%` : ''}. FSRS не изменялся.`;
     feedbackClass = 'good';
@@ -1596,7 +1643,7 @@
   function restartSong() {
     if (!activeRepertoire) return;
     stopRepertoireDemo();
-    startSong(activeRepertoire.id);
+    startSong(activeRepertoire.id, { lengthMode: activeRepertoire.lengthMode });
   }
 
   function leaveRepertoire() {
@@ -2093,8 +2140,9 @@
           />
         <!-- 2. Repertoire Banner -->
         {:else if practiceActivity === 'repertoire' && activeRepertoire}
-          {@const song = REPERTOIRE.find(s => s.id === activeRepertoire!.id)}
-          {#if song}
+          {@const baseSong = REPERTOIRE.find(s => s.id === activeRepertoire!.id)}
+          {#if baseSong}
+            {@const song = getSongVersion(baseSong, activeRepertoire.lengthMode)}
             {@const totalMeasures = getSongMeasureCount(song)}
             {@const currentMeasure = getMeasureForNoteIndex(song, activeRepertoire.index)}
             <SongBanner
@@ -2108,8 +2156,11 @@
               {currentMeasure}
               loopMeasure={activeRepertoire.loopMeasure}
               loopCount={activeRepertoire.loopCount}
+              lengthMode={activeRepertoire.lengthMode}
+              hasFull={hasFullVersion(baseSong)}
               isDemoPlaying={activeRepertoire.isDemoPlaying}
               onToggleDemo={toggleRepertoireDemo}
+              onSetLengthMode={setRepertoireLengthMode}
               onSetLoopMeasure={setRepertoireLoop}
               onPrevMeasure={prevRepertoireMeasure}
               onNextMeasure={nextRepertoireMeasure}
@@ -2180,8 +2231,9 @@
             </div>
           {/if}
         {:else if practiceActivity === 'repertoire' && activeRepertoire}
-          {@const song = REPERTOIRE.find(s => s.id === activeRepertoire!.id)}
-          {#if song}
+          {@const baseSong = REPERTOIRE.find(s => s.id === activeRepertoire!.id)}
+          {#if baseSong}
+            {@const song = getSongVersion(baseSong, activeRepertoire.lengthMode)}
             <div style="display:flex; flex-direction:column; justify-content:center; gap:6px; min-height:0;">
               {#if activeRepertoire.displayMode === 'staff'}
                 <div style="display:flex; justify-content:center; overflow-x:auto;">
@@ -2195,7 +2247,7 @@
                 </div>
               {/if}
               <TaskStage
-                eyebrow="Мелодия · {song.level}{activeRepertoire.loopMeasure != null ? ` · 🔁 Зациклен такт ${activeRepertoire.loopMeasure}` : ''}"
+                eyebrow="Мелодия · {song.level} · {activeRepertoire.lengthMode === 'full' ? '🎼 Полная мелодия' : '✂️ Отрывок'}{activeRepertoire.loopMeasure != null ? ` · 🔁 Зациклен такт ${activeRepertoire.loopMeasure}` : ''}"
                 promptText={activeRepertoire.displayMode === 'staff' ? 'Читайте ноты на стане' : `<span class="note">${song.notes[activeRepertoire.index] || 'Конец'}</span>`}
                 instructionText={activeRepertoire.countingIn ? `Счёт 4–3–2–1... приготовьтесь к первому такту` : `Сыграйте ноту: ${song.notes[activeRepertoire.index] || 'Завершено'}`}
                 reactionTime="—"

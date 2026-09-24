@@ -5,6 +5,8 @@ import {
   getMeasureForNoteIndex,
   getMeasureNoteRange,
   getSongDurationMs,
+  hasFullVersion,
+  getSongVersion,
   type SongDef
 } from '../../src/core/repertoire/repertoireData';
 import {
@@ -16,7 +18,7 @@ import {
 } from '../../src/core/repertoire/musicXmlGenerator';
 
 describe('Repertoire Data & Measure Logic', () => {
-  it('contains valid piano note names and matching beat counts for all songs', () => {
+  it('contains valid piano note names and matching beat counts for all songs (excerpt and full)', () => {
     const validNoteRegex = /^[A-G](#?)\d$/;
     for (const song of REPERTOIRE) {
       expect(song.notes.length).toBeGreaterThan(0);
@@ -25,6 +27,15 @@ describe('Repertoire Data & Measure Logic', () => {
         expect(validNoteRegex.test(note), `Note ${note} in song ${song.id} should be valid`).toBe(true);
       }
       expect(song.measureBeats).toBeGreaterThanOrEqual(2);
+
+      // Every built-in repertoire piece must have a complete full version
+      expect(hasFullVersion(song), `Song ${song.id} should have a full version`).toBe(true);
+      const fullSong = getSongVersion(song, 'full');
+      expect(fullSong.notes.length).toBeGreaterThan(song.notes.length);
+      expect(fullSong.notes.length).toBe(fullSong.beats.length);
+      for (const note of fullSong.notes) {
+        expect(validNoteRegex.test(note), `Full note ${note} in song ${song.id} should be valid`).toBe(true);
+      }
     }
   });
 
@@ -35,6 +46,9 @@ describe('Repertoire Data & Measure Logic', () => {
     expect(getMeasureForNoteIndex(ode, 3)).toBe(1);
     expect(getMeasureForNoteIndex(ode, 4)).toBe(2);
     expect(getMeasureForNoteIndex(ode, 14)).toBe(4);
+
+    const odeFull = getSongVersion(ode, 'full');
+    expect(getSongMeasureCount(odeFull)).toBeGreaterThan(4);
   });
 
   it('provides exact note slices for each measure in getMeasureNoteRange', () => {
@@ -80,11 +94,14 @@ describe('Repertoire Data & Measure Logic', () => {
     expect(dur120).toBe(8000);
   });
 
-  it('generates valid MusicXML 4.0 with beams, dots, and durations for OSMD', () => {
+  it('generates valid MusicXML 4.0 with beams, dots, and durations for OSMD (both excerpt and full)', () => {
     for (const song of REPERTOIRE) {
       const xml = songToMusicXml(song);
       expect(xml).toContain('<score-partwise version="4.0">');
       expect(xml).toContain(`<work-title>${song.title}</work-title>`);
+
+      const fullXml = songToMusicXml(getSongVersion(song, 'full'));
+      expect(fullXml).toContain('<score-partwise version="4.0">');
     }
 
     const elise = REPERTOIRE.find(s => s.id === 'beethoven-fur-elise')!;

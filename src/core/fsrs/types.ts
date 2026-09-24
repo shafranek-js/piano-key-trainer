@@ -94,6 +94,7 @@ export interface UserSettings {
   repertoireTempoMode: 'wait' | 'slow' | 'normal';
   metronomeEnabled: boolean;
   repertoireDisplayMode: 'keys' | 'staff';
+  repertoireLengthMode?: 'excerpt' | 'full';
   repertoireDynamicsTarget: 'off' | 'p' | 'mf' | 'f';
   repertoireArticulationTarget: 'off' | 'legato' | 'detached';
   twoHandTempoMode: 'wait' | 'slow';
@@ -102,3 +103,4 @@ export interface UserSettings {
   mode?: string;
   notationClef?: 'treble' | 'bass' | 'grand';
 }
+

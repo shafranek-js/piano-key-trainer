@@ -12,8 +12,11 @@
     currentMeasure = 1,
     loopMeasure = null as number | null,
     loopCount = 0,
+    lengthMode = 'excerpt' as 'excerpt' | 'full',
+    hasFull = false,
     isDemoPlaying = false,
     onToggleDemo,
+    onSetLengthMode,
     onSetLoopMeasure,
     onPrevMeasure,
     onNextMeasure,
@@ -69,8 +72,31 @@
     {/if}
   </div>
 
-  <!-- Zone 2 & 3: Unified Loop Control + Transport & Navigation -->
+  <!-- Zone 2 & 3: Length Mode + Unified Loop Control + Transport & Navigation -->
   <div class="song-banner-controls">
+    {#if hasFull}
+      <div class="song-length-toggle" role="group" aria-label="Выбор объёма произведения">
+        <button
+          type="button"
+          class="length-toggle-btn {lengthMode === 'excerpt' ? 'active' : ''}"
+          onclick={() => onSetLengthMode?.('excerpt')}
+          title="Играть короткий учебный отрывок (главную тему)"
+        >
+          Отрывок
+        </button>
+        <button
+          type="button"
+          class="length-toggle-btn {lengthMode === 'full' ? 'active' : ''}"
+          onclick={() => onSetLengthMode?.('full')}
+          title="Играть полное произведение целиком"
+        >
+          🎼 Полная
+        </button>
+      </div>
+
+      <span class="song-toolbar-divider" aria-hidden="true"></span>
+    {/if}
+
     <div class="song-loop-group" role="group" aria-label="Управление зацикливанием тактов">
       {#if loopMeasure != null}
         <button

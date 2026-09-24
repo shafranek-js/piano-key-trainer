@@ -24,6 +24,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   repertoireTempoMode: 'wait',
   metronomeEnabled: false,
   repertoireDisplayMode: 'keys',
+  repertoireLengthMode: 'excerpt',
   repertoireDynamicsTarget: 'off',
   repertoireArticulationTarget: 'off',
   twoHandTempoMode: 'wait',

@@ -26,13 +26,18 @@
   let osmdInstance: OpenSheetMusicDisplay | null = null;
   let lastLoadedXml = '';
   let lastLoadedMode = '';
+  let lastCursorIndex: number | null = null;
   let renderSeq = 0;
 
-  function styleOsmdCursor(cursorElement: HTMLElement | null) {
+  function styleOsmdCursor(cursorElement: HTMLElement | null, durationMs = 160) {
     if (!cursorElement) return;
     const renderedHeight = cursorElement.getBoundingClientRect().height;
     const cursorHeight = Math.max(renderedHeight || 68, 68);
-    cursorElement.style.transition = 'left 140ms ease-out, top 140ms ease-out';
+    const verticalDurationMs = durationMs === 0 ? 0 : 160;
+    cursorElement.style.transition =
+      durationMs <= 0
+        ? 'none'
+        : `left ${durationMs}ms linear, top ${verticalDurationMs}ms linear, height ${verticalDurationMs}ms linear`;
     cursorElement.style.width = '12px';
     cursorElement.style.minWidth = '12px';
     cursorElement.style.height = `${cursorHeight}px`;
@@ -43,17 +48,21 @@
       '0 0 0 1.5px rgba(56, 189, 248, 0.85), 0 0 14px rgba(56, 189, 248, 0.55)';
   }
 
-  function scrollSheetToCursor(cursorElement: HTMLElement | null, sheet: HTMLDivElement | null) {
+  function scrollSheetToCursor(
+    cursorElement: HTMLElement | null,
+    sheet: HTMLDivElement | null,
+    behavior: ScrollBehavior = 'smooth'
+  ) {
     if (!cursorElement || !sheet) return;
     requestAnimationFrame(() => {
       const sheetRect = sheet.getBoundingClientRect();
       const cursorRect = cursorElement.getBoundingClientRect();
       if (sheetRect.width <= 0) return;
-      const targetLeft = sheet.clientWidth * 0.38;
+      const targetLeft = sheet.clientWidth * 0.46;
       const offset = cursorRect.left - sheetRect.left - targetLeft;
       sheet.scrollTo({
         left: Math.max(0, sheet.scrollLeft + offset),
-        behavior: 'smooth'
+        behavior
       });
     });
   }
@@ -81,14 +90,29 @@
     if (cursor) {
       if (completed) {
         cursor.hide();
+        lastCursorIndex = null;
       } else {
-        cursor.reset();
         cursor.show();
-        for (let i = 0; i < activeIdx; i++) {
-          cursor.next();
+        if (lastCursorIndex === null || activeIdx < lastCursorIndex) {
+          styleOsmdCursor(cursor.cursorElement, 0);
+          cursor.reset();
+          for (let i = 0; i < activeIdx; i++) {
+            cursor.next();
+          }
+          lastCursorIndex = activeIdx;
+          styleOsmdCursor(cursor.cursorElement, 0);
+          scrollSheetToCursor(cursor.cursorElement, scrollWrapperEl, activeIdx === 0 ? 'auto' : 'smooth');
+        } else if (activeIdx > lastCursorIndex) {
+          styleOsmdCursor(cursor.cursorElement, 150);
+          for (let i = lastCursorIndex; i < activeIdx; i++) {
+            cursor.next();
+          }
+          lastCursorIndex = activeIdx;
+          scrollSheetToCursor(cursor.cursorElement, scrollWrapperEl, 'smooth');
+        } else {
+          styleOsmdCursor(cursor.cursorElement, 150);
+          scrollSheetToCursor(cursor.cursorElement, scrollWrapperEl, 'smooth');
         }
-        styleOsmdCursor(cursor.cursorElement);
-        scrollSheetToCursor(cursor.cursorElement, scrollWrapperEl);
       }
     }
     highlightSvgNotes(osmdContainerEl, activeIdx, completed);
@@ -148,6 +172,7 @@
         osmdInstance.Zoom = isRepertoire ? 1.05 : currentMode === 'twohand' ? 1.12 : 1.22;
         osmdInstance.render();
         lastLoadedXml = xml;
+        lastCursorIndex = null;
 
         // Remove any empty trailing SVGs created by OSMD
         Array.from(osmdContainerEl.querySelectorAll('svg')).forEach((svg) => {

@@ -1,12 +1,18 @@
+import { FULL_REPERTOIRE_DATA } from './fullRepertoireData';
+
+export type RepertoireLengthMode = 'excerpt' | 'full';
+
 export interface SongDef {
   id: string;
   title: string;
   source: string;
   level: string;
-  category?: 'warmup' | 'study' | 'classical';
+  category?: 'warmup' | 'study' | 'classical' | 'melody';
   description: string;
   notes: string[];
   beats: number[];
+  fullNotes?: string[];
+  fullBeats?: number[];
   measureBeats: number;
   timeSignature?: [number, number];
   phraseBars: number;
@@ -342,6 +348,27 @@ export const REPERTOIRE: readonly SongDef[] = [
     phraseBars: 2
   }
 ];
+
+export function hasFullVersion(song: SongDef): boolean {
+  const full = song.fullNotes && song.fullBeats
+    ? { notes: song.fullNotes, beats: song.fullBeats }
+    : FULL_REPERTOIRE_DATA[song.id];
+  return Boolean(full && full.notes.length > song.notes.length);
+}
+
+export function getSongVersion(song: SongDef, lengthMode: RepertoireLengthMode = 'excerpt'): SongDef {
+  if (lengthMode !== 'full') return song;
+  const full = song.fullNotes && song.fullBeats
+    ? { notes: song.fullNotes, beats: song.fullBeats }
+    : FULL_REPERTOIRE_DATA[song.id];
+  if (!full || full.notes.length === 0) return song;
+  return {
+    ...song,
+    notes: full.notes,
+    beats: full.beats,
+    restsAfter: undefined
+  };
+}
 
 export function getSongMeasureCount(song: SongDef): number {
   const beatsPerMeasure = song.measureBeats || 4;

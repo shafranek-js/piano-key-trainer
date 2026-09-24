@@ -33,9 +33,9 @@ export const REPERTOIRE: readonly SongDef[] = [
     source: 'L. van Beethoven · public domain',
     level: 'Легко',
     category: 'classical',
-    description: 'Четыре такта 4/4: знакомый мотив одной рукой в среднем регистре.',
+    description: 'Четыре такта 4/4: знакомый мотив Бетховена с пунктирным ритмом и половинной нотой в каденции.',
     notes: ['E4', 'E4', 'F4', 'G4', 'G4', 'F4', 'E4', 'D4', 'C4', 'C4', 'D4', 'E4', 'E4', 'D4', 'D4'],
-    beats: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2],
+    beats: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1.5, 0.5, 2],
     measureBeats: 4,
     timeSignature: [4, 4],
     phraseBars: 2
@@ -46,9 +46,9 @@ export const REPERTOIRE: readonly SongDef[] = [
     source: 'Traditional · public domain',
     level: 'Легко',
     category: 'classical',
-    description: 'Четыре такта с простой четвертной паузой — первый шаг к чтению ритмической структуры.',
+    description: 'Классическая детская мелодия: чередование четвертных (1 счёт) и протяжных половинных нот (2 счёта).',
     notes: ['E4', 'D4', 'C4', 'D4', 'E4', 'E4', 'E4', 'D4', 'D4', 'D4', 'E4', 'G4', 'G4'],
-    beats: [1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 2],
+    beats: [1, 1, 1, 1, 1, 1, 2, 1, 1, 2, 1, 1, 2],
     restsAfter: { 6: 1 },
     measureBeats: 4,
     timeSignature: [4, 4],
@@ -60,9 +60,9 @@ export const REPERTOIRE: readonly SongDef[] = [
     source: 'Traditional · public domain',
     level: 'Легко +',
     category: 'classical',
-    description: 'Четыре такта 4/4, скачки до G/A и одна явная пауза между двумя короткими фразами.',
+    description: 'Четыре такта 4/4: скачки на квинту со светлыми половинными каденциями на нотах G4 и C4.',
     notes: ['C4', 'C4', 'G4', 'G4', 'A4', 'A4', 'G4', 'F4', 'F4', 'E4', 'E4', 'D4', 'D4', 'C4'],
-    beats: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2],
+    beats: [1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 2],
     restsAfter: { 6: 1 },
     measureBeats: 4,
     timeSignature: [4, 4],
@@ -74,9 +74,9 @@ export const REPERTOIRE: readonly SongDef[] = [
     source: 'J. S. Bach / C. Petzold · Анна Магдалена',
     level: 'Классика · Барокко',
     category: 'classical',
-    description: 'Шедевр клавирной музыки в размере 3/4. Знакомство со знаком альтерации фа-диез (F#4) и поступенным движением.',
-    notes: ['D5', 'G4', 'A4', 'B4', 'C5', 'D5', 'G4', 'G4', 'G4', 'E5', 'C5', 'D5', 'E5', 'F#4', 'G4', 'D5', 'D5', 'D5', 'C5', 'B4', 'A4', 'B4', 'A4', 'G4'],
-    beats: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2],
+    description: 'Подлинный ритм барочного менуэта в размере 3/4: четверти сочетаются с грациозными пассажами восьмых нот и знаком F#4.',
+    notes: ['D5', 'G4', 'A4', 'B4', 'C5', 'D5', 'G4', 'G4', 'E5', 'C5', 'D5', 'E5', 'F#4', 'G4', 'D5', 'D5', 'C5', 'B4', 'A4', 'B4', 'A4', 'G4'],
+    beats: [1, 0.5, 0.5, 0.5, 0.5, 1, 1, 1, 1, 0.5, 0.5, 0.5, 0.5, 1, 1, 1, 1, 1, 1, 1, 0.5, 1.5],
     measureBeats: 3,
     timeSignature: [3, 4],
     phraseBars: 2
@@ -87,9 +87,9 @@ export const REPERTOIRE: readonly SongDef[] = [
     source: 'L. van Beethoven · Багатель',
     level: 'Классика · Романтизм',
     category: 'classical',
-    description: 'Знаменитейшая фортепианная тема с полутоновым ходом E4–D#4 и выразительным взлетом к C5.',
+    description: 'Подлинный ритмический рисунок шедевра Бетховена: лёгкие восьмые опевания (E4–D#4) и выразительные точки покоя.',
     notes: ['E4', 'D#4', 'E4', 'D#4', 'E4', 'B3', 'D4', 'C4', 'A3', 'C4', 'E4', 'A4', 'B4', 'E4', 'G#4', 'B4', 'C5'],
-    beats: [1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2],
+    beats: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1, 0.5, 0.5, 0.5, 1.5, 0.5, 0.5, 0.5, 2.5],
     measureBeats: 4,
     timeSignature: [4, 4],
     phraseBars: 2
@@ -100,9 +100,9 @@ export const REPERTOIRE: readonly SongDef[] = [
     source: 'F. Burgmüller · 25 прогрессивных этюдов',
     level: 'Этюд · Беглость',
     category: 'study',
-    description: 'Виртуозный этюд для развития гибкости и скорости пальцев правой руки в тональности ля минор (содержит соль-диез G#4).',
+    description: 'Виртуозная фортепианная фактура: быстрые жемчужные восьмые пассажи и акцентированные опорные аккорды.',
     notes: ['A4', 'B4', 'C5', 'B4', 'A4', 'E4', 'E4', 'E4', 'B4', 'C5', 'D5', 'C5', 'B4', 'E4', 'E4', 'E4', 'C5', 'D5', 'E5', 'D5', 'C5', 'B4', 'A4', 'G#4', 'A4', 'B4', 'A4'],
-    beats: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2],
+    beats: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 1, 1, 2],
     measureBeats: 4,
     timeSignature: [4, 4],
     phraseBars: 2
@@ -113,9 +113,9 @@ export const REPERTOIRE: readonly SongDef[] = [
     source: 'W. A. Mozart (KV 525) · Серенада № 13',
     level: 'Классика · Празднично',
     category: 'classical',
-    description: 'Энергичный фанфарный мотив в соль мажоре с широкими интервальными ходами и нотой F#4.',
+    description: 'Блестящий венский классический ритм Моцарта с пунктирными фанфарами и половинной кульминацией на D5.',
     notes: ['G4', 'D4', 'G4', 'D4', 'G4', 'D4', 'G4', 'B4', 'D5', 'C5', 'A4', 'C5', 'A4', 'C5', 'A4', 'F#4', 'A4', 'D4'],
-    beats: [1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 2],
+    beats: [1.5, 0.5, 1.5, 0.5, 0.5, 0.5, 0.5, 0.5, 2, 1.5, 0.5, 1.5, 0.5, 0.5, 0.5, 0.5, 0.5, 2],
     measureBeats: 4,
     timeSignature: [4, 4],
     phraseBars: 2
@@ -163,20 +163,43 @@ export const REPERTOIRE: readonly SongDef[] = [
 
 export function getSongMeasureCount(song: SongDef): number {
   const beatsPerMeasure = song.measureBeats || 4;
-  return Math.max(1, Math.ceil(song.notes.length / beatsPerMeasure));
+  const totalBeats = song.beats.reduce((sum, b) => sum + b, 0);
+  return Math.max(1, Math.ceil(totalBeats / beatsPerMeasure));
 }
 
 export function getMeasureForNoteIndex(song: SongDef, noteIndex: number): number {
   const beatsPerMeasure = song.measureBeats || 4;
-  return Math.floor(noteIndex / beatsPerMeasure) + 1;
+  let acc = 0;
+  for (let i = 0; i < noteIndex && i < song.beats.length; i++) {
+    acc += song.beats[i];
+  }
+  return Math.floor(acc / beatsPerMeasure) + 1;
 }
 
 export function getMeasureNoteRange(song: SongDef, measureNumber: number): { start: number; end: number; notes: string[] } {
   const beatsPerMeasure = song.measureBeats || 4;
   const totalMeasures = getSongMeasureCount(song);
   const m = Math.max(1, Math.min(totalMeasures, measureNumber));
-  const start = (m - 1) * beatsPerMeasure;
-  const end = Math.min(song.notes.length, m * beatsPerMeasure);
+  const startBeat = (m - 1) * beatsPerMeasure;
+  const endBeat = m * beatsPerMeasure;
+
+  let start = -1;
+  let end = song.notes.length;
+  let acc = 0;
+
+  for (let i = 0; i < song.notes.length; i++) {
+    const dur = song.beats[i] || 1;
+    if (start === -1 && acc >= startBeat - 0.001) {
+      start = i;
+    }
+    acc += dur;
+    if (acc >= endBeat - 0.001) {
+      end = i + 1;
+      break;
+    }
+  }
+  if (start === -1) start = 0;
+
   return {
     start,
     end,

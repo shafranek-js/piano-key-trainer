@@ -35,6 +35,9 @@
     TEMPO_MODES,
     DYNAMIC_MODES,
     ARTICULATION_MODES,
+    getSongMeasureCount,
+    getMeasureForNoteIndex,
+    getMeasureNoteRange,
     type SongDef
   } from './core/repertoire/repertoireData';
   import { TWO_HAND_PATTERNS, TWO_HAND_TEMPO, type TwoHandPatternDef } from './core/twohand/twoHandData';
@@ -1354,13 +1357,12 @@
 
     const bpm = activeRepertoire.bpm || (settings.repertoireTempoMode === 'slow' ? 60 : 80);
     const beatMs = 60000 / bpm;
-    const beats = song.measureBeats || 4;
 
     const startIndex = activeRepertoire.loopMeasure != null
-      ? (activeRepertoire.loopMeasure - 1) * beats
+      ? getMeasureNoteRange(song, activeRepertoire.loopMeasure).start
       : 0;
     const endIndex = activeRepertoire.loopMeasure != null
-      ? Math.min(song.notes.length, activeRepertoire.loopMeasure * beats)
+      ? getMeasureNoteRange(song, activeRepertoire.loopMeasure).end
       : song.notes.length;
 
     function playDemoStep(stepIdx: number) {
@@ -1404,8 +1406,11 @@
     if (activeRepertoire.isDemoPlaying) {
       stopRepertoireDemo();
       const song = REPERTOIRE.find(s => s.id === activeRepertoire!.id);
-      const beats = song?.measureBeats || 4;
-      activeRepertoire.index = activeRepertoire.loopMeasure != null ? (activeRepertoire.loopMeasure - 1) * beats : 0;
+      let loopStart = 0;
+      if (song && activeRepertoire.loopMeasure != null) {
+        loopStart = getMeasureNoteRange(song, activeRepertoire.loopMeasure).start;
+      }
+      activeRepertoire.index = loopStart;
       renderRepertoireStep();
       feedbackText = 'Демо остановлено. Теперь можете сыграть сами.';
       feedbackClass = '';
@@ -1419,8 +1424,7 @@
     stopRepertoireDemo();
     const song = REPERTOIRE.find(s => s.id === activeRepertoire!.id);
     if (!song) return;
-    const beats = song.measureBeats || 4;
-    const totalMeasures = Math.max(1, Math.ceil(song.notes.length / beats));
+    const totalMeasures = getSongMeasureCount(song);
 
     if (measure === null) {
       activeRepertoire.loopMeasure = null;
@@ -1429,11 +1433,12 @@
       feedbackClass = '';
     } else {
       const validMeasure = Math.max(1, Math.min(totalMeasures, measure));
+      const range = getMeasureNoteRange(song, validMeasure);
       activeRepertoire.loopMeasure = validMeasure;
       activeRepertoire.loopCount = 0;
-      activeRepertoire.index = (validMeasure - 1) * beats;
+      activeRepertoire.index = range.start;
       activeRepertoire.lastCorrectPerf = null;
-      feedbackText = `🔁 Зациклен такт ${validMeasure} (ноты ${(validMeasure - 1) * beats + 1}–${Math.min(song.notes.length, validMeasure * beats)}). Повторяйте фрагмент до автоматизма!`;
+      feedbackText = `🔁 Зациклен такт ${validMeasure} (ноты ${range.start + 1}–${range.end}). Повторяйте фрагмент до автоматизма!`;
       feedbackClass = 'good';
     }
     renderRepertoireStep();
@@ -1480,13 +1485,18 @@
     const song = REPERTOIRE.find(s => s.id === activeRepertoire!.id);
     if (!song) return;
 
-    const beats = song.measureBeats || 4;
     const isLooping = activeRepertoire.loopMeasure != null;
-    const loopEnd = isLooping ? Math.min(song.notes.length, activeRepertoire.loopMeasure! * beats) : song.notes.length;
+    let loopStart = 0;
+    let loopEnd = song.notes.length;
+    if (isLooping) {
+      const range = getMeasureNoteRange(song, activeRepertoire.loopMeasure!);
+      loopStart = range.start;
+      loopEnd = range.end;
+    }
 
     if (activeRepertoire.index >= loopEnd) {
       if (isLooping) {
-        activeRepertoire.index = (activeRepertoire.loopMeasure! - 1) * beats;
+        activeRepertoire.index = loopStart;
       } else {
         finishSong();
         return;
@@ -1543,13 +1553,18 @@
 
       activeRepertoire.index++;
 
-      const beats = song.measureBeats || 4;
       const isLooping = activeRepertoire.loopMeasure != null;
-      const loopEndIndex = isLooping ? Math.min(song.notes.length, activeRepertoire.loopMeasure! * beats) : song.notes.length;
+      let loopStart = 0;
+      let loopEndIndex = song.notes.length;
+      if (isLooping) {
+        const range = getMeasureNoteRange(song, activeRepertoire.loopMeasure!);
+        loopStart = range.start;
+        loopEndIndex = range.end;
+      }
 
       if (isLooping && activeRepertoire.index >= loopEndIndex) {
         activeRepertoire.loopCount++;
-        activeRepertoire.index = (activeRepertoire.loopMeasure! - 1) * beats;
+        activeRepertoire.index = loopStart;
         activeRepertoire.lastCorrectPerf = null;
         feedbackText = `🔁 Такт ${activeRepertoire.loopMeasure} сыгран! Повтор #${activeRepertoire.loopCount}`;
         feedbackClass = 'good';
@@ -2080,9 +2095,8 @@
         {:else if practiceActivity === 'repertoire' && activeRepertoire}
           {@const song = REPERTOIRE.find(s => s.id === activeRepertoire!.id)}
           {#if song}
-            {@const beats = song.measureBeats || 4}
-            {@const totalMeasures = Math.max(1, Math.ceil(song.notes.length / beats))}
-            {@const currentMeasure = Math.floor(activeRepertoire.index / beats) + 1}
+            {@const totalMeasures = getSongMeasureCount(song)}
+            {@const currentMeasure = getMeasureForNoteIndex(song, activeRepertoire.index)}
             <SongBanner
               title={song.title}
               progressText="{activeRepertoire.displayMode === 'staff' ? 'Ноты' : 'Клавиши'} · {activeRepertoire.bpm ? `${activeRepertoire.bpm} BPM` : 'Wait Mode'} · {activeRepertoire.index + 1}/{song.notes.length}"

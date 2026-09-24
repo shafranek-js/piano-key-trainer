@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { NoteName } from '../../core/fsrs/types';
+  import { getSongMeasureCount, getMeasureForNoteIndex } from '../../core/repertoire/repertoireData';
 
   let {
     keyId = 'C4' as string,
@@ -72,6 +73,55 @@
     const idx = Number(m[3]) * 7 + (diatonicMap[m[1]] ?? 0);
     const e4 = 4 * 7 + 2;
     return 96 - (idx - e4) * 8;
+  }
+
+  interface RepertoireLayoutNote {
+    noteId: string;
+    i: number;
+    dur: number;
+    startBeat: number;
+    m: number;
+    within: number;
+    x: number;
+    y: number;
+    isHalf: boolean;
+    isWhole: boolean;
+    isEighth: boolean;
+    isDotted: boolean;
+  }
+
+  function getRepertoireLayout(song: any, left: number, measureW: number): RepertoireLayoutNote[] {
+    if (!song || !song.notes) return [];
+    const measureBeats = song.measureBeats || 4;
+    const beats: number[] = song.beats || [];
+    let acc = 0;
+    return song.notes.map((noteId: string, i: number) => {
+      const dur = beats[i] ?? 1;
+      const startBeat = acc;
+      acc += dur;
+      const m = Math.floor(startBeat / measureBeats);
+      const within = startBeat % measureBeats;
+      const x = left + m * measureW + 28 + (within / measureBeats) * (measureW - 52);
+      const y = diatonicY(noteId) + 4;
+      const isWhole = dur >= 3.5;
+      const isHalf = dur >= 1.75 && dur < 3.5;
+      const isEighth = dur <= 0.75;
+      const isDotted = Math.abs(dur - 1.5) < 0.05 || Math.abs(dur - 0.75) < 0.05 || Math.abs(dur - 2.5) < 0.05;
+      return {
+        noteId,
+        i,
+        dur,
+        startBeat,
+        m,
+        within,
+        x,
+        y,
+        isHalf,
+        isWhole,
+        isEighth,
+        isDotted
+      };
+    });
   }
 </script>
 
@@ -248,12 +298,13 @@
 {:else if repertoireSong}
   {@const measureW = 220}
   {@const left = 126}
-  {@const measureCount = Math.max(1, Math.ceil(repertoireSong.notes.length / (repertoireSong.measureBeats || 4)))}
+  {@const measureCount = getSongMeasureCount(repertoireSong)}
   {@const width = Math.max(820, left + measureCount * measureW + 22)}
   {@const height = 142}
-  {@const curMeasure = Math.floor(currentNoteIndex / (repertoireSong.measureBeats || 4)) + 1}
+  {@const curMeasure = getMeasureForNoteIndex(repertoireSong, currentNoteIndex)}
   {@const timeTop = repertoireSong.timeSignature ? repertoireSong.timeSignature[0] : (repertoireSong.measureBeats || 4)}
   {@const timeBottom = repertoireSong.timeSignature ? repertoireSong.timeSignature[1] : 4}
+  {@const layoutNotes = getRepertoireLayout(repertoireSong, left, measureW)}
 
   <svg class="repertoire-staff-svg phrase-staff" viewBox="0 0 {width} {height}" role="img" aria-label="Нотный стан мелодии {timeTop}/{timeBottom}">
     <text class="rep-clef" x="14" y="104">&#119070;</text>
@@ -298,29 +349,81 @@
       <line class="rep-barline {m === 0 || m === measureCount ? 'edge' : ''}" x1={x} x2={x} y1="36" y2="100" />
     {/each}
 
-    {#each repertoireSong.notes as noteId, i}
-      {@const m = Math.floor(i / (repertoireSong.measureBeats || 4))}
-      {@const within = i % (repertoireSong.measureBeats || 4)}
-      {@const x = left + m * measureW + 28 + (within / (repertoireSong.measureBeats || 4)) * (measureW - 52)}
-      {@const y = diatonicY(noteId) + 4}
-      {@const done = i < currentNoteIndex || isCompleted}
-      {@const current = i === currentNoteIndex && !isCompleted}
-      {@const stemUp = y > 68}
-      {@const stemX = stemUp ? x + 8 : x - 8}
-      {@const isSharp = noteId.includes('#')}
+    {#each layoutNotes as note}
+      {@const done = note.i < currentNoteIndex || isCompleted}
+      {@const current = note.i === currentNoteIndex && !isCompleted}
+      {@const stemUp = note.y > 68}
+      {@const stemX = stemUp ? note.x + 8 : note.x - 8}
+      {@const isSharp = note.noteId.includes('#')}
 
       <g class="rep-note {done ? 'done' : ''} {current ? 'current' : ''}">
         {#if current}
-          <circle class="rep-note-halo" cx={x} cy={y} r="17" />
+          <circle class="rep-note-halo" cx={note.x} cy={note.y} r="17" />
         {/if}
-        {#if y >= 112}
-          <line class="rep-ledger" x1={x - 13} x2={x + 13} y1="116" y2="116" />
+        {#if note.y >= 112}
+          <line class="rep-ledger" x1={note.x - 13} x2={note.x + 13} y1="116" y2="116" />
         {/if}
         {#if isSharp}
-          <text class="rep-accidental" x={x - 13} y={y + 5} font-size="16" fill="currentColor">♯</text>
+          <text class="rep-accidental" x={note.x - 13} y={note.y + 5} font-size="16" fill="currentColor">♯</text>
         {/if}
-        <ellipse class="rep-notehead" cx={x} cy={y} rx="8.5" ry="6" transform="rotate(-18 {x} {y})" fill="currentColor" />
-        <line class="rep-stem" x1={stemX} x2={stemX} y1={y} y2={stemUp ? y - 32 : y + 32} />
+
+        <!-- Notehead: hollow for half / whole notes, solid filled for quarter / eighth notes -->
+        {#if note.isHalf || note.isWhole}
+          <ellipse 
+            class="rep-notehead rep-hollow" 
+            cx={note.x} 
+            cy={note.y} 
+            rx="8.5" 
+            ry="6" 
+            transform="rotate(-18 {note.x} {note.y})" 
+            fill="#090e1a" 
+            stroke="currentColor" 
+            stroke-width="2.3" 
+          />
+        {:else}
+          <ellipse 
+            class="rep-notehead" 
+            cx={note.x} 
+            cy={note.y} 
+            rx="8.5" 
+            ry="6" 
+            transform="rotate(-18 {note.x} {note.y})" 
+            fill="currentColor" 
+          />
+        {/if}
+
+        <!-- Dotted note dot -->
+        {#if note.isDotted}
+          <circle class="rep-dot" cx={note.x + 13} cy={note.y} r="2.4" fill="currentColor" />
+        {/if}
+
+        <!-- Stem & flag (whole notes have no stems) -->
+        {#if !note.isWhole}
+          <line class="rep-stem" x1={stemX} x2={stemX} y1={note.y} y2={stemUp ? note.y - 32 : note.y + 32} />
+
+          <!-- Eighth note flag -->
+          {#if note.isEighth}
+            {#if stemUp}
+              <path 
+                class="rep-flag" 
+                d="M {stemX} {note.y - 32} C {stemX + 8} {note.y - 25} {stemX + 10} {note.y - 14} {stemX + 2} {note.y - 8}" 
+                fill="none" 
+                stroke="currentColor" 
+                stroke-width="2" 
+                stroke-linecap="round" 
+              />
+            {:else}
+              <path 
+                class="rep-flag" 
+                d="M {stemX} {note.y + 32} C {stemX + 8} {note.y + 25} {stemX + 10} {note.y + 14} {stemX + 2} {note.y + 8}" 
+                fill="none" 
+                stroke="currentColor" 
+                stroke-width="2" 
+                stroke-linecap="round" 
+              />
+            {/if}
+          {/if}
+        {/if}
       </g>
     {/each}
   </svg>

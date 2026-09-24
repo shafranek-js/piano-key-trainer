@@ -42,13 +42,13 @@ describe('Repertoire Data & Measure Logic', () => {
     expect(bach.measureBeats).toBe(3);
     const m1 = getMeasureNoteRange(bach, 1);
     expect(m1.start).toBe(0);
-    expect(m1.end).toBe(3);
-    expect(m1.notes).toEqual(['D5', 'G4', 'A4']);
+    expect(m1.end).toBe(5);
+    expect(m1.notes).toEqual(['D5', 'G4', 'A4', 'B4', 'C5']);
 
     const m2 = getMeasureNoteRange(bach, 2);
-    expect(m2.start).toBe(3);
-    expect(m2.end).toBe(6);
-    expect(m2.notes).toEqual(['B4', 'C5', 'D5']);
+    expect(m2.start).toBe(5);
+    expect(m2.end).toBe(8);
+    expect(m2.notes).toEqual(['D5', 'G4', 'G4']);
   });
 
   it('safely clamps out-of-bound measure numbers', () => {

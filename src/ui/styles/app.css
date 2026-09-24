@@ -2301,18 +2301,36 @@ body::before{opacity:.9}
 /* TaskStage fixed-height internal slots so text/feedback/button updates never alter container height */
 .practice-stage-center .operation-stage {
   width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
   padding: 2px 12px !important;
   flex: 0 0 auto !important;
+  display: block !important;
 }
 
 .practice-stage-center .operation-inner {
   width: min(1180px, 100%) !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
   gap: 6px !important;
+  flex: 0 0 auto !important;
 }
 
 .practice-stage-center .operation-stage .challenge {
+  width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
   padding: 4px 12px !important;
   margin: 0 !important;
+  flex: 0 0 auto !important;
+  overflow: visible !important;
 }
 
 .practice-stage-center .operation-stage .challenge-inner {
@@ -2322,15 +2340,23 @@ body::before{opacity:.9}
   justify-content: flex-start !important;
   gap: 6px !important;
   width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  flex: 0 0 auto !important;
 }
 
 .practice-stage-center .operation-stage .prompt-wrap {
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
-  justify-content: center !important;
+  justify-content: flex-start !important;
   gap: 2px !important;
   width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  flex: 0 0 auto !important;
   overflow: hidden !important;
 }
 

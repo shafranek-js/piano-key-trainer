@@ -177,13 +177,25 @@
       <div class="repertoire-meta">
         <span>Размер: {timeSig} · Тактов: {measureCount} · Ноты: {song.notes.length}</span>
       </div>
-      <button
-        type="button"
-        class="btn primary"
-        onclick={() => onStartSong?.(song.id)}
-      >
-        Играть
-      </button>
+      <div style="display:flex; gap:6px; margin-top:8px;">
+        <button
+          type="button"
+          class="btn primary"
+          style="flex:1;"
+          onclick={() => onStartSong?.(song.id)}
+        >
+          Играть
+        </button>
+        <button
+          type="button"
+          class="btn"
+          style="flex:1; border-color:rgba(56,189,248,0.4); color:#38bdf8; font-weight:600;"
+          onclick={() => onStartSong?.(song.id, { autoDemo: true })}
+          title="Послушать автопроигрывание мелодии с подсветкой нот на стане и клавиатуре"
+        >
+          ▶ Демо
+        </button>
+      </div>
     </article>
   {/each}
 </div>

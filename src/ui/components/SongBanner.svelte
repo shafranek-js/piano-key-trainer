@@ -12,6 +12,8 @@
     currentMeasure = 1,
     loopMeasure = null as number | null,
     loopCount = 0,
+    isDemoPlaying = false,
+    onToggleDemo,
     onSetLoopMeasure,
     onPrevMeasure,
     onNextMeasure,
@@ -32,6 +34,11 @@
       {#if loopMeasure != null}
         <span class="song-progress-chip" style="background:rgba(245,158,11,0.2); border-color:rgba(245,158,11,0.5); color:#fde68a; font-weight:600;">
           🔁 Зациклен такт {loopMeasure} · #{loopCount}
+        </span>
+      {/if}
+      {#if isDemoPlaying}
+        <span class="song-progress-chip" style="background:rgba(56,189,248,0.22); border-color:rgba(56,189,248,0.55); color:#7dd3fc; font-weight:700;">
+          🔊 Демо-проигрывание
         </span>
       {/if}
     </div>
@@ -129,6 +136,19 @@
   </div>
 
   <div class="song-banner-actions">
+    <button
+      type="button"
+      class="btn {isDemoPlaying ? 'warn' : 'primary'}"
+      style="font-weight:600; {isDemoPlaying ? 'border-color:#f59e0b; color:#fde68a;' : 'border-color:rgba(56,189,248,0.4); color:#38bdf8;'}"
+      onclick={() => onToggleDemo?.()}
+      title={isDemoPlaying ? 'Остановить автопроигрывание' : 'Включить автопроигрывание мелодии с подсветкой нот'}
+    >
+      {#if isDemoPlaying}
+        ⏹ Стоп демо
+      {:else}
+        ▶ Послушать
+      {/if}
+    </button>
     <button type="button" class="btn" onclick={() => onRestart?.()}>Сначала</button>
     <button type="button" class="btn" onclick={() => onExit?.()}>К мелодиям</button>
   </div>

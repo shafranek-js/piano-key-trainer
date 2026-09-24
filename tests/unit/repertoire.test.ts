@@ -4,6 +4,7 @@ import {
   getSongMeasureCount,
   getMeasureForNoteIndex,
   getMeasureNoteRange,
+  getSongDurationMs,
   type SongDef
 } from '../../src/core/repertoire/repertoireData';
 
@@ -69,5 +70,17 @@ describe('Repertoire Data & Measure Logic', () => {
     expect(elise.timeSignature).toEqual([4, 4]);
     expect(elise.notes).toContain('D#4');
     expect(elise.notes).toContain('G#4');
+  });
+
+  it('calculates total song duration in ms for demo playback', () => {
+    const ode = REPERTOIRE.find(s => s.id === 'ode-joy')!;
+    // 14 beats of 1, and 1 beat of 2 = 16 total beats
+    // at 60 bpm, 16 beats = 16 * 1000 = 16000 ms
+    const dur60 = getSongDurationMs(ode, 60);
+    expect(dur60).toBe(16000);
+
+    // at 120 bpm, 16 beats = 8000 ms
+    const dur120 = getSongDurationMs(ode, 120);
+    expect(dur120).toBe(8000);
   });
 });

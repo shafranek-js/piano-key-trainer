@@ -285,9 +285,11 @@
     lastExpressionText: string;
     loopMeasure: number | null;
     loopCount: number;
+    isDemoPlaying: boolean;
     completed: boolean;
   } | null>(null);
   let repertoireCountInTimer: number | null = null;
+  let repertoireDemoTimer: number | null = null;
   let metronome: MetronomeClock | null = null;
 
   // Active Two-Hand State
@@ -1279,7 +1281,8 @@
   // ==========================================
   // 2. REPERTOIRE PLAYER (Roadmap Direction 3)
   // ==========================================
-  function startSong(songId: string) {
+  function startSong(songId: string, options?: { autoDemo?: boolean }) {
+    stopRepertoireDemo();
     const song = REPERTOIRE.find(s => s.id === songId);
     if (!song) return;
     practiceActivity = 'repertoire';
@@ -1292,7 +1295,7 @@
       startedPerf: performance.now(),
       bpm,
       displayMode: settings.repertoireDisplayMode || 'keys',
-      countingIn: !!bpm,
+      countingIn: !options?.autoDemo && !!bpm,
       countInValue: bpm ? 4 : 0,
       lastCorrectPerf: null,
       timingErrors: [],
@@ -1309,20 +1312,111 @@
       lastExpressionText: '',
       loopMeasure: null,
       loopCount: 0,
+      isDemoPlaying: !!options?.autoDemo,
       completed: false
     };
 
     activePage = 'practice';
 
-    if (bpm) {
+    if (options?.autoDemo) {
+      renderRepertoireStep();
+      startRepertoireDemo();
+    } else if (bpm) {
       beginRepertoireCountIn(bpm);
     } else {
       nextRound();
     }
   }
 
+  function stopRepertoireDemo() {
+    if (repertoireDemoTimer != null) {
+      clearTimeout(repertoireDemoTimer);
+      repertoireDemoTimer = null;
+    }
+    correctKeyIds = [];
+    pulseCorrectKeyIds = [];
+    if (activeRepertoire) {
+      activeRepertoire.isDemoPlaying = false;
+    }
+  }
+
+  function startRepertoireDemo() {
+    if (!activeRepertoire) return;
+    stopRepertoireDemo();
+    const song = REPERTOIRE.find(s => s.id === activeRepertoire!.id);
+    if (!song) return;
+
+    activeRepertoire.isDemoPlaying = true;
+    activeRepertoire.completed = false;
+    isCompleted = false;
+
+    AudioEngine.getInstance().ensureContext();
+
+    const bpm = activeRepertoire.bpm || (settings.repertoireTempoMode === 'slow' ? 60 : 80);
+    const beatMs = 60000 / bpm;
+    const beats = song.measureBeats || 4;
+
+    const startIndex = activeRepertoire.loopMeasure != null
+      ? (activeRepertoire.loopMeasure - 1) * beats
+      : 0;
+    const endIndex = activeRepertoire.loopMeasure != null
+      ? Math.min(song.notes.length, activeRepertoire.loopMeasure * beats)
+      : song.notes.length;
+
+    function playDemoStep(stepIdx: number) {
+      if (!activeRepertoire || !activeRepertoire.isDemoPlaying) return;
+
+      if (stepIdx >= endIndex) {
+        stopRepertoireDemo();
+        activeRepertoire.index = startIndex;
+        renderRepertoireStep();
+        feedbackText = '✓ Демонстрация завершена. Теперь ваша очередь сыграть!';
+        feedbackClass = 'good';
+        return;
+      }
+
+      const note = song.notes[stepIdx];
+      const noteBeats = song.beats[stepIdx] || 1;
+      const durMs = Math.max(180, noteBeats * beatMs);
+
+      activeRepertoire.index = stepIdx;
+      targetKeyId = note;
+      targetKeyIds = [note];
+      correctKeyIds = [note];
+      pulseCorrectKeyIds = [note];
+
+      AudioEngine.getInstance().playPianoByKeyId(note, 92);
+      feedbackText = `▶ Демо: нота ${note} (${stepIdx + 1}/${endIndex}) · слушайте ритм и мелодию`;
+      feedbackClass = 'good';
+
+      repertoireDemoTimer = window.setTimeout(() => {
+        correctKeyIds = [];
+        pulseCorrectKeyIds = [];
+        playDemoStep(stepIdx + 1);
+      }, durMs);
+    }
+
+    playDemoStep(startIndex);
+  }
+
+  function toggleRepertoireDemo() {
+    if (!activeRepertoire) return;
+    if (activeRepertoire.isDemoPlaying) {
+      stopRepertoireDemo();
+      const song = REPERTOIRE.find(s => s.id === activeRepertoire!.id);
+      const beats = song?.measureBeats || 4;
+      activeRepertoire.index = activeRepertoire.loopMeasure != null ? (activeRepertoire.loopMeasure - 1) * beats : 0;
+      renderRepertoireStep();
+      feedbackText = 'Демо остановлено. Теперь можете сыграть сами.';
+      feedbackClass = '';
+    } else {
+      startRepertoireDemo();
+    }
+  }
+
   function setRepertoireLoop(measure: number | null) {
     if (!activeRepertoire) return;
+    stopRepertoireDemo();
     const song = REPERTOIRE.find(s => s.id === activeRepertoire!.id);
     if (!song) return;
     const beats = song.measureBeats || 4;
@@ -1407,6 +1501,12 @@
 
   function handleRepertoireInput(keyId: string, meta: { input: 'mouse' | 'midi'; velocity?: number; voiceKey?: string }) {
     if (!activeRepertoire || activeRepertoire.completed || activeRepertoire.countingIn) return;
+    if (activeRepertoire.isDemoPlaying) {
+      stopRepertoireDemo();
+      feedbackText = 'Демо остановлено. Теперь можете сыграть сами.';
+      feedbackClass = '';
+      return;
+    }
     const song = REPERTOIRE.find(s => s.id === activeRepertoire!.id);
     if (!song) return;
 
@@ -1480,10 +1580,12 @@
 
   function restartSong() {
     if (!activeRepertoire) return;
+    stopRepertoireDemo();
     startSong(activeRepertoire.id);
   }
 
   function leaveRepertoire() {
+    stopRepertoireDemo();
     if (repertoireCountInTimer != null) {
       clearInterval(repertoireCountInTimer);
       repertoireCountInTimer = null;
@@ -1992,6 +2094,8 @@
               {currentMeasure}
               loopMeasure={activeRepertoire.loopMeasure}
               loopCount={activeRepertoire.loopCount}
+              isDemoPlaying={activeRepertoire.isDemoPlaying}
+              onToggleDemo={toggleRepertoireDemo}
               onSetLoopMeasure={setRepertoireLoop}
               onPrevMeasure={prevRepertoireMeasure}
               onNextMeasure={nextRepertoireMeasure}
@@ -2312,7 +2416,7 @@
           onSettingsChange={(patch: Partial<UserSettings>) => {
             persistSettings(patch);
           }}
-          onStartSong={(id: string) => startSong(id)}
+          onStartSong={(id: string, opts) => startSong(id, opts)}
         />
       </div>
     {:else if activePage === 'twohand'}

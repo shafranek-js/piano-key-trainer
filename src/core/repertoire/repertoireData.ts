@@ -184,6 +184,12 @@ export function getMeasureNoteRange(song: SongDef, measureNumber: number): { sta
   };
 }
 
+export function getSongDurationMs(song: SongDef, bpm = 80): number {
+  const beatMs = 60000 / bpm;
+  const totalBeats = song.beats.reduce((sum, b) => sum + b, 0);
+  return Math.round(totalBeats * beatMs);
+}
+
 export const TEMPO_MODES = {
   wait: { label: 'Wait', bpm: null },
   slow: { label: 'Slow · 60', bpm: 60 },

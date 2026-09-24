@@ -2099,6 +2099,18 @@
       if (repertoireCountInTimer != null) clearInterval(repertoireCountInTimer);
     };
   });
+
+  $effect(() => {
+    void activePage;
+    void practiceActivity;
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      const appEl = document.getElementById('app');
+      if (appEl) appEl.scrollTop = 0;
+    }
+  });
 </script>
 
 <main class="app" id="app">
@@ -2125,7 +2137,7 @@
     />
   </header>
 
-  <div class="workspace-pages" style="display:block; min-height: 400px;">
+  <div class="workspace-pages" style="min-height: 0;">
     {#if activePage === 'practice'}
       <div class="workspace-page active {currentCard?.skill ? `practice-mode-${currentCard.skill}` : ''}" data-page="practice">
         <!-- 1. Guided Lessons Banner -->
@@ -2234,9 +2246,9 @@
           {@const baseSong = REPERTOIRE.find(s => s.id === activeRepertoire!.id)}
           {#if baseSong}
             {@const song = getSongVersion(baseSong, activeRepertoire.lengthMode)}
-            <div style="display:flex; flex-direction:column; justify-content:center; gap:6px; min-height:0;">
+            <div class="repertoire-stage-wrap {activeRepertoire.displayMode === 'staff' ? 'is-staff-mode' : ''}">
               {#if activeRepertoire.displayMode === 'staff'}
-                <div style="display:flex; justify-content:center; overflow-x:auto;">
+                <div class="repertoire-staff-holder">
                   <Staff
                     mode="repertoire"
                     repertoireSong={song}

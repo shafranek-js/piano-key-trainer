@@ -143,7 +143,7 @@
           drawFingerings: true,
           fingeringPosition: 'below',
           autoResize: false,
-          followCursor: isRepertoire,
+          followCursor: false,
           renderSingleHorizontalStaffline: true,
           cursorsOptions: isRepertoire
             ? [
@@ -151,11 +151,12 @@
                   type: CursorType.ThinLeft,
                   color: '#38bdf8',
                   alpha: 0.85,
-                  follow: true
+                  follow: false
                 }
               ]
             : []
         });
+        osmdInstance.FollowCursor = false;
         osmdInstance.EngravingRules.SheetMaximumWidth = 1_000_000;
         osmdInstance.EngravingRules.AutoBeamNotes = true;
         osmdInstance.EngravingRules.StaffLineWidth = 0.12;

@@ -1,17 +1,32 @@
-import type { Card, NoteName, Skill } from '../fsrs/types';
-import { LEARN_ORDER } from '../fsrs/constants';
+import type { Card, NoteName, PitchClass, Skill } from '../fsrs/types';
+import { ALL_NOTES, LEARN_ORDER } from '../fsrs/constants';
 import { retrievability } from '../fsrs/fsrs6';
+import { isFsrsCardDue } from '../fsrs/cardClassification';
 
 export function rankNew(a: Card, b: Card): number {
-  const ai = LEARN_ORDER.indexOf(a.note);
-  const bi = LEARN_ORDER.indexOf(b.note);
+  const ai = LEARN_ORDER.indexOf(a.note as any);
+  const bi = LEARN_ORDER.indexOf(b.note as any);
   if (ai !== bi) return ai - bi;
   const order: Record<Skill, number> = {
     find: 0,
     identify: 1,
     patternIdentify: 2,
     notationToKey: 3,
-    soundToKey: 4
+    soundToKey: 4,
+    notationBassToKey: 5,
+    intervalBuild: 6,
+    intervalIdentify: 7,
+    triadBuild: 8,
+    triadIdentify: 9,
+    triadInversionBuild: 10,
+    triadInversionIdentify: 11,
+    chordSymbolRead: 12,
+    harmonyFunctionIdentify: 13,
+    harmonyNextChord: 14,
+    harmonyProgressionPlay: 15,
+    chordPulse: 16,
+    chordChangeTiming: 17,
+    chordRhythmPattern: 18
   };
   return (order[a.skill] ?? 9) - (order[b.skill] ?? 9);
 }
@@ -34,7 +49,7 @@ export function chooseDue(
   recentCards: readonly Card[]
 ): Card | null {
   const due = cards
-    .filter(c => c.reps > 0 && c.dueAt <= now)
+    .filter(c => isFsrsCardDue(c, now))
     .map(c => ({
       card: c,
       r: retrievability(c, now) ?? 0,
@@ -115,7 +130,7 @@ export function choosePractice(
       return { card: c, score: r * 0.6 + acc * 0.25 + diversityPenalty(c, recentCards) };
     })
     .sort((a, b) => a.score - b.score);
-  return scored[0]?.card ?? pool[Math.floor(Math.random() * pool.length)];
+  return scored[0]?.card ?? [...pool].sort((a, b) => a.id.localeCompare(b.id))[0] ?? null;
 }
 
 export function shuffleCopy<T>(arr: readonly T[]): T[] {
@@ -135,16 +150,50 @@ export function buildColdQueue(
   if (pool.length < 8) pool = validCards.slice();
   if (!pool.length) return [];
 
-  const bySkill = {
+  const bySkill: Record<Skill, Card[]> = {
     find: shuffleCopy(pool.filter(c => c.skill === 'find')),
     identify: shuffleCopy(pool.filter(c => c.skill === 'identify')),
     patternIdentify: shuffleCopy(pool.filter(c => c.skill === 'patternIdentify')),
     notationToKey: shuffleCopy(pool.filter(c => c.skill === 'notationToKey')),
-    soundToKey: shuffleCopy(pool.filter(c => c.skill === 'soundToKey'))
+    soundToKey: shuffleCopy(pool.filter(c => c.skill === 'soundToKey')),
+    notationBassToKey: shuffleCopy(pool.filter(c => c.skill === 'notationBassToKey')),
+    intervalBuild: shuffleCopy(pool.filter(c => c.skill === 'intervalBuild')),
+    intervalIdentify: shuffleCopy(pool.filter(c => c.skill === 'intervalIdentify')),
+    triadBuild: shuffleCopy(pool.filter(c => c.skill === 'triadBuild')),
+    triadIdentify: shuffleCopy(pool.filter(c => c.skill === 'triadIdentify')),
+    triadInversionBuild: shuffleCopy(pool.filter(c => c.skill === 'triadInversionBuild')),
+    triadInversionIdentify: shuffleCopy(pool.filter(c => c.skill === 'triadInversionIdentify')),
+    chordSymbolRead: shuffleCopy(pool.filter(c => c.skill === 'chordSymbolRead')),
+    harmonyFunctionIdentify: shuffleCopy(pool.filter(c => c.skill === 'harmonyFunctionIdentify')),
+    harmonyNextChord: shuffleCopy(pool.filter(c => c.skill === 'harmonyNextChord')),
+    harmonyProgressionPlay: shuffleCopy(pool.filter(c => c.skill === 'harmonyProgressionPlay')),
+    chordPulse: shuffleCopy(pool.filter(c => c.skill === 'chordPulse')),
+    chordChangeTiming: shuffleCopy(pool.filter(c => c.skill === 'chordChangeTiming')),
+    chordRhythmPattern: shuffleCopy(pool.filter(c => c.skill === 'chordRhythmPattern'))
   };
 
   const skills: Skill[] = (
-    ['find', 'identify', 'patternIdentify', 'notationToKey', 'soundToKey'] as Skill[]
+    [
+      'find',
+      'identify',
+      'patternIdentify',
+      'notationToKey',
+      'soundToKey',
+      'notationBassToKey',
+      'intervalBuild',
+      'intervalIdentify',
+      'triadBuild',
+      'triadIdentify',
+      'triadInversionBuild',
+      'triadInversionIdentify',
+      'chordSymbolRead',
+      'harmonyFunctionIdentify',
+      'harmonyNextChord',
+      'harmonyProgressionPlay',
+      'chordPulse',
+      'chordChangeTiming',
+      'chordRhythmPattern'
+    ] as Skill[]
   ).filter(s => bySkill[s].length > 0);
 
   const queue: string[] = [];
@@ -180,14 +229,33 @@ export interface ConfusionPair {
   count: number;
 }
 
+type ConfusionReviewEvent = {
+  kind: string;
+  note: PitchClass;
+  answer: PitchClass;
+};
+
+const pitchClasses = new Set<string>(ALL_NOTES);
+
+function isConfusionReviewEvent(
+  event: { kind: string; note: NoteName; answer?: string | null }
+): event is ConfusionReviewEvent {
+  return (
+    ['scheduled', 'new', 'cold'].includes(event.kind) &&
+    pitchClasses.has(event.note) &&
+    typeof event.answer === 'string' &&
+    pitchClasses.has(event.answer) &&
+    event.note !== event.answer
+  );
+}
+
 export function topConfusionPairs(
-  reviewLogs: readonly { kind: string; note: NoteName; answer?: NoteName | null }[],
+  reviewLogs: readonly { kind: string; note: NoteName; answer?: string | null }[],
   minCount = 2,
   limit = 500
 ): ConfusionPair[] {
-  const allowed = new Set(['scheduled', 'new', 'cold']);
   const events = reviewLogs
-    .filter(e => allowed.has(e.kind) && e.note && e.answer && e.note !== e.answer)
+    .filter(isConfusionReviewEvent)
     .slice(-limit);
 
   const pairs = new Map<string, { noteA: NoteName; noteB: NoteName; count: number }>();
@@ -209,7 +277,7 @@ export function topConfusionPairs(
 
 export function chooseConfusionPractice(
   cards: readonly Card[],
-  reviewLogs: readonly { kind: string; note: NoteName; answer?: NoteName | null }[],
+  reviewLogs: readonly { kind: string; note: NoteName; answer?: string | null }[],
   recentCards: readonly Card[],
   lastConfusionTrial = -99,
   sessionTrials = 0,

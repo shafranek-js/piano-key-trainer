@@ -1,5 +1,10 @@
 import JSZip from 'jszip';
-import type { SongDef } from './repertoireData';
+import {
+  DEFAULT_BPM_BY_SONG_ID,
+  normalizeSongToEvents,
+  type MelodyEvent,
+  type SongDef
+} from './repertoireData';
 
 const DIVISIONS = 4; // 4 divisions per quarter note
 
@@ -14,73 +19,212 @@ export interface DurationSpec {
  * standard MusicXML duration specs connected by ties if length > 1.
  */
 export function decomposeDurationSpecs(beats: number): DurationSpec[] {
-  if (Math.abs(beats - 0.25) < 0.05) {
-    return [{ type: '16th', dotted: false, divisions: 1 }];
-  }
-  if (Math.abs(beats - 0.5) < 0.05) {
-    return [{ type: 'eighth', dotted: false, divisions: 2 }];
-  }
-  if (Math.abs(beats - 0.75) < 0.05) {
-    return [{ type: 'eighth', dotted: true, divisions: 3 }];
-  }
-  if (Math.abs(beats - 1) < 0.05) {
-    return [{ type: 'quarter', dotted: false, divisions: 4 }];
-  }
-  if (Math.abs(beats - 1.25) < 0.05) {
-    return [
-      { type: 'quarter', dotted: false, divisions: 4 },
-      { type: '16th', dotted: false, divisions: 1 }
-    ];
-  }
-  if (Math.abs(beats - 1.5) < 0.05) {
-    return [{ type: 'quarter', dotted: true, divisions: 6 }];
-  }
-  if (Math.abs(beats - 2) < 0.05) {
-    return [{ type: 'half', dotted: false, divisions: 8 }];
-  }
-  if (Math.abs(beats - 2.5) < 0.05) {
-    return [
-      { type: 'half', dotted: false, divisions: 8 },
-      { type: 'eighth', dotted: false, divisions: 2 }
-    ];
-  }
-  if (Math.abs(beats - 3) < 0.05) {
-    return [{ type: 'half', dotted: true, divisions: 12 }];
-  }
-  if (Math.abs(beats - 3.5) < 0.05) {
-    return [
-      { type: 'half', dotted: true, divisions: 12 },
-      { type: 'eighth', dotted: false, divisions: 2 }
-    ];
-  }
-  if (beats >= 3.9) {
-    return [{ type: 'whole', dotted: false, divisions: 16 }];
-  }
-  return [
-    {
-      type: 'quarter',
-      dotted: false,
-      divisions: Math.max(1, Math.round(beats * DIVISIONS))
-    }
+  const totalDivs = Math.max(1, Math.round(beats * DIVISIONS));
+  const standardAtoms: DurationSpec[] = [
+    { type: 'whole', dotted: false, divisions: 16 },
+    { type: 'half', dotted: true, divisions: 12 },
+    { type: 'half', dotted: false, divisions: 8 },
+    { type: 'quarter', dotted: true, divisions: 6 },
+    { type: 'quarter', dotted: false, divisions: 4 },
+    { type: 'eighth', dotted: true, divisions: 3 },
+    { type: 'eighth', dotted: false, divisions: 2 },
+    { type: '16th', dotted: false, divisions: 1 }
   ];
+
+  const result: DurationSpec[] = [];
+  let remaining = totalDivs;
+  while (remaining > 0) {
+    const match = standardAtoms.find((atom) => atom.divisions <= remaining);
+    if (!match) {
+      result.push({ type: '16th', dotted: false, divisions: 1 });
+      remaining -= 1;
+    } else {
+      result.push({ ...match });
+      remaining -= match.divisions;
+    }
+  }
+  return result;
+}
+
+export interface MeasureNoteItem {
+  isRest: boolean;
+  noteId?: string;
+  beats: number;
+  startBeatInMeasure: number;
+  globalIndex?: number;
+  spec: DurationSpec;
+  tieStart?: boolean;
+  tieStop?: boolean;
+  beam?: 'begin' | 'continue' | 'end';
+}
+
+const SHARP_ORDER = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
+const FLAT_ORDER = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
+
+export function getKeySignatureStepAlters(fifths = 0): Record<string, number> {
+  const map: Record<string, number> = {
+    C: 0,
+    D: 0,
+    E: 0,
+    F: 0,
+    G: 0,
+    A: 0,
+    B: 0
+  };
+  const clamped = Math.max(-7, Math.min(7, Math.trunc(fifths)));
+  if (clamped > 0) {
+    for (let i = 0; i < clamped; i++) {
+      map[SHARP_ORDER[i]] = 1;
+    }
+  } else if (clamped < 0) {
+    for (let i = 0; i < Math.abs(clamped); i++) {
+      map[FLAT_ORDER[i]] = -1;
+    }
+  }
+  return map;
+}
+
+function assignBeamsForMeasure(items: MeasureNoteItem[], timeSignature?: [number, number]): void {
+  const isCompoundSixEight =
+    Boolean(timeSignature && timeSignature[0] === 6 && timeSignature[1] === 8);
+
+  const getBeamGroupKey = (item: MeasureNoteItem): number => {
+    if (isCompoundSixEight) {
+      // Two compound dotted-quarter beats per 6/8 measure: [0, 1.5) and [1.5, 3.0)
+      return Math.floor((item.startBeatInMeasure + 1e-4) / 1.5);
+    }
+    if (timeSignature && timeSignature[0] === 2 && timeSignature[1] === 4) {
+      // Group by quarter-note beat in 2/4
+      return Math.floor((item.startBeatInMeasure + 1e-4) / 1.0);
+    }
+    // In 3/4 or 4/4, group within half-measure or beat-pair boundaries
+    return Math.floor((item.startBeatInMeasure + 1e-4) / 2.0);
+  };
+
+  let i = 0;
+  while (i < items.length) {
+    const item = items[i];
+    if (!item.isRest && item.beats <= 0.5 && !item.tieStop) {
+      const groupKey = getBeamGroupKey(item);
+      const maxRun = isCompoundSixEight ? 6 : 4;
+      const run: MeasureNoteItem[] = [];
+      while (
+        i < items.length &&
+        !items[i].isRest &&
+        items[i].beats <= 0.5 &&
+        !items[i].tieStop &&
+        getBeamGroupKey(items[i]) === groupKey &&
+        run.length < maxRun
+      ) {
+        run.push(items[i]);
+        i++;
+      }
+      if (run.length >= 2) {
+        run[0].beam = 'begin';
+        for (let k = 1; k < run.length - 1; k++) {
+          run[k].beam = 'continue';
+        }
+        run[run.length - 1].beam = 'end';
+      }
+    } else {
+      i++;
+    }
+  }
+}
+
+export function buildMeasuresFromSong(song: SongDef): MeasureNoteItem[][] {
+  const measureBeats = song.measureBeats || 4;
+  const events = normalizeSongToEvents(song);
+
+  const measures: MeasureNoteItem[][] = [];
+  let currentMeasure: MeasureNoteItem[] = [];
+  let accBeats = 0;
+  let targetMeasureBeats =
+    song.pickupBeats && song.pickupBeats > 0 ? song.pickupBeats : measureBeats;
+
+  const flushMeasure = () => {
+    if (currentMeasure.length === 0) return;
+    assignBeamsForMeasure(currentMeasure, song.timeSignature);
+    measures.push(currentMeasure);
+    currentMeasure = [];
+    accBeats = 0;
+    targetMeasureBeats = measureBeats;
+  };
+
+  for (const ev of events) {
+    let remainingEventBeats = Number(ev.durationBeats.toFixed(4));
+    const subItemsForEvent: MeasureNoteItem[] = [];
+
+    while (remainingEventBeats > 1e-4) {
+      const remainingInMeasure = Number((targetMeasureBeats - accBeats).toFixed(4));
+      if (remainingInMeasure <= 1e-4) {
+        flushMeasure();
+        continue;
+      }
+
+      const chunkBeats = Math.min(remainingEventBeats, remainingInMeasure);
+      const specs = decomposeDurationSpecs(chunkBeats);
+
+      for (const spec of specs) {
+        const specBeats = spec.divisions / DIVISIONS;
+        const item: MeasureNoteItem = {
+          isRest: ev.type === 'rest',
+          noteId: ev.type === 'note' ? ev.pitch : undefined,
+          beats: specBeats,
+          startBeatInMeasure: Number(accBeats.toFixed(4)),
+          globalIndex: ev.type === 'note' ? ev.noteIndex : undefined,
+          spec
+        };
+        currentMeasure.push(item);
+        subItemsForEvent.push(item);
+        accBeats = Number((accBeats + specBeats).toFixed(4));
+      }
+
+      remainingEventBeats = Number((remainingEventBeats - chunkBeats).toFixed(4));
+      if (accBeats >= targetMeasureBeats - 1e-3) {
+        flushMeasure();
+      }
+    }
+
+    if (ev.type === 'note' && subItemsForEvent.length > 1) {
+      for (let idx = 0; idx < subItemsForEvent.length; idx++) {
+        subItemsForEvent[idx].tieStart = idx < subItemsForEvent.length - 1;
+        subItemsForEvent[idx].tieStop = idx > 0;
+      }
+    }
+  }
+
+  if (currentMeasure.length > 0) {
+    flushMeasure();
+  }
+
+  return measures;
 }
 
 /**
  * Maps a logical note index in `song.notes` to its exact OSMD cursor step index,
- * accounting for compound tied notes (e.g. 2.5 beats rendered as half + eighth)
- * or imported MusicXML `cursorStepByNote` (which accounts for rests and ties).
+ * accounting for rests, cross-barline ties, and compound tied durations.
  */
 export function getCursorStepForNoteIndex(song: SongDef, noteIndex: number): number {
   if (song.cursorStepByNote && song.cursorStepByNote[noteIndex] !== undefined) {
     return song.cursorStepByNote[noteIndex];
   }
-  let cursorStep = 0;
-  const limit = Math.max(0, Math.min(noteIndex, song.beats.length));
-  for (let i = 0; i < limit; i++) {
-    const specs = decomposeDurationSpecs(song.beats[i] ?? 1);
-    cursorStep += specs.length;
+  const flatItems = buildMeasuresFromSong(song).flat();
+  const foundIdx = flatItems.findIndex((item) => !item.isRest && item.globalIndex === noteIndex);
+  if (foundIdx !== -1) {
+    return foundIdx;
   }
-  return cursorStep;
+  return Math.max(0, flatItems.length);
+}
+
+/**
+ * Returns how many OSMD cursor steps a given playable note spans (1 for normal notes,
+ * >1 for notes split across barlines or compound durations connected by ties).
+ */
+export function getCursorSpanForNoteIndex(song: SongDef, noteIndex: number): number {
+  const flatItems = buildMeasuresFromSong(song).flat();
+  const count = flatItems.filter((item) => !item.isRest && item.globalIndex === noteIndex).length;
+  return Math.max(1, count);
 }
 
 function escapeXml(str: string): string {
@@ -124,38 +268,6 @@ export function parsePitchXml(noteId: string): {
   };
 }
 
-interface MeasureNoteItem {
-  noteId: string;
-  beats: number;
-  globalIndex: number;
-  spec: DurationSpec;
-  tieStart?: boolean;
-  tieStop?: boolean;
-  beam?: 'begin' | 'continue' | 'end';
-}
-
-function assignBeamsForMeasure(items: MeasureNoteItem[]): void {
-  let i = 0;
-  while (i < items.length) {
-    if (items[i].beats <= 0.5 && !items[i].tieStop) {
-      const run: MeasureNoteItem[] = [];
-      while (i < items.length && items[i].beats <= 0.5 && !items[i].tieStop && run.length < 4) {
-        run.push(items[i]);
-        i++;
-      }
-      if (run.length >= 2) {
-        run[0].beam = 'begin';
-        for (let k = 1; k < run.length - 1; k++) {
-          run[k].beam = 'continue';
-        }
-        run[run.length - 1].beam = 'end';
-      }
-    } else {
-      i++;
-    }
-  }
-}
-
 /**
  * Converts a SongDef from REPERTOIRE into a standard MusicXML 4.0 document string
  * suitable for rendering with OpenSheetMusicDisplay (OSMD).
@@ -169,40 +281,11 @@ export function songToMusicXml(song: SongDef): string {
   const measureBeats = song.measureBeats || 4;
   const timeTop = song.timeSignature ? song.timeSignature[0] : measureBeats;
   const timeBottom = song.timeSignature ? song.timeSignature[1] : 4;
+  const keyFifths = song.keySignatureFifths ?? 0;
+  const effectiveTempo = song.defaultBpm ?? DEFAULT_BPM_BY_SONG_ID[song.id] ?? 96;
+  const keySignatureDefaults = getKeySignatureStepAlters(keyFifths);
 
-  const measures: MeasureNoteItem[][] = [];
-  let currentMeasure: MeasureNoteItem[] = [];
-  let accBeats = 0;
-  let targetMeasureBeats =
-    song.pickupBeats && song.pickupBeats > 0 ? song.pickupBeats : measureBeats;
-
-  for (let i = 0; i < song.notes.length; i++) {
-    const noteId = song.notes[i];
-    const b = song.beats[i] ?? 1;
-    const specs = decomposeDurationSpecs(b);
-
-    for (let sIdx = 0; sIdx < specs.length; sIdx++) {
-      const spec = specs[sIdx];
-      const specBeats = spec.divisions / DIVISIONS;
-      currentMeasure.push({
-        noteId,
-        beats: specBeats,
-        globalIndex: i,
-        spec,
-        tieStart: specs.length > 1 && sIdx < specs.length - 1,
-        tieStop: specs.length > 1 && sIdx > 0
-      });
-    }
-    accBeats += b;
-
-    if (accBeats >= targetMeasureBeats - 0.001 || i === song.notes.length - 1) {
-      assignBeamsForMeasure(currentMeasure);
-      measures.push(currentMeasure);
-      currentMeasure = [];
-      accBeats = 0;
-      targetMeasureBeats = measureBeats;
-    }
-  }
+  const measures = buildMeasuresFromSong(song);
 
   const measuresXml = measures
     .map((mNotes, mIdx) => {
@@ -211,33 +294,47 @@ export function songToMusicXml(song: SongDef): string {
           ? `
       <attributes>
         <divisions>${DIVISIONS}</divisions>
-        <key><fifths>0</fifths></key>
+        <key><fifths>${keyFifths}</fifths></key>
         <time><beats>${timeTop}</beats><beat-type>${timeBottom}</beat-type></time>
         <staves>1</staves>
         <clef number="1"><sign>G</sign><line>2</line></clef>
-      </attributes>`
+      </attributes>
+      <sound tempo="${effectiveTempo}"/>`
           : '';
 
       const alterState = new Map<string, number>();
 
       const notesXml = mNotes
         .map((item) => {
+          const dotXml = item.spec.dotted ? '<dot/>' : '';
+          if (item.isRest || !item.noteId) {
+            return `      <note>
+        <rest/>
+        <duration>${item.spec.divisions}</duration>
+        <voice>1</voice>
+        <type>${item.spec.type}</type>${dotXml}
+        <staff>1</staff>
+      </note>`;
+          }
+
           const pitch = parsePitchXml(item.noteId);
           const pitchKey = `${pitch.step}${pitch.octave}`;
-          const prevAlter = alterState.get(pitchKey) ?? 0;
+          const prevAlter = alterState.has(pitchKey)
+            ? alterState.get(pitchKey)!
+            : (keySignatureDefaults[pitch.step] ?? 0);
+
           let accidentalXml = '';
-          if (!item.tieStop) {
-            if (pitch.alter === 1 && prevAlter !== 1) {
+          if (!item.tieStop && pitch.alter !== prevAlter) {
+            if (pitch.alter === 1) {
               accidentalXml = '<accidental>sharp</accidental>';
-            } else if (pitch.alter === -1 && prevAlter !== -1) {
+            } else if (pitch.alter === -1) {
               accidentalXml = '<accidental>flat</accidental>';
-            } else if (pitch.alter === 0 && prevAlter !== 0) {
+            } else {
               accidentalXml = '<accidental>natural</accidental>';
             }
           }
           alterState.set(pitchKey, pitch.alter);
 
-          const dotXml = item.spec.dotted ? '<dot/>' : '';
           const beamXml = item.beam ? `<beam number="1">${item.beam}</beam>` : '';
           const tieXml =
             (item.tieStop ? '<tie type="stop"/>' : '') +
@@ -467,12 +564,12 @@ export function resolveTiedNotes(events: ParsedMusicXmlEvent[]): ParsedMusicXmlE
 
 /**
  * Parses a MusicXML (.musicxml / .xml) string into a playable SongDef
- * using MelodicaTrainer's measure-by-measure timeline architecture:
+ * using a lossless monophonic timeline architecture:
  * - Tracks `divisions`, `<backup>`, `<forward>`, `<staff>`, and `<voice>` per measure
  * - Expands `<repeat direction="forward|backward">` sections
  * - Resolves `<tie type="start|stop">` via `resolveTiedNotes` so tied durations are summed
- * - Preserves rest timing by adding rest durations to the preceding note or pickup structure
- * - Extracts `<sound tempo="..."/>` for authentic playback speed
+ * - Preserves rests explicitly as `MelodyEvent`s (`type: 'rest'`) and `restsAfter` — NEVER absorbs rests into notes
+ * - Extracts `<key><fifths>...</fifths></key>` and `<sound tempo="..."/>`
  */
 export function parseMusicXmlToSongDef(xmlText: string, fallbackTitle = 'Импортированная пьеса'): SongDef {
   const workTitleMatch = /<work-title>([\s\S]*?)<\/work-title>/i.exec(xmlText);
@@ -498,6 +595,8 @@ export function parseMusicXmlToSongDef(xmlText: string, fallbackTitle = 'Имп�
   let divisions = 4;
   let timeTop = 4;
   let timeBottom = 4;
+  let keySignatureFifths = 0;
+  let hasParsedKey = false;
   let currentTempo = detectedTempo;
 
   interface MeasureParsed {
@@ -523,6 +622,15 @@ export function parseMusicXmlToSongDef(xmlText: string, fallbackTitle = 'Имп�
     // Check attributes inside measure
     const divMatch = /<divisions>\s*(\d+)\s*<\/divisions>/i.exec(measureBody);
     if (divMatch) divisions = Math.max(1, Number(divMatch[1]));
+
+    const fifthsMatch = /<key\b[^>]*>[\s\S]*?<fifths>\s*(-?\d+)\s*<\/fifths>[\s\S]*?<\/key>/i.exec(measureBody);
+    if (fifthsMatch && !hasParsedKey) {
+      const f = Number(fifthsMatch[1]);
+      if (Number.isFinite(f)) {
+        keySignatureFifths = Math.max(-7, Math.min(7, Math.trunc(f)));
+        hasParsedKey = true;
+      }
+    }
 
     const beatsMatch = /<time\b[^>]*>[\s\S]*?<beats>\s*(\d+)\s*<\/beats>[\s\S]*?<beat-type>\s*(\d+)\s*<\/beat-type>[\s\S]*?<\/time>/i.exec(
       measureBody
@@ -697,13 +805,20 @@ export function parseMusicXmlToSongDef(xmlText: string, fallbackTitle = 'Имп�
 
   const allNotes: string[] = [];
   const allBeats: number[] = [];
+  const melodyEvents: MelodyEvent[] = [];
+  const restsAfter: Record<number, number> = {};
 
   for (const event of expandedEvents) {
     if (event.isRest || event.notes.length === 0) {
-      // Absorb rest duration into the preceding playable note so measure alignment stays intact
-      if (allBeats.length > 0) {
-        allBeats[allBeats.length - 1] = Math.round((allBeats[allBeats.length - 1] + event.durationBeats) * 100) / 100;
+      const restBeats = Math.max(0.125, Math.round(event.durationBeats * 10000) / 10000);
+      const prevEvent = melodyEvents[melodyEvents.length - 1];
+      if (prevEvent && prevEvent.type === 'rest') {
+        prevEvent.beats = Number((prevEvent.beats + restBeats).toFixed(4));
+      } else {
+        melodyEvents.push({ type: 'rest', beats: restBeats });
       }
+      const afterNoteIdx = allNotes.length - 1;
+      restsAfter[afterNoteIdx] = Number(((restsAfter[afterNoteIdx] ?? 0) + restBeats).toFixed(4));
       continue;
     }
 
@@ -713,9 +828,14 @@ export function parseMusicXmlToSongDef(xmlText: string, fallbackTitle = 'Имп�
       continue;
     }
 
-    const roundedBeat = Math.max(0.25, Math.round(melodyNote.durationBeats * 100) / 100);
+    const roundedBeat = Math.max(0.125, Math.round(melodyNote.durationBeats * 10000) / 10000);
     allNotes.push(melodyNote.name);
     allBeats.push(roundedBeat);
+    melodyEvents.push({
+      type: 'note',
+      pitch: melodyNote.name,
+      beats: roundedBeat
+    });
 
     if (allNotes.length >= 512) break;
   }
@@ -723,6 +843,13 @@ export function parseMusicXmlToSongDef(xmlText: string, fallbackTitle = 'Имп�
   if (allNotes.length === 0) {
     allNotes.push('C4', 'D4', 'E4', 'F4', 'G4');
     allBeats.push(1, 1, 1, 1, 2);
+    melodyEvents.push(
+      { type: 'note', pitch: 'C4', beats: 1 },
+      { type: 'note', pitch: 'D4', beats: 1 },
+      { type: 'note', pitch: 'E4', beats: 1 },
+      { type: 'note', pitch: 'F4', beats: 1 },
+      { type: 'note', pitch: 'G4', beats: 2 }
+    );
   }
 
   const measureBeats = Math.max(1, Math.round(((timeTop * 4) / timeBottom) * 100) / 100);
@@ -732,22 +859,31 @@ export function parseMusicXmlToSongDef(xmlText: string, fallbackTitle = 'Имп�
       ? Math.round(firstMeasureBeats * 100) / 100
       : undefined;
 
-  const excerptCount = Math.min(allNotes.length, 24);
-  const notes = allNotes.slice(0, excerptCount);
-  const beats = allBeats.slice(0, excerptCount);
-  const hasLongerFull = allNotes.length > excerptCount;
-
   return {
     id: `custom-${Date.now()}`,
     title,
     source: composer,
     level: 'MusicXML Импорт',
     category: 'classical',
+    variant: 'melodyArrangement',
+    keySignatureFifths,
+    verification: {
+      excerpt: {
+        status: 'unverified',
+        sourceTitle: `${composer} — ${title} (MusicXML import)`,
+        sourceMeasures: 'Imported score'
+      },
+      melodyArrangement: {
+        status: 'unverified',
+        sourceTitle: `${composer} — ${title} (MusicXML import)`,
+        sourceMeasures: 'Imported score'
+      }
+    },
     description: `Импортированная партитура MusicXML (${allNotes.length} нот, размер ${timeTop}/${timeBottom}, ♩=${detectedTempo}).`,
-    notes,
-    beats,
-    fullNotes: hasLongerFull ? allNotes : undefined,
-    fullBeats: hasLongerFull ? allBeats : undefined,
+    events: melodyEvents,
+    notes: allNotes,
+    beats: allBeats,
+    restsAfter: Object.keys(restsAfter).length > 0 ? restsAfter : undefined,
     measureBeats,
     pickupBeats,
     defaultBpm: detectedTempo,

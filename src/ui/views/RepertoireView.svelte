@@ -4,25 +4,61 @@
     TEMPO_MODES,
     DYNAMIC_MODES,
     ARTICULATION_MODES,
-    getSongMeasureCount,
-    hasFullVersion,
     getSongVersion,
     type RepertoireLengthMode
   } from '../../core/repertoire/repertoireData';
   import { parseMusicXmlFileToSongDef } from '../../core/repertoire/musicXmlGenerator';
   import type { UserSettings } from '../../core/fsrs/types';
+  import RepertoireToolbar from '../components/RepertoireToolbar.svelte';
+  import RepertoireCard from '../components/RepertoireCard.svelte';
+  import {
+    computeCategoryCounts,
+    filterAndSortRepertoire,
+    type RepertoireCategoryFilter,
+    type RepertoireSortMode,
+    type RepertoireViewMode
+  } from '../repertoire/repertoireLibraryUi';
+
+  type StartSongOptions = { autoDemo?: boolean; lengthMode?: RepertoireLengthMode };
 
   let {
     settings = {} as UserSettings,
     onSettingsChange,
     onStartSong
+  }: {
+    settings?: UserSettings;
+    onSettingsChange?: (patch: Partial<UserSettings>) => void;
+    onStartSong?: (songId: string, options?: StartSongOptions) => void;
   } = $props();
 
-  let selectedCategory = $state<'all' | 'classical' | 'melody' | 'study' | 'warmup'>('all');
+  let searchQuery = $state('');
   let repertoireVersion = $state(0);
   let importStatusText = $state('');
+  let importError = $state(false);
+  let isImportOpen = $state(false);
   let fileInputEl = $state<HTMLInputElement | null>(null);
 
+  let localCategory = $state<RepertoireCategoryFilter | null>(null);
+  let localSortBy = $state<RepertoireSortMode | null>(null);
+  let localViewMode = $state<RepertoireViewMode | null>(null);
+  let localAdvancedOpen = $state<boolean | null>(null);
+  let localCardVariants = $state<Record<string, RepertoireLengthMode> | null>(null);
+
+  const selectedCategory = $derived<RepertoireCategoryFilter>(
+    settings.repertoireCategoryFilter ?? localCategory ?? 'all'
+  );
+  const sortBy = $derived<RepertoireSortMode>(
+    settings.repertoireSortBy ?? localSortBy ?? 'recommended'
+  );
+  const viewMode = $derived<RepertoireViewMode>(
+    settings.repertoireViewMode ?? localViewMode ?? 'grid'
+  );
+  const isAdvancedPracticeOpen = $derived<boolean>(
+    settings.repertoireAdvancedOpen ?? localAdvancedOpen ?? false
+  );
+  const cardVariants = $derived<Record<string, RepertoireLengthMode>>(
+    settings.repertoireCardVariants ?? localCardVariants ?? {}
+  );
   const lengthMode = $derived<RepertoireLengthMode>(settings.repertoireLengthMode || 'excerpt');
 
   const allSongs = $derived.by(() => {
@@ -30,19 +66,67 @@
     return [...REPERTOIRE];
   });
 
-  const filteredRepertoire = $derived(
-    selectedCategory === 'all'
-      ? allSongs
-      : allSongs.filter(s => (s.category || 'classical') === selectedCategory)
+  const categoryCounts = $derived(computeCategoryCounts(allSongs));
+
+  const displayedRepertoire = $derived(
+    filterAndSortRepertoire(allSongs, {
+      category: selectedCategory,
+      searchQuery,
+      sortBy
+    })
   );
 
-  const categoryCounts = $derived({
-    all: allSongs.length,
-    classical: allSongs.filter(s => (s.category || 'classical') === 'classical').length,
-    melody: allSongs.filter(s => s.category === 'melody').length,
-    study: allSongs.filter(s => s.category === 'study').length,
-    warmup: allSongs.filter(s => s.category === 'warmup').length
-  });
+  const activeAdvancedCount = $derived(
+    (settings.repertoireDynamicsTarget && settings.repertoireDynamicsTarget !== 'off' ? 1 : 0) +
+      (settings.repertoireArticulationTarget && settings.repertoireArticulationTarget !== 'off' ? 1 : 0) +
+      (settings.metronomeEnabled ? 1 : 0)
+  );
+
+  function setCategoryFilter(cat: RepertoireCategoryFilter) {
+    localCategory = cat;
+    onSettingsChange?.({ repertoireCategoryFilter: cat });
+  }
+
+  function setSortMode(nextSort: RepertoireSortMode) {
+    localSortBy = nextSort;
+    onSettingsChange?.({ repertoireSortBy: nextSort });
+  }
+
+  function setViewMode(nextMode: RepertoireViewMode) {
+    localViewMode = nextMode;
+    onSettingsChange?.({ repertoireViewMode: nextMode });
+  }
+
+  function toggleAdvancedPractice() {
+    const next = !isAdvancedPracticeOpen;
+    localAdvancedOpen = next;
+    onSettingsChange?.({ repertoireAdvancedOpen: next });
+  }
+
+  function getEffectiveCardVariant(songId: string): RepertoireLengthMode {
+    return cardVariants[songId] ?? lengthMode;
+  }
+
+  function handleCardVariantChange(songId: string, variant: RepertoireLengthMode) {
+    const next = { ...cardVariants, [songId]: variant };
+    localCardVariants = next;
+    onSettingsChange?.({ repertoireCardVariants: next });
+  }
+
+  function handleGlobalVariantChange(variant: RepertoireLengthMode) {
+    localCardVariants = {};
+    onSettingsChange?.({ repertoireLengthMode: variant, repertoireCardVariants: {} });
+  }
+
+  function resetFilters() {
+    searchQuery = '';
+    localCategory = 'all';
+    localSortBy = 'recommended';
+    onSettingsChange?.({
+      repertoireCategoryFilter: 'all',
+      repertoireSortBy: 'recommended'
+    });
+  }
 
   async function handleImportMusicXml(event: Event) {
     const input = event.currentTarget as HTMLInputElement;
@@ -53,11 +137,14 @@
       const importedSong = await parseMusicXmlFileToSongDef(file);
       (REPERTOIRE as any).unshift(importedSong);
       repertoireVersion++;
-      selectedCategory = 'all';
+      setCategoryFilter('all');
+      searchQuery = '';
       const fullCount = getSongVersion(importedSong, 'full').notes.length;
+      importError = false;
       importStatusText = `✓ Импортировано: «${importedSong.title}» (${fullCount} нот)`;
     } catch (err) {
       console.error('MusicXML import error:', err);
+      importError = true;
       importStatusText = 'Ошибка чтения файла MusicXML / MXL';
     } finally {
       input.value = '';
@@ -65,43 +152,105 @@
   }
 </script>
 
-<div class="page-heading">
-  <div>
-    <h2>Мелодии и Шедевры</h2>
-    <p>Партитуры гравируются в одну непрерывную линию движком <strong>OpenSheetMusicDisplay (OSMD)</strong> с плавным сдвигом и центрированным курсором. Доступны как короткие отрывки, так и полные версии произведений.</p>
-  </div>
-</div>
+<div class="rep-page-shell">
+  <!-- 1. Page Header + Compact Practice Panel + Import Trigger -->
+  <header class="rep-header-banner">
+    <div class="rep-header-top">
+      <div class="rep-header-brand">
+        <div class="rep-header-icon" aria-hidden="true">♫</div>
+        <div class="rep-header-copy">
+          <h2>Мелодии</h2>
+          <p>Играйте знакомые произведения, этюды и учебные аранжировки.</p>
+        </div>
+      </div>
 
-<div class="repertoire-intro">
-  <section class="card">
-    <h2>Музыкальная выразительность и Отработка <span class="pill">OSMD · v6.4</span></h2>
-    <div class="help">
-      <strong>Pitch</strong>, <strong>timing</strong>, <strong>динамика</strong> и <strong>артикуляция</strong> оцениваются раздельно.<br>
-      🎼 <strong>Отрывок или Полная мелодия:</strong> тренируйте короткую тему (4–8 тактов) или играйте произведение целиком — нотный стан автоматически плавно прокручивается за курсором в центре.
+      <div class="rep-header-actions">
+        <input
+          bind:this={fileInputEl}
+          type="file"
+          accept=".musicxml,.xml,.mxl"
+          style="display:none;"
+          onchange={handleImportMusicXml}
+        />
+
+        <button
+          type="button"
+          class="rep-import-trigger {isImportOpen ? 'active' : ''}"
+          data-import-trigger
+          aria-expanded={isImportOpen}
+          onclick={() => { isImportOpen = !isImportOpen; }}
+          title="Импорт собственной партитуры MusicXML / MXL"
+        >
+          <span class="rep-import-book" aria-hidden="true">📖</span>
+          <span class="rep-import-text">
+            <strong>Импорт MusicXML</strong>
+            <small>Добавьте свои произведения</small>
+          </span>
+          <span class="rep-import-upload" aria-hidden="true">↑</span>
+        </button>
+      </div>
     </div>
 
-    <div class="rhythm-controls" style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px;">
-      <div class="rhythm-control-block">
-        <small>Объём пьесы</small>
+    {#if isImportOpen || importStatusText}
+      <div class="rep-import-popover" role="region" aria-label="Импорт партитуры MusicXML / MXL">
+        <div class="rep-import-popover-main">
+          <div class="rep-import-popover-info">
+            <strong>Импорт MusicXML / MXL</strong>
+            <span>Поддерживаются файлы <code>.musicxml</code>, <code>.xml</code> и сжатые архивы <code>.mxl</code> с автоматической гравировкой в OSMD.</span>
+          </div>
+          <div class="rep-import-popover-btns">
+            <button
+              type="button"
+              class="rep-play-btn rep-import-upload-btn"
+              onclick={() => fileInputEl?.click()}
+            >
+              📂 Выбрать файл (.musicxml / .xml / .mxl)
+            </button>
+            {#if isImportOpen}
+              <button
+                type="button"
+                class="rep-more-btn"
+                aria-label="Скрыть панель импорта"
+                onclick={() => { isImportOpen = false; }}
+              >
+                ✕
+              </button>
+            {/if}
+          </div>
+        </div>
+        {#if importStatusText}
+          <div class="rep-import-status {importError ? 'is-error' : 'is-ok'}">
+            {importStatusText}
+          </div>
+        {/if}
+      </div>
+    {/if}
+
+    <!-- Compact Practice Settings Bar -->
+    <div class="rep-practice-bar" role="region" aria-label="Параметры практики мелодий">
+      <span class="rep-practice-label">Практика</span>
+
+      <div class="rep-practice-group">
+        <small>Вариант</small>
         <div class="rhythm-segment">
           <button
             type="button"
             class="rhythm-btn {lengthMode === 'excerpt' ? 'active' : ''}"
-            onclick={() => onSettingsChange?.({ repertoireLengthMode: 'excerpt' })}
+            onclick={() => handleGlobalVariantChange('excerpt')}
           >
-            Отрывок (тема)
+            Отрывок
           </button>
           <button
             type="button"
             class="rhythm-btn {lengthMode === 'full' ? 'active' : ''}"
-            onclick={() => onSettingsChange?.({ repertoireLengthMode: 'full' })}
+            onclick={() => handleGlobalVariantChange('full')}
           >
-            Полная мелодия
+            Аранжировка
           </button>
         </div>
       </div>
 
-      <div class="rhythm-control-block">
+      <div class="rep-practice-group">
         <small>Темп</small>
         <div class="rhythm-segment">
           {#each Object.entries(TEMPO_MODES) as [id, cfg]}
@@ -116,7 +265,7 @@
         </div>
       </div>
 
-      <div class="rhythm-control-block">
+      <div class="rep-practice-group">
         <small>Отображение</small>
         <div class="rhythm-segment">
           <button
@@ -136,170 +285,109 @@
         </div>
       </div>
 
-      <div class="rhythm-control-block">
-        <small>Динамика · MIDI</small>
-        <div class="rhythm-segment">
-          {#each Object.entries(DYNAMIC_MODES) as [id, cfg]}
-            <button
-              type="button"
-              class="rhythm-btn {settings.repertoireDynamicsTarget === id ? 'active' : ''}"
-              onclick={() => onSettingsChange?.({ repertoireDynamicsTarget: id as any })}
-            >
-              {cfg.label}
-            </button>
-          {/each}
-        </div>
-      </div>
-
-      <div class="rhythm-control-block">
-        <small>Артикуляция · MIDI + Tempo</small>
-        <div class="rhythm-segment">
-          {#each Object.entries(ARTICULATION_MODES) as [id, cfg]}
-            <button
-              type="button"
-              class="rhythm-btn {settings.repertoireArticulationTarget === id ? 'active' : ''}"
-              onclick={() => onSettingsChange?.({ repertoireArticulationTarget: id as any })}
-            >
-              {cfg.label}
-            </button>
-          {/each}
-        </div>
-      </div>
-
       <button
         type="button"
-        class="btn metronome-btn {settings.metronomeEnabled ? 'on' : ''}"
-        onclick={() => onSettingsChange?.({ metronomeEnabled: !settings.metronomeEnabled })}
+        class="rep-advanced-toggle {isAdvancedPracticeOpen ? 'open' : ''} {activeAdvancedCount > 0 ? 'has-active' : ''}"
+        aria-expanded={isAdvancedPracticeOpen}
+        onclick={toggleAdvancedPractice}
       >
-        Метроном: {settings.metronomeEnabled ? 'вкл' : 'выкл'}
+        <span>Дополнительно</span>
+        {#if activeAdvancedCount > 0}
+          <span class="rep-adv-count">{activeAdvancedCount}</span>
+        {/if}
+        <span class="rep-adv-chevron" aria-hidden="true">{isAdvancedPracticeOpen ? '▴' : '▾'}</span>
       </button>
     </div>
-  </section>
 
-  <section class="card">
-    <h2>Библиотека MelodicaTrainer & Импорт MusicXML / MXL</h2>
-    <div class="help">
-      Все 25 произведений включают как короткий отрывок (главную тему), так и <strong>полную версию</strong> из архивов <strong>MuseTrainer</strong>, <strong>PDMX (CC0)</strong> и <strong>OpenScore Lieder</strong>.<br><br>
-      Вы также можете загрузить любой собственный файл <code>.musicxml</code>, <code>.xml</code> или сжатый архив <code>.mxl</code>:
-    </div>
-    <div style="margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-      <input
-        bind:this={fileInputEl}
-        type="file"
-        accept=".musicxml,.xml,.mxl"
-        style="display:none;"
-        onchange={handleImportMusicXml}
-      />
+    {#if isAdvancedPracticeOpen}
+      <div class="rep-practice-advanced" role="region" aria-label="Дополнительные настройки выразительности и метронома">
+        <div class="rep-practice-group">
+          <small>Динамика · MIDI</small>
+          <div class="rhythm-segment">
+            {#each Object.entries(DYNAMIC_MODES) as [id, cfg]}
+              <button
+                type="button"
+                class="rhythm-btn {settings.repertoireDynamicsTarget === id ? 'active' : ''}"
+                onclick={() => onSettingsChange?.({ repertoireDynamicsTarget: id as any })}
+              >
+                {cfg.label}
+              </button>
+            {/each}
+          </div>
+        </div>
+
+        <div class="rep-practice-group">
+          <small>Артикуляция · MIDI + Tempo</small>
+          <div class="rhythm-segment">
+            {#each Object.entries(ARTICULATION_MODES) as [id, cfg]}
+              <button
+                type="button"
+                class="rhythm-btn {settings.repertoireArticulationTarget === id ? 'active' : ''}"
+                onclick={() => onSettingsChange?.({ repertoireArticulationTarget: id as any })}
+              >
+                {cfg.label}
+              </button>
+            {/each}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          class="btn metronome-btn {settings.metronomeEnabled ? 'on' : ''}"
+          onclick={() => onSettingsChange?.({ metronomeEnabled: !settings.metronomeEnabled })}
+        >
+          Метроном: {settings.metronomeEnabled ? 'вкл' : 'выкл'}
+        </button>
+
+        <span class="rep-osmd-note">
+          Партитуры гравируются движком OpenSheetMusicDisplay (OSMD) с плавной прокруткой за курсором. Pitch, timing, динамика и артикуляция оцениваются раздельно.
+        </span>
+      </div>
+    {/if}
+  </header>
+
+  <!-- 2. Library Toolbar -->
+  <RepertoireToolbar
+    {selectedCategory}
+    {categoryCounts}
+    {searchQuery}
+    {sortBy}
+    {viewMode}
+    onCategoryChange={setCategoryFilter}
+    onSearchChange={(q) => { searchQuery = q; }}
+    onSortChange={setSortMode}
+    onViewModeChange={setViewMode}
+  />
+
+  <!-- 3. Repertoire Library Grid / Compact List -->
+  {#if displayedRepertoire.length === 0}
+    <div class="rep-empty-state" role="status">
+      <div class="rep-empty-icon" aria-hidden="true">🎼</div>
+      <h3>Ничего не найдено</h3>
+      <p>Попробуйте изменить поиск или фильтр.</p>
       <button
         type="button"
-        class="btn primary"
-        style="font-size:13px; padding:7px 14px;"
-        onclick={() => fileInputEl?.click()}
+        class="rep-play-btn rep-reset-btn"
+        onclick={resetFilters}
       >
-        📂 Загрузить партитуру (.musicxml / .xml / .mxl)
+        Сбросить фильтры
       </button>
-      {#if importStatusText}
-        <span style="font-size:12px; color:#6ee7a5; font-weight:600;">{importStatusText}</span>
-      {/if}
     </div>
-  </section>
+  {:else}
+    <div
+      class="rep-library-grid {viewMode === 'compact' ? 'is-compact-list' : 'is-card-grid'}"
+      data-view-mode={viewMode}
+    >
+      {#each displayedRepertoire as song (song.id)}
+        <RepertoireCard
+          {song}
+          selectedVariant={getEffectiveCardVariant(song.id)}
+          {viewMode}
+          onSelectVariant={(variant) => handleCardVariantChange(song.id, variant)}
+          onPlay={(songId, variant) => onStartSong?.(songId, { lengthMode: variant })}
+          onDemo={(songId, variant) => onStartSong?.(songId, { autoDemo: true, lengthMode: variant })}
+        />
+      {/each}
+    </div>
+  {/if}
 </div>
-
-<div class="repertoire-categories" style="display:flex; gap:8px; margin: 16px 0; flex-wrap:wrap;">
-  <button
-    type="button"
-    class="btn {selectedCategory === 'all' ? 'primary' : ''}"
-    style="font-size:13px; padding:6px 14px;"
-    onclick={() => { selectedCategory = 'all'; }}
-  >
-    Все произведения ({categoryCounts.all})
-  </button>
-  <button
-    type="button"
-    class="btn {selectedCategory === 'classical' ? 'primary' : ''}"
-    style="font-size:13px; padding:6px 14px;"
-    onclick={() => { selectedCategory = 'classical'; }}
-  >
-    Классика ({categoryCounts.classical})
-  </button>
-  <button
-    type="button"
-    class="btn {selectedCategory === 'melody' ? 'primary' : ''}"
-    style="font-size:13px; padding:6px 14px;"
-    onclick={() => { selectedCategory = 'melody'; }}
-  >
-    Мелодии и Фолк ({categoryCounts.melody})
-  </button>
-  <button
-    type="button"
-    class="btn {selectedCategory === 'study' ? 'primary' : ''}"
-    style="font-size:13px; padding:6px 14px;"
-    onclick={() => { selectedCategory = 'study'; }}
-  >
-    Этюды ({categoryCounts.study})
-  </button>
-  <button
-    type="button"
-    class="btn {selectedCategory === 'warmup' ? 'primary' : ''}"
-    style="font-size:13px; padding:6px 14px;"
-    onclick={() => { selectedCategory = 'warmup'; }}
-  >
-    Разминка ({categoryCounts.warmup})
-  </button>
-</div>
-
-<div class="repertoire-grid">
-  {#each filteredRepertoire as song (song.id)}
-    {@const activeSong = getSongVersion(song, lengthMode)}
-    {@const fullSong = getSongVersion(song, 'full')}
-    {@const hasFull = hasFullVersion(song)}
-    {@const measureCount = getSongMeasureCount(activeSong)}
-    {@const fullMeasureCount = getSongMeasureCount(fullSong)}
-    {@const excerptMeasureCount = getSongMeasureCount(song)}
-    {@const timeSig = song.timeSignature ? `${song.timeSignature[0]}/${song.timeSignature[1]}` : `${song.measureBeats}/4`}
-    <article class="repertoire-card">
-      <small>{song.level} · {song.source}</small>
-      <h3>{song.title}</h3>
-      <p>{song.description}</p>
-      <div class="repertoire-meta" style="display:flex; justify-content:space-between; align-items:center; gap:6px; flex-wrap:wrap;">
-        <span>Размер: {timeSig} · Тактов: {measureCount} · Ноты: {activeSong.notes.length}</span>
-        {#if hasFull}
-          <span style="font-size:10.5px; color:#7dd3fc;">
-            Отрывок: {excerptMeasureCount} т. ({song.notes.length} н.) · Полная: {fullMeasureCount} т. ({fullSong.notes.length} н.)
-          </span>
-        {/if}
-      </div>
-      <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;">
-        <button
-          type="button"
-          class="btn primary"
-          style="flex:1.2;"
-          onclick={() => onStartSong?.(song.id, { lengthMode })}
-        >
-          {lengthMode === 'full' ? 'Играть полную' : 'Играть отрывок'}
-        </button>
-        {#if hasFull}
-          <button
-            type="button"
-            class="btn"
-            style="flex:1; font-size:12px;"
-            onclick={() => onStartSong?.(song.id, { lengthMode: lengthMode === 'full' ? 'excerpt' : 'full' })}
-            title={lengthMode === 'full' ? 'Сыграть короткий отрывок (тему)' : 'Сыграть полную версию произведения'}
-          >
-            {lengthMode === 'full' ? `Отрывок (${song.notes.length} н.)` : `Полная (${fullSong.notes.length} н.)`}
-          </button>
-        {/if}
-        <button
-          type="button"
-          class="btn"
-          style="flex:0.8; border-color:rgba(56,189,248,0.4); color:#38bdf8; font-weight:600;"
-          onclick={() => onStartSong?.(song.id, { autoDemo: true, lengthMode })}
-          title="Послушать автопроигрывание мелодии с подсветкой нот на стане и клавиатуре"
-        >
-          ▶ Демо
-        </button>
-      </div>
-    </article>
-  {/each}
-</div>
-

@@ -5,10 +5,7 @@
     isSettingsOpen = false,
     onPageChange,
     onToggleSettings,
-    onToggleContext,
-    onNextQuestion,
-    nextButtonDisabled = false,
-    nextButtonText = 'Следующее задание'
+    onToggleContext
   } = $props();
 
   const pages = [
@@ -75,14 +72,6 @@
       onclick={() => onToggleSettings?.()}
     >
       <strong>Настройки</strong>
-    </button>
-    <button
-      type="button"
-      class="hero-chip primary"
-      disabled={nextButtonDisabled}
-      onclick={() => onNextQuestion?.()}
-    >
-      <strong>{nextButtonText}</strong>
     </button>
   </div>
 </div>

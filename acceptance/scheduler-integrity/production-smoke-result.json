@@ -1,0 +1,29 @@
+{
+  "status": "PASS",
+  "previewUrl": "http://127.0.0.1:58998/piano-key-trainer/",
+  "settingsBurst": {
+    "activationCountInAllDueSession": 1,
+    "suppressedDuplicateRounds": 2,
+    "warnings": 0
+  },
+  "correctReview": {
+    "reviewLogDelta": 1,
+    "cardDueAtAfter": 1793704481074.3142,
+    "transitionId": "review-1",
+    "nextSelected": "find:C"
+  },
+  "wrongThenCorrective": {
+    "reviewLogCount": 1,
+    "grade": 1,
+    "dueAtAfterFirst": 1791141317644,
+    "dueAtAfterCorrection": 1791141317644
+  },
+  "unansweredRestartStress": {
+    "activations": 11,
+    "sessions": 11,
+    "diagnosticsWarnings": 0
+  },
+  "diagnosticsFile": "diagnostics-after-scheduler-fix.json",
+  "runtimeExceptions": [],
+  "consoleErrors": []
+}

@@ -1,8 +1,7 @@
 <script lang="ts">
   import {
     TWO_HAND_PATTERNS,
-    TWO_HAND_TEMPO,
-    type TwoHandPatternDef
+    TWO_HAND_TEMPO
   } from '../../core/twohand/twoHandData';
   import type { UserSettings } from '../../core/fsrs/types';
 

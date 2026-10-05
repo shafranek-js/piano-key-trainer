@@ -1,4 +1,4 @@
-import type { Card, NoteName, NaturalNoteName, ReviewLogEvent, Skill } from '../fsrs/types';
+import type { Card, NoteName, ReviewLogEvent, Skill } from '../fsrs/types';
 import { 
   CURRICULUM_GROUPS, 
   CURRICULUM_MIN_STABILITY_DAYS, 
@@ -133,17 +133,99 @@ export function curriculumNoteAvailable(
   return false;
 }
 
+import type { LearningProgressRecord } from '../learning/types';
+import { isFirstRunCfCompleted } from '../learning/firstRunCf';
+import {
+  isWhiteKeyCurriculumCompleted,
+  WHITE_KEY_CURRICULUM_ITEM_IDS
+} from '../learning/curriculumFlow';
+import {
+  isPhase4BlackKeysCompleted,
+  isPhase5NotationCompleted,
+  isPhase6EarCompleted
+} from '../learning/curriculum3d';
+
 export function getCurriculumPhases(
   level: 'white' | 'all',
   getCard: CardGetter,
-  reviewLog: readonly ReviewLogEvent[]
+  reviewLog: readonly ReviewLogEvent[],
+  learningProgress?:
+    | ReadonlyMap<string, LearningProgressRecord>
+    | readonly LearningProgressRecord[],
+  normalize = true
 ): CurriculumPhase[] {
-  const anchorsReady = groupReady(CURRICULUM_GROUPS.anchors, getCard, reviewLog);
-  const neighborsReady = groupReady(CURRICULUM_GROUPS.neighbors, getCard, reviewLog);
-  const remainingReady = groupReady(CURRICULUM_GROUPS.remaining, getCard, reviewLog);
+  const lpList: LearningProgressRecord[] | null =
+    learningProgress instanceof Map
+      ? Array.from(learningProgress.values())
+      : Array.isArray(learningProgress)
+        ? [...learningProgress]
+        : null;
+  const lpMap = lpList ? new Map(lpList.map(r => [r.id, r])) : null;
+
+  const anchorsReadyByFsrs = groupReady(CURRICULUM_GROUPS.anchors, getCard, reviewLog);
+  const anchorsReady =
+    anchorsReadyByFsrs || (lpList !== null && isFirstRunCfCompleted(lpList));
+
+  const neighborsReadyByFsrs = groupReady(CURRICULUM_GROUPS.neighbors, getCard, reviewLog);
+  const neighborsReadyByProgress =
+    lpMap !== null &&
+    lpMap.get(WHITE_KEY_CURRICULUM_ITEM_IDS.NOTE_D)?.state === 'retention' &&
+    lpMap.get(WHITE_KEY_CURRICULUM_ITEM_IDS.NOTE_E)?.state === 'retention' &&
+    lpMap.get(WHITE_KEY_CURRICULUM_ITEM_IDS.NOTE_B)?.state === 'retention' &&
+    lpMap.get(WHITE_KEY_CURRICULUM_ITEM_IDS.IDENTIFY_CDE)?.state === 'retention' &&
+    lpMap.get(WHITE_KEY_CURRICULUM_ITEM_IDS.IDENTIFY_FB)?.state === 'retention';
+  const neighborsReady = neighborsReadyByFsrs || neighborsReadyByProgress;
+
+  const remainingReadyByFsrs = groupReady(CURRICULUM_GROUPS.remaining, getCard, reviewLog);
+  const remainingReadyByProgress =
+    lpList !== null &&
+    isWhiteKeyCurriculumCompleted({
+      learningProgress: lpList,
+      reviewLogs: reviewLog
+    });
+  const remainingReady = remainingReadyByFsrs || remainingReadyByProgress;
+
+  if (lpList !== null) {
+    const blackReadyByProgress = isPhase4BlackKeysCompleted(lpList, undefined, reviewLog);
+    const blackReadyByFsrs = groupReady(CURRICULUM_GROUPS.black, getCard, reviewLog);
+    const blackOpen = remainingReady;
+    const blackReady = blackOpen && (blackReadyByProgress || blackReadyByFsrs);
+
+    const notationOpen = blackReady;
+    const notationReady =
+      notationOpen &&
+      (isPhase5NotationCompleted(lpList) ||
+        notationCurriculumReady(getCard, reviewLog));
+
+    const soundOpen = notationReady;
+    const soundReady =
+      soundOpen &&
+      (isPhase6EarCompleted(lpList) ||
+        NATURAL_NOTES.every(note =>
+          curriculumCardReady(getCard('soundToKey', note), reviewLog)
+        ));
+
+    const phases: CurriculumPhase[] = [
+      { id: 'anchors', title: '1 · Ориентиры', detail: 'C + F', open: true, done: anchorsReady },
+      { id: 'neighbors', title: '2 · Соседи', detail: 'D · E · B', open: anchorsReady, done: neighborsReady },
+      { id: 'remaining', title: '3 · Белые', detail: 'G · A · C–B', open: neighborsReady, done: remainingReady },
+      {
+        id: 'black',
+        title: '4 · Чёрные',
+        detail: 'C♯ F♯ G♯ D♯ A♯',
+        open: blackOpen,
+        done: blackReady,
+        skipped: false
+      },
+      { id: 'notation', title: '5 · Нотный стан', detail: 'C4–B4', open: notationOpen, done: notationReady },
+      { id: 'sound', title: '6 · Слух', detail: 'C4 → target', open: soundOpen, done: soundReady }
+    ];
+    return normalize ? normalizeSequentialPhaseCompletion(phases) : phases;
+  }
+
   const blackRequired = level === 'all';
-  const blackReady = !blackRequired || groupReady(CURRICULUM_GROUPS.black, getCard, reviewLog);
-  const notationOpen = remainingReady && blackReady;
+  const blackReady = groupReady(CURRICULUM_GROUPS.black, getCard, reviewLog);
+  const notationOpen = remainingReady && (!blackRequired || blackReady);
   const notationReady = notationOpen && notationCurriculumReady(getCard, reviewLog);
   const soundOpen = notationReady;
   const soundReady =
@@ -152,7 +234,7 @@ export function getCurriculumPhases(
       curriculumCardReady(getCard('soundToKey', note), reviewLog)
     );
 
-  return [
+  const phases: CurriculumPhase[] = [
     { id: 'anchors', title: '1 · Ориентиры', detail: 'C + F', open: true, done: anchorsReady },
     { id: 'neighbors', title: '2 · Соседи', detail: 'D · E · B', open: anchorsReady, done: neighborsReady },
     { id: 'remaining', title: '3 · Белые', detail: 'G · A', open: neighborsReady, done: remainingReady },
@@ -167,4 +249,68 @@ export function getCurriculumPhases(
     { id: 'notation', title: '5 · Нотный стан', detail: 'C4–B4', open: notationOpen, done: notationReady },
     { id: 'sound', title: '6 · Слух', detail: 'C4 → target', open: soundOpen, done: soundReady }
   ];
+  return normalize ? normalizeSequentialPhaseCompletion(phases) : phases;
 }
+
+/**
+ * Normalizes sequential curriculum phase completion to strictly preserve the curriculum invariant:
+ * The 6 core phases are sequential prerequisites.
+ * If Phase N is completed, all prerequisite phases < N MUST be marked completed.
+ * The current phase is strictly the first incomplete phase in sequential order.
+ * Future phases after the current phase must remain locked (open: false, done: false).
+ * Pure function: does not mutate input or any global state.
+ */
+export function normalizeSequentialPhaseCompletion(
+  phases: readonly CurriculumPhase[]
+): CurriculumPhase[] {
+  if (!phases || phases.length === 0) return [];
+
+  // 1. Find the highest index where raw done === true
+  let highestDoneIndex = -1;
+  for (let i = 0; i < phases.length; i++) {
+    if (phases[i].done) {
+      highestDoneIndex = i;
+    }
+  }
+
+  // 2. Any phase <= highestDoneIndex must be passed
+  const passed = phases.map((_, i) => i <= highestDoneIndex);
+
+  // 3. Cascade any contiguous skipped phases forward:
+  // If phase i is skipped AND all previous phases 0..i-1 are passed,
+  // then phase i is also passed.
+  for (let i = 0; i < phases.length; i++) {
+    if (!passed[i] && phases[i].skipped) {
+      const allPrevPassed = i === 0 || passed.slice(0, i).every(Boolean);
+      if (allPrevPassed) {
+        passed[i] = true;
+      }
+    }
+  }
+
+  // 4. Find the highest passed phase index
+  let highestPassedIndex = -1;
+  for (let i = 0; i < phases.length; i++) {
+    if (passed[i]) {
+      highestPassedIndex = i;
+    }
+  }
+
+  return phases.map((phase, index) => {
+    const isPassed = index <= highestPassedIndex;
+    const isSkipped = Boolean(phase.skipped);
+    const isDone = isSkipped ? false : isPassed;
+
+    // A phase is open if it is the first phase, or if it is completed/skipped,
+    // or if the immediately preceding phase is completed/skipped
+    const isOpen = index === 0 || index <= highestPassedIndex + 1;
+
+    return {
+      ...phase,
+      open: isOpen,
+      done: isDone,
+      skipped: isSkipped
+    };
+  });
+}
+

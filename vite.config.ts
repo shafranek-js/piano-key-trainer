@@ -6,6 +6,18 @@ import path from 'path';
 export default defineConfig({
   base: '/piano-key-trainer/',
   plugins: [
+    {
+      name: 'dev-no-stale-module-cache',
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+          if (req.headers.accept?.includes('text/html')) {
+            res.setHeader('Clear-Site-Data', '"cache"');
+          }
+          next();
+        });
+      }
+    },
     svelte(),
     VitePWA({
       registerType: 'autoUpdate',
@@ -72,6 +84,9 @@ export default defineConfig({
     }
   },
   server: {
-    port: 5173
+    port: 5173,
+    headers: {
+      'Cache-Control': 'no-store'
+    }
   }
 });

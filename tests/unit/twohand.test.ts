@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { TWO_HAND_PATTERNS, type TwoHandPatternDef } from '../../src/core/twohand/twoHandData';
+import { TWO_HAND_PATTERNS } from '../../src/core/twohand/twoHandData';
 
 describe('Two-Hand Coordination Patterns', () => {
   const noteRegex = /^[A-G](#?)\d$/;

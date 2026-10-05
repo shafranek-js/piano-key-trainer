@@ -1,5 +1,5 @@
 import { db } from './db';
-import type { Card, ReviewLogEvent, UserSettings } from '../core/fsrs/types';
+import type { Card, ReviewLogEvent } from '../core/fsrs/types';
 import { DEFAULT_SETTINGS } from '../core/fsrs/constants';
 
 const STORAGE_KEY_V3 = 'piano-key-trainer-fsrs-v3';

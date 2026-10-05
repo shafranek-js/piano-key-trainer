@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { LESSONS, type LessonDef } from '../../core/lessons/lessonsData';
+  import { LESSONS } from '../../core/lessons/lessonsData';
   import type { LessonProgressRecord } from '../../storage/db';
 
   let {
@@ -54,6 +54,6 @@
 
   <div class="lesson-panel" style="margin-top: 16px;">
     <h3>Как это работает</h3>
-    <p>Каждый урок — это короткая цепочка: объяснение $\rightarrow$ одна маленькая проверка $\rightarrow$ следующий шаг. Выполнение уроков сохраняется отдельно и не ломает интервальные повторения FSRS.</p>
+    <p>Каждый урок — это короткая цепочка: объяснение → одна маленькая проверка → следующий шаг. Выполнение уроков сохраняется отдельно и не ломает интервальные повторения FSRS.</p>
   </div>
 </section>

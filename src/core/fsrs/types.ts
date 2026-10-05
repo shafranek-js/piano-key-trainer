@@ -1,13 +1,59 @@
+import type { HintLevel, TrialMode } from '../learning/types';
+
 export type Skill = 
   | 'find' 
   | 'identify' 
   | 'patternIdentify' 
   | 'notationToKey' 
-  | 'soundToKey';
+  | 'soundToKey'
+  | 'notationBassToKey'
+  | 'intervalBuild'
+  | 'intervalIdentify'
+  | 'triadBuild'
+  | 'triadIdentify'
+  | 'triadInversionBuild'
+  | 'triadInversionIdentify'
+  | 'chordSymbolRead'
+  | 'harmonyFunctionIdentify'
+  | 'harmonyNextChord'
+  | 'harmonyProgressionPlay'
+  | 'chordPulse'
+  | 'chordChangeTiming'
+  | 'chordRhythmPattern';
 
-export type NoteName = 
+export type PracticeActivity =
+  | 'standard'
+  | 'lesson'
+  | 'repertoire'
+  | 'twohand'
+  | 'earIntervals'
+  | 'earTriads'
+  | 'earEcho';
+
+export type PitchClass = 
   | 'C' | 'C#' | 'D' | 'D#' | 'E' | 'F' 
   | 'F#' | 'G' | 'G#' | 'A' | 'A#' | 'B';
+
+export type IntervalNoteName = 'P8' | 'P5' | 'M3' | 'm3';
+
+export type TriadQualityId = 'major' | 'minor';
+
+export type InversionItemId = 'root' | 'first' | 'second' | 'slash';
+
+export type HarmonyFunctionId = 'I' | 'V' | 'vi' | 'IV';
+export type HarmonyNextChordItemId = 'I-V-vi-IV';
+export type HarmonyProgressionItemId = 'C-G/B-Am-F';
+export type ChordRhythmItemId = 'pulse' | 'change-timing' | 'rhythm-pattern';
+
+export type NoteName =
+  | PitchClass
+  | IntervalNoteName
+  | TriadQualityId
+  | InversionItemId
+  | HarmonyFunctionId
+  | HarmonyNextChordItemId
+  | HarmonyProgressionItemId
+  | ChordRhythmItemId;
 
 export type NaturalNoteName = 'C' | 'D' | 'E' | 'F' | 'G' | 'A' | 'B';
 
@@ -26,7 +72,7 @@ export interface CardStats {
 }
 
 export interface Card {
-  id: string; // `${skill}:${note}`
+  id: string; // `${skill}:${note}` or `${skill}:${intervalId}`
   skill: Skill;
   note: NoteName;
   memoryState: MemoryState;
@@ -53,7 +99,8 @@ export type ReviewKind =
   | 'practice' 
   | 'confusion' 
   | 'cold' 
-  | 'lesson';
+  | 'lesson'
+  | 'transfer';
 
 export interface ReviewLogEvent {
   ts: number;
@@ -80,6 +127,11 @@ export interface ReviewLogEvent {
   scheduledDays: number | null;
   earlyPractice?: boolean;
   correctedAt?: number;
+  trialMode?: TrialMode;
+  hintLevel?: HintLevel;
+  contextId?: string;
+  schedulerReason?: string;
+  gradeableByFsrs?: boolean;
 }
 
 export interface UserSettings {
@@ -95,6 +147,11 @@ export interface UserSettings {
   metronomeEnabled: boolean;
   repertoireDisplayMode: 'keys' | 'staff';
   repertoireLengthMode?: 'excerpt' | 'full';
+  repertoireViewMode?: 'grid' | 'compact';
+  repertoireSortBy?: 'recommended' | 'difficulty' | 'title' | 'composer';
+  repertoireCategoryFilter?: 'all' | 'classical' | 'melody' | 'study' | 'warmup';
+  repertoireAdvancedOpen?: boolean;
+  repertoireCardVariants?: Record<string, 'excerpt' | 'full'>;
   repertoireDynamicsTarget: 'off' | 'p' | 'mf' | 'f';
   repertoireArticulationTarget: 'off' | 'legato' | 'detached';
   twoHandTempoMode: 'wait' | 'slow';

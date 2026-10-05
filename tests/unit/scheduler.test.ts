@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { chooseDue, chooseNew, diversityPenalty, buildColdQueue } from '../../src/core/scheduler/queue';
-import { getCurriculumPhases, baseNoteReady } from '../../src/core/curriculum/curriculum';
+import { chooseDue, diversityPenalty, buildColdQueue } from '../../src/core/scheduler/queue';
+import { getCurriculumPhases } from '../../src/core/curriculum/curriculum';
 import type { Card } from '../../src/core/fsrs/types';
 
 function makeCard(skill: Card['skill'], note: Card['note'], reps = 0, dueAt = 0, stability = 1): Card {
@@ -140,7 +140,10 @@ describe('Scheduler and Queue Logic', () => {
     expect(czerny).toBeDefined();
     expect(beyer).toBeDefined();
 
-    expect(hanon?.measureBeats).toBe(4);
+    expect(hanon?.timeSignature).toEqual([2, 4]);
+    expect(hanon?.measureBeats).toBe(2);
+    expect(czerny?.measureBeats).toBe(4);
+    expect(beyer?.measureBeats).toBe(4);
     expect(czerny?.notes.length).toBeGreaterThan(5);
   });
 

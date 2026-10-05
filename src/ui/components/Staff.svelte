@@ -6,7 +6,7 @@
     singleNoteToMusicXml,
     twoHandToMusicXml,
     getCursorStepForNoteIndex,
-    decomposeDurationSpecs
+    getCursorSpanForNoteIndex
   } from '../../core/repertoire/musicXmlGenerator';
 
   let {
@@ -92,7 +92,7 @@
         : activeIdx;
     const activeSpan =
       mode === 'repertoire' && repertoireSong
-        ? decomposeDurationSpecs(repertoireSong.beats?.[activeIdx] ?? 1).length
+        ? getCursorSpanForNoteIndex(repertoireSong, activeIdx)
         : 1;
 
     staveNotes.forEach((el, idx) => {
@@ -187,7 +187,7 @@
       currentMode === 'repertoire'
         ? 38
         : isGrand
-          ? 24
+          ? 22
           : 46;
 
     const shiftY = Math.round((targetTopPx - actualTopPx) * 10) / 10;
@@ -256,7 +256,8 @@
       if (lastLoadedXml !== xml) {
         await osmdInstance.load(xml);
         if (seq !== renderSeq) return;
-        osmdInstance.Zoom = isRepertoire ? 1.05 : currentMode === 'twohand' ? 1.08 : 1.18;
+        const isGrand = currentMode === 'twohand' || clef === 'grand';
+        osmdInstance.Zoom = isRepertoire ? 1.05 : isGrand ? 0.98 : 1.18;
         osmdInstance.render();
         lastLoadedXml = xml;
         lastCursorIndex = null;
@@ -308,7 +309,7 @@
   });
 
   function effectiveClefCaption(): string {
-    if (clef === 'grand') return 'Акколада (Grand Staff): Басовый (C2–B3) + Скрипичный (C4–C6)';
+    if (clef === 'grand') return 'Акколада (Grand Staff): басовый + скрипичный ключ';
     if (clef === 'bass') return 'Басовый ключ (F-ключ на 4-й линии · F3)';
     if (clef === 'treble') return 'Скрипичный ключ (G-ключ на 2-й линии · G4)';
     const m = /^([A-G])(#?)(\d)$/.exec(keyId || '');
@@ -341,8 +342,8 @@
   </div>
 {:else}
   <div class="notation-wrap {clef === 'grand' ? 'is-grand-staff' : ''}">
-    <div class="notation-card osmd-card-single {clef === 'grand' ? 'is-grand' : ''}">
-      <div class="osmd-single-container osmd-dark" bind:this={osmdContainerEl}></div>
+    <div class="notation-card osmd-card-single {clef === 'grand' ? 'is-grand' : ''}" data-key-id={keyId} data-clef={clef}>
+      <div class="osmd-single-container osmd-dark" data-key-id={keyId} data-clef={clef} bind:this={osmdContainerEl}></div>
     </div>
     <div class="notation-caption">{effectiveClefCaption()}</div>
   </div>

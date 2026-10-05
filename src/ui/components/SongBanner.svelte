@@ -88,9 +88,9 @@
           type="button"
           class="length-toggle-btn {lengthMode === 'full' ? 'active' : ''}"
           onclick={() => onSetLengthMode?.('full')}
-          title="Играть полное произведение целиком"
+          title="Играть развёрнутую одноголосную мелодическую аранжировку (melodyArrangement)"
         >
-          🎼 Полная
+          🎼 Аранжировка
         </button>
       </div>
 

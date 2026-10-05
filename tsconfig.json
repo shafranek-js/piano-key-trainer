@@ -13,6 +13,7 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
+    "types": ["vite/client"],
     "baseUrl": ".",
     "paths": {
       "@core/*": ["src/core/*"],

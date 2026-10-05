@@ -7,6 +7,10 @@ import {
   type PianoSampleRoot
 } from './types';
 import { clamp } from '../core/fsrs/math';
+import {
+  computeNoteEnvelopeTiming,
+  type NoteEnvelopeOptions
+} from '../core/repertoire/repertoireData';
 
 export interface ActiveVoice {
   source: AudioBufferSourceNode;
@@ -204,7 +208,8 @@ export class AudioEngine {
     midi: number,
     velocity: number,
     voiceKey: string | null,
-    durationMs?: number
+    durationMs?: number,
+    envelopeOptions?: NoteEnvelopeOptions
   ): void {
     if (!this.masterGain) return;
     const root = this.nearestRoot(midi);
@@ -231,24 +236,26 @@ export class AudioEngine {
         window.clearTimeout(old.timerId);
         this.noteOffTimers.delete(old.timerId);
       }
-      this.releaseVoice(key, 0.035);
+      this.releaseVoice(key, 0.02);
     }
 
-    const effectiveDurationMs =
+    const nominalDurationMs =
       durationMs !== undefined && durationMs > 0
-        ? Math.max(75, durationMs * 0.88)
+        ? durationMs
         : voiceKey === null
           ? 1400
           : undefined;
 
     let timerId: number | undefined;
-    if (effectiveDurationMs !== undefined) {
+    if (nominalDurationMs !== undefined) {
+      const envelope = computeNoteEnvelopeTiming(0, nominalDurationMs, envelopeOptions);
+      const releaseSec = Math.max(0.015, envelope.releaseDurationMs / 1000);
       timerId = window.setTimeout(() => {
         if (timerId !== undefined) this.noteOffTimers.delete(timerId);
         if (this.activeVoices.get(key)?.source === source) {
-          this.releaseVoice(key, 0.14);
+          this.releaseVoice(key, releaseSec);
         }
-      }, effectiveDurationMs);
+      }, envelope.releaseStartMs);
       this.noteOffTimers.add(timerId);
     }
 
@@ -275,7 +282,8 @@ export class AudioEngine {
     midi: number,
     velocity = 96,
     voiceKey: string | null = null,
-    durationMs?: number
+    durationMs?: number,
+    envelopeOptions?: NoteEnvelopeOptions
   ): Promise<void> {
     if (!Number.isFinite(midi) || midi < MIDI_MIN || midi > MIDI_MAX) {
       return Promise.resolve();
@@ -291,17 +299,17 @@ export class AudioEngine {
     this.warmUpAudioGraph(ctx);
 
     if (this.isReady) {
-      this.triggerNoteSync(ctx, midi, velocity, voiceKey, durationMs);
+      this.triggerNoteSync(ctx, midi, velocity, voiceKey, durationMs, envelopeOptions);
       return Promise.resolve();
     }
 
     return this.preloadSamples().then((ok) => {
       if (!ok) return;
-      this.triggerNoteSync(ctx, midi, velocity, voiceKey, durationMs);
+      this.triggerNoteSync(ctx, midi, velocity, voiceKey, durationMs, envelopeOptions);
     });
   }
 
-  public releaseVoice(voiceKey: string, releaseSec = 0.14): void {
+  public releaseVoice(voiceKey: string, releaseSec = 0.12): void {
     const voice = this.activeVoices.get(voiceKey);
     if (!voice || !this.ctx) return;
 
@@ -315,7 +323,7 @@ export class AudioEngine {
       voice.gain.gain.cancelScheduledValues(t);
       voice.gain.gain.setValueAtTime(Math.max(0.0001, voice.gain.gain.value), t);
       voice.gain.gain.exponentialRampToValueAtTime(0.0001, t + releaseSec);
-      voice.source.stop(t + releaseSec + 0.03);
+      voice.source.stop(t + releaseSec + 0.005);
     } catch {
       // Ignored if already stopped
     }
@@ -330,15 +338,20 @@ export class AudioEngine {
     }
   }
 
-  public playPianoByKeyId(keyId: string, velocity = 96, durationMs?: number): Promise<void> {
+  public playPianoByKeyId(
+    keyId: string,
+    velocity = 96,
+    durationMs?: number,
+    envelopeOptions?: NoteEnvelopeOptions
+  ): Promise<void> {
     const midi = midiFromKeyId(keyId);
     if (midi != null) {
-      return this.playPianoMidi(midi, velocity, null, durationMs);
+      return this.playPianoMidi(midi, velocity, null, durationMs, envelopeOptions);
     }
     return Promise.resolve();
   }
 
-  public playMetronomeClick(accent = false): void {
+  public playMetronomeClick(accent = false, scheduledTime?: number): void {
     const ctx = this.getOrCreateContext();
     if (!ctx) return;
 
@@ -352,7 +365,7 @@ export class AudioEngine {
     osc.type = 'sine';
     osc.frequency.value = accent ? 1550 : 1250;
 
-    const t = ctx.currentTime;
+    const t = Math.max(ctx.currentTime, scheduledTime ?? ctx.currentTime);
     gain.gain.setValueAtTime(0.0001, t);
     gain.gain.exponentialRampToValueAtTime(accent ? 0.12 : 0.085, t + 0.004);
     gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);

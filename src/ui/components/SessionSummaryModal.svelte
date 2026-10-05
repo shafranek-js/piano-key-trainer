@@ -8,8 +8,13 @@
     medianLatency = '—',
     scheduledLabel = 'Scheduled',
     scheduledValue = '0',
-    newLabel = 'Новых',
-    newValue = '0',
+    reinforcementLabel = 'Закрепление',
+    reinforcementValue = null as string | null,
+    newLabel = 'Новых' as string | null,
+    newValue = '0' as string | null,
+    transferLabel = 'Перенос навыка',
+    transferValue = null as string | null,
+    skillSummary = null as string | null,
     weakSummary = 'Ошибок нет.',
     onStartSession,
     onClose
@@ -48,11 +53,31 @@
           <small>{scheduledLabel}</small>
           <b>{scheduledValue}</b>
         </div>
-        <div class="summary-item">
-          <small>{newLabel}</small>
-          <b>{newValue}</b>
-        </div>
+        {#if reinforcementValue}
+          <div class="summary-item">
+            <small>{reinforcementLabel}</small>
+            <b>{reinforcementValue}</b>
+          </div>
+        {/if}
+        {#if newValue != null && newLabel != null}
+          <div class="summary-item">
+            <small>{newLabel}</small>
+            <b>{newValue}</b>
+          </div>
+        {/if}
+        {#if transferValue}
+          <div class="summary-item">
+            <small>{transferLabel}</small>
+            <b>{transferValue}</b>
+          </div>
+        {/if}
       </div>
+
+      {#if skillSummary}
+        <div class="summary-weak" aria-label="Распределение заданий по навыкам">
+          {skillSummary}
+        </div>
+      {/if}
 
       <div class="summary-weak">
         {weakSummary}

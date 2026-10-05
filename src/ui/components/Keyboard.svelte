@@ -52,12 +52,17 @@
   // Props using Svelte 5 runes
   let { 
     onKeyClick,
+    anchorKeyIds = [] as readonly string[],
     targetKeyIds = [] as string[],
     correctKeyIds = [] as string[],
     wrongKeyIds = [] as string[],
     hintKeyIds = [] as string[],
     pulseCorrectKeyIds = [] as string[],
     midiActiveKeyIds = [] as string[],
+    structuralGuideKeyIds = [] as string[],
+    structuralGuideBadge = null as string | null,
+    modelLabelKeyIds = [] as string[],
+    selectedKeyIds = [] as readonly string[],
     twoHandLeftTarget = null as string | null,
     twoHandRightTarget = null as string | null,
     fingerGuides = new Map<string, { finger: number; isTarget: boolean }>()
@@ -96,11 +101,15 @@
 
   function getKeyClasses(k: KeyData): string {
     const classes = ['key', k.type === 'white' ? 'white-key' : 'black-key'];
+    if (anchorKeyIds.includes(k.id)) classes.push('interval-anchor-key');
     if (targetKeyIds.includes(k.id) || targetKeyIds.includes(k.note)) classes.push('target');
     if (correctKeyIds.includes(k.id) || correctKeyIds.includes(k.note)) classes.push('correct');
     if (wrongKeyIds.includes(k.id) || wrongKeyIds.includes(k.note)) classes.push('wrong');
     if (pulseCorrectKeyIds.includes(k.id) || pulseCorrectKeyIds.includes(k.note)) classes.push('correct-pulse');
     if (hintKeyIds.includes(k.id) || hintKeyIds.includes(k.note)) classes.push('hint');
+    if (structuralGuideKeyIds.includes(k.id) || structuralGuideKeyIds.includes(k.note)) classes.push('structural-guide');
+    if (selectedKeyIds.includes(k.id) || selectedKeyIds.includes(k.note)) classes.push('selected');
+    if (modelLabelKeyIds.includes(k.id) || modelLabelKeyIds.includes(k.note)) classes.push('model-key');
     if (midiActiveKeyIds.includes(k.id)) classes.push('midi-active');
     if (twoHandLeftTarget === k.id) classes.push('twohand-left-target');
     if (twoHandRightTarget === k.id) classes.push('twohand-right-target');
@@ -129,7 +138,7 @@
           data-id={k.id}
           data-note={k.note}
           data-type={k.type}
-          aria-label="Клавиша {DISPLAY_NAMES[k.note]} · {k.id}"
+          aria-label="Клавиша {DISPLAY_NAMES[k.note]} · {k.id}{anchorKeyIds.includes(k.id) ? ' · Опора' : ''}{structuralGuideBadge && structuralGuideKeyIds.includes(k.id) ? ' · Бас-подсказка' : ''}"
           onpointerdown={(e) => {
             if (e.pointerType === 'mouse' && e.button !== 0) return;
             e.preventDefault();
@@ -142,13 +151,23 @@
           }}
         >
           <span class="focus-indicator" aria-hidden="true"></span>
+          {#if anchorKeyIds.includes(k.id)}
+            <span class="interval-anchor-badge" aria-hidden="true">ОПОРА</span>
+          {/if}
+          {#if structuralGuideBadge && structuralGuideKeyIds.includes(k.id)}
+            <span class="inversion-bass-badge" aria-label="Бас-подсказка; клавишу нужно нажать">{structuralGuideBadge}</span>
+          {/if}
           {#if fingerGuides.has(k.id)}
             {@const guide = fingerGuides.get(k.id)!}
             <span class="finger-guide-badge {guide.isTarget ? 'target' : ''}" aria-label="Палец {guide.finger}">
               {guide.finger}
             </span>
           {/if}
-          {#if hintKeyIds.includes(k.id) || hintKeyIds.includes(k.note)}
+          {#if modelLabelKeyIds.includes(k.id) || modelLabelKeyIds.includes(k.note)}
+            <span class="model-key-badge" aria-label="Ориентир: {k.note}">
+              {k.note}
+            </span>
+          {:else if hintKeyIds.includes(k.id) || hintKeyIds.includes(k.note)}
             <span class="hint-badge" aria-label="Подсказка: {DISPLAY_NAMES[k.note]}">
               {k.type === 'black' ? SHORT_NAMES[k.note] : DISPLAY_NAMES[k.note]}
             </span>

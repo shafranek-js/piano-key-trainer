@@ -1,69 +1,163 @@
-# Piano Key Trainer 🎹
+# Piano Key Trainer 🎹 (v6.2.0)
 
-> Adaptive desktop-first piano learning web application with **FSRS-6**, **Web MIDI**, **Web Audio (Salamander Grand Piano)**, and introductory two-hand coordination.
+> Adaptive desktop-first piano learning web application built with **Svelte 5**, **TypeScript**, and **Vite**, combining **FSRS-6 spaced repetition**, **Web MIDI**, **Salamander Grand Piano acoustic samples**, **OpenSheetMusicDisplay (OSMD)** engraving, ear training, and two-hand coordination.
 
 ---
 
 ## 🌟 Key Features
 
-* **Decoupled FSRS-6 Memory Engine:**
-  * Spaced repetition with 21 parameters modeling power-law memory decay ($R(t)$).
-  * Strict first-attempt semantics: secondary retries help learning without rewriting SRS history.
-  * Separate memory units for distinct skills (`find`, `identify`, `patternIdentify`, `notationToKey`, `soundToKey`).
-  * Adaptive speed-grading with personalized $P30$ and $P85$ latency thresholds.
-* **Acoustic Sound & Web MIDI:**
-  * Real acoustic recordings based on **Salamander Grand Piano (Yamaha C5)** across 4 octaves.
-  * Full Web MIDI support: velocity for dynamics ($p / mf / f$), note-off duration for articulation ($legato / detached$), exact octave detection.
-  * High-precision metronome on Web Audio Clock (lookahead scheduler).
-* **Keyboard & UI Ergonomics:**
-  * 4-octave persistent keyboard anchor (C2–C6: 29 white keys, 20 black keys) without sub-pixel hairline gaps or vertical jumping.
-  * Central unified **Task Stage** for prompts, instructions, reaction timing, and staff views.
-  * Vector SVG music notation with treble clef, ledger lines, 4/4 measures, and phrase grouping.
-* **Guided Learning & Music:**
-  * **Guided Lessons:** 10 structured mini-lessons covering keyboard geography, black key patterns, anchors C & F, octaves, staff reading, relative ear training, and hand positions (C-position fingers 1–5).
-  * **Repertoire:** 4 beginner pieces with Wait Mode, Slow (60 BPM), and Normal (90 BPM) tempos.
-  * **Two-Hand Coordination:** Mirror pairs, left-hand bass anchor with right-hand melody, and hand ping-pong.
-* **Local-First & Offline:**
-  * IndexedDB storage via **Dexie.js** with seamless migration from legacy `localStorage`.
-  * Offline-first **PWA** with runtime caching of sound assets.
-  * Ready for cloud synchronization via **Supabase**.
+### 1. Decoupled FSRS-6 Memory Engine & Audit Log
+* **FSRS-6 Power-Law Memory Model:** 21-parameter spaced repetition engine tracking per-card **Stability ($S$)**, **Difficulty ($D$)**, and **Retrievability ($R(t)$)**.
+* **5 Distinct Pedagogical Skills (Independent Memory Units):**
+  * `find` — Locate a named pitch class on the piano keyboard or MIDI controller.
+  * `identify` — Name the highlighted piano key using on-screen answer buttons or PC keyboard shortcuts (`C–B`, `1–7`).
+  * `patternIdentify` — Identify and locate a note from its structural landmark relative to the groups of 2 and 3 black keys (via PC keyboard, on-screen piano, or MIDI).
+  * `notationToKey` — Read a note on the staff (Treble, Bass, or Grand Staff) and play the **exact octave** on the piano or MIDI keyboard.
+  * `soundToKey` — Hear a note relative to the `C4` reference tone and play the **exact octave** on the piano or MIDI keyboard.
+* **Channel-Aware Input Invariants:** Each skill enforces its pedagogical input contract (`src/core/input/inputPolicy.ts`) so learners cannot bypass physical key-location tasks using PC letter shortcuts.
+* **Strict First-Attempt Semantics:** Only the first response on a question grades FSRS (`new` / `scheduled`) and updates `Card.stats`. Subsequent corrective attempts help the learner find the right key without re-grading FSRS or emitting duplicate `ReviewLogEvent`s.
+* **Schedule-Neutral Modes:** Free practice (`practice`), contrast drills (`confusion`), and the 20-item diagnostic **Cold Test** (`cold`) never distort FSRS scheduling. Cold Test is strictly diagnostic and does not mutate `Card.stats`.
+* **Complete `ReviewLogEvent` Transitions & Session Identity:** Every review records pre- and post-review FSRS state (`stabilityBefore`, `stabilityAfter`, `difficultyBefore`, `difficultyAfter`, `retrievabilityBefore`, `elapsedDays`, `scheduledDays`) under a unique session identifier (`createSessionId`).
+* **Personalized Speed Grading:** Optional latency-aware grading (`Hard` / `Good` / `Easy`) calibrated from the learner's own rolling $P30$ / $P85$ response-time distribution.
+
+### 2. Curriculum Progression, Guided Lessons, Repertoire, Ear Training & Two-Hand Coordination
+* **6 Curriculum Phases (`src/core/curriculum/curriculum.ts`):**
+  1. `anchors` — **Anchors / Ориентиры** (`C + F`)
+  2. `neighbors` — **Neighbors / Соседи** (`D · E · B`)
+  3. `remaining` — **Remaining white notes / Белые** (`G · A`)
+  4. `black` — **Black keys / Чёрные** (`C♯ F♯ G♯ D♯ A♯`)
+  5. `notation` — **Notation / Нотный стан** (`C4–B4`)
+  6. `sound` — **Sound / Слух** (`C4 → target`)
+* **12 Guided Lessons (`src/core/lessons/lessonsData.ts`):**
+  1. `two-black` — Group of 2 black keys (`C–D–E`)
+  2. `three-black` — Group of 3 black keys (`F–G–A–B`)
+  3. `anchors` — Primary landmark keys `C` and `F`
+  4. `white-map` — Full white-key keyboard geography
+  5. `black-keys` — Sharps and flats (`♯` / `♭`)
+  6. `octaves` — Octave orientation across `C2–C6`
+  7. `notation-intro` — Treble clef landmark reading
+  8. `ear-intro` — Relative pitch from `C4`
+  9. `right-hand-c` — Right-hand C position (`C4–G4`, fingers 1–5)
+  10. `left-hand-c` — Left-hand C position (`C3–G3`, fingers 5–1)
+  11. `bass-clef-intro` — Bass clef reading (`C3–C4`)
+  12. `grand-staff-intro` — Grand Staff coordination (`C3–B4`)
+* **25+ Repertoire Pieces & Custom MusicXML Import (`src/core/repertoire/`):**
+  * **25 built-in pieces** across warmup, study, melody, and classical categories — each providing both a short educational **excerpt** (`excerpt`) and a **full arrangement** (`full`).
+  * **Custom MusicXML / MXL Import:** Import `.musicxml`, `.xml`, or compressed `.mxl` scores (unpacked via `JSZip`) directly into the repertoire player.
+  * **Continuous OSMD Engraving:** Single-line horizontal score rendering via **OpenSheetMusicDisplay**, measure-by-measure looping, acoustic demo playback, count-in (`4–3–2–1`), and **Wait / Slow / Normal** tempo modes.
+* **Multi-Mode Ear Training (`src/core/ear/earTrainingData.ts`):**
+  * **Intervals (`earIntervals`):** 7 ascending intervals from `C4` (`m2`, `M2`, `m3`, `M3`, `P4`, `P5`, `P8`).
+  * **Triads (`earTriads`):** Major vs. minor triad quality recognition (arpeggiated or harmonic).
+  * **Melodic Echo (`earEcho`):** 12 multi-note ear-to-hand melodic dictation phrases across easy, medium, and hard levels.
+* **Two-Hand Coordination (`src/core/twohand/twoHandData.ts`):**
+  * **7 structured patterns:** Mirror pairs (`mirror-pairs`), parallel motion (`parallel-motion-c`), contrary motion (`contrary-motion-c`), left-hand bass anchor (`left-anchor`), bass fifths + melody (`bass-fifths-melody`), hand ping-pong (`hand-ping-pong`), and Alberti bass introduction (`alberti-bass-intro`).
+
+### 2.1 Post-Graduation Advanced Modules
+* **Bass Clef & Grand Staff (3F):** Bass-note reading and transfer between the two staves.
+* **Intervals (3G):** Four physical semitone distances (`P8`, `P5`, `M3`, `m3`) with build, identify, and transfer practice.
+* **Major / Minor Triads (3H):** Full three-note chord building, quality identification, and corrective feedback.
+* **Inversions & Chord Symbols (3I):** Root, first, and second inversion, slash symbols, inversion identification, and the introductory `C → G/B → Am → F` sequence.
+* **Harmony & Accompaniment I (3J):** Beginner-friendly I–V–vi–IV orientation, root-position and smooth bass transitions, guided/independent/memory block-chord sequences, bounded transfer with fresh retry, and three gated Daily Practice card families. Rhythm and two-hand accompaniment are outside this module.
+
+### 3. Acoustic Sound, Web MIDI & 4-Octave Keyboard Ergonomics
+* **Salamander Grand Piano Audio (`src/audio/AudioEngine.ts`):** Real acoustic Yamaha C5 samples across 4 octaves (`C2–C6`), plus a Web Audio lookahead metronome (`src/audio/MetronomeClock.ts`). Never falls back to harsh synthetic oscillators.
+* **Web MIDI (`src/audio/MidiController.ts`):** Full MIDI note-on/note-off handling, exact octave verification, velocity-based dynamics ($p / mf / f$), note-hold duration articulation ($legato / detached$), and two-hand onset simultaneity measurement.
+* **Persistent 4-Octave Keyboard (`C2–C6`):** 29 white keys and 20 black keys docked at the bottom of the practice workspace as a stable visual anchor that never shifts vertically when prompts or feedback change.
+
+### 4. Local-First Storage, PWA & Optional Cloud Infrastructure
+* **IndexedDB via Dexie.js (`src/storage/db.ts`):** Stores `cards`, `reviewLogs`, `coldTests`, `repertoireHistory`, `twoHandHistory`, `lessonProgress`, and `settings` locally in `PianoTrainerDB`, with automatic one-time migration from legacy `localStorage` (`src/storage/migrator.ts`) and full JSON backup export/import.
+* **Offline-First PWA:** Configured with `vite-plugin-pwa` and Workbox runtime caching for Salamander Grand Piano audio samples.
+* **Optional Supabase Infrastructure (`src/services/supabase.ts`):** Includes optional client and upsert helper infrastructure gated by `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` environment variables *(infrastructure module only; cloud synchronization is not currently active in the user-facing workflow)*.
 
 ---
 
 ## 🛠 Tech Stack
 
-* **Frontend:** [Svelte 5](https://svelte.dev/) (runes & compile-time reactivity), [Vite 6](https://vitejs.dev/), [TypeScript](https://www.typescriptlang.org/)
-* **Database & Storage:** [Dexie.js](https://dexie.org/) (IndexedDB), [Supabase](https://supabase.com/)
+* **Framework:** [Svelte 5](https://svelte.dev/) (runes & compile-time reactivity), [TypeScript](https://www.typescriptlang.org/) (`strict: true`), [Vite 6](https://vitejs.dev/)
+* **Notation & MusicXML:** [OpenSheetMusicDisplay](https://opensheetmusicdisplay.org/) (`opensheetmusicdisplay`), [JSZip](https://stuk.github.io/jszip/) (`jszip`), custom SVG staff renderer
+* **Persistence:** [Dexie.js](https://dexie.org/) (IndexedDB), optional [@supabase/supabase-js](https://supabase.com/) infrastructure
 * **Audio & MIDI:** Web Audio API, Web MIDI API
 * **Testing:** [Vitest](https://vitest.dev/)
 * **PWA:** `vite-plugin-pwa` (Workbox)
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start & Commands
 
-### 1. Clone & Install
+### 1. Install Dependencies
 ```bash
-git clone https://github.com/shafranek-js/piano-key-trainer.git
-cd piano-key-trainer
 npm install
 ```
 
-### 2. Development Server
+### 2. Start Development Server
 ```bash
 npm run dev
 ```
-Open [http://localhost:5173/](http://localhost:5173/) in Chrome or Edge (recommended for Web MIDI support).
+Open [http://localhost:5173/](http://localhost:5173/) in a Chromium-based browser (Chrome or Edge recommended for Web MIDI support).
 
-### 3. Run Tests
+### 3. TypeScript Typecheck
+```bash
+npm run typecheck
+```
+
+### 4. Svelte-Aware Type and Component Check
+`tsc --noEmit` does not validate TypeScript action contracts inside Svelte components. Run the Svelte-aware checker as a required gate:
+```bash
+npm run check:svelte
+```
+
+### 5. Run Unit Tests
 ```bash
 npm test
 ```
 
-### 4. Build for Production
+### 6. Build for Production
 ```bash
 npm run build
 ```
+
+### 7. Run Full Verification Suite (`typecheck` + `Svelte check` + `test` + `build`)
+```bash
+npm run verify
+```
+
+### 8. Production Runtime Interaction Smoke
+With a production preview running on `127.0.0.1:4173`, run the isolated Chrome smoke for Triad, Interval, and Inversion Identify input paths:
+```bash
+npm run smoke:runtime-integrity
+```
+The smoke creates a temporary Chrome profile and synthetic curriculum progress; it does not use the learner's browser profile or a saved profile seed. It writes up to two screenshots under `acceptance/runtime-integrity/screenshots/`.
+
+### 9. Package Runtime Integrity Checkpoint
+```bash
+npm run package:runtime-integrity
+```
+This creates `piano-key-trainer-runtime-integrity.zip` from an explicit file allowlist and checks that old acceptance screenshots, browser profile data, `dist`, `node_modules`, and nested ZIPs are absent.
+
+### 10. Production M3I Finalization Smoke
+With a production build available, run the isolated Chrome smoke for the Inversions module:
+```bash
+npm run smoke:m3i
+```
+The smoke starts a temporary Vite production preview unless `PIANO_TRAINER_APP_URL` points to an existing preview. It uses a temporary Chrome profile and synthetic IndexedDB progress. It verifies the learner-facing build, Identify, slash, and sequence interactions; MIDI parity and held-note progress; bounded transfer failure/remediation/retry and pass paths; progress after reload; and one scheduled M3I slash-build card in Daily Practice. New evidence is written only to `acceptance/m3i-final/screenshots/`.
+
+### 11. Package the M3I Finalization Checkpoint
+```bash
+npm run package:m3i-final
+```
+This writes `piano-key-trainer-m3i-final.zip` from an explicit source, test, documentation, report, and current M3I screenshot allowlist. It excludes prior acceptance screenshots, nested ZIPs, `dist`, `node_modules`, `.git`, and temporary browser data.
+
+### 12. Production Harmony & Accompaniment I Smoke
+```bash
+npm run smoke:m3j
+```
+This launches an isolated production preview and Chrome profile. It verifies the #10 Program entry, beginner orientation, chord progression input, bounded assessment failure/remediation/retry, model-backed semantic questions and corrective feedback, module completion and reload, the Harmony task workspace at 1920×1080, 1920×900 and 1366×768, plus one scheduled progression and semantic review through the existing FSRS and persistence lifecycle. Evidence is written only to `acceptance/m3j/`, with screenshots under `acceptance/m3j/screenshots/`.
+
+### 13. Package the M3J Checkpoint
+```bash
+npm run package:m3j
+```
+This creates `piano-key-trainer-milestone3j-rev1.zip` with the source, tests, every project script, package-script coverage checks, accepted prerequisite reports, and six current M3J screenshots. The ZIP build verifies that every `node scripts/<file>.mjs` command in `package.json` has its script in the archive and that two builds from unchanged inputs are byte-identical. It excludes nested ZIPs, `dist`, `node_modules`, `.git`, and temporary browser data.
 
 ---
 

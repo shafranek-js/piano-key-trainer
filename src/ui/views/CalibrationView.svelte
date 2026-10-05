@@ -22,28 +22,6 @@
     actual != null && predicted != null ? actual - predicted : null
   );
 
-  // Calibration buckets (0.1 bins)
-  function getBuckets() {
-    const buckets: { lo: number; hi: number; n: number; pred: number; act: number }[] = [];
-    for (let lo = 0.5; lo < 1.0; lo += 0.1) {
-      const hi = lo + 0.1;
-      const rows = scheduled.filter(
-        e => (e.retrievabilityBefore ?? 0) >= lo && (e.retrievabilityBefore ?? 0) < hi
-      );
-      if (rows.length) {
-        buckets.push({
-          lo,
-          hi,
-          n: rows.length,
-          pred: mean(rows.map(e => e.retrievabilityBefore ?? 0)) ?? 0,
-          act: mean(rows.map(e => (e.firstCorrect ? 1 : 0))) ?? 0
-        });
-      }
-    }
-    return buckets;
-  }
-
-  const buckets = $derived(getBuckets());
   const readinessPct = $derived(Math.min(100, Math.round((scheduled.length / 300) * 100)));
 
   const qaChecks = [

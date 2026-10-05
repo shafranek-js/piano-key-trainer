@@ -25,6 +25,11 @@ export const DEFAULT_SETTINGS: UserSettings = {
   metronomeEnabled: false,
   repertoireDisplayMode: 'keys',
   repertoireLengthMode: 'excerpt',
+  repertoireViewMode: 'grid',
+  repertoireSortBy: 'recommended',
+  repertoireCategoryFilter: 'all',
+  repertoireAdvancedOpen: false,
+  repertoireCardVariants: {},
   repertoireDynamicsTarget: 'off',
   repertoireArticulationTarget: 'off',
   twoHandTempoMode: 'wait',
@@ -58,7 +63,26 @@ export const DISPLAY_NAMES: Record<NoteName, string> = {
   'D#': 'D♯ / E♭',
   'F#': 'F♯ / G♭',
   'G#': 'G♯ / A♭',
-  'A#': 'A♯ / B♭'
+  'A#': 'A♯ / B♭',
+  P8: 'Октава',
+  P5: 'Чистая квинта',
+  M3: 'Большая терция',
+  m3: 'Малая терция',
+  major: 'Мажорное',
+  minor: 'Минорное',
+  first: '1-е обращение',
+  second: '2-е обращение',
+  root: 'Основное положение',
+  slash: 'Slash-аккорд',
+  I: 'I · тоника',
+  V: 'V · доминанта',
+  vi: 'vi · минорная шестая ступень',
+  IV: 'IV · субдоминанта',
+  'I-V-vi-IV': 'I → V → vi → IV',
+  'C-G/B-Am-F': 'C → G/B → Am → F',
+  pulse: 'Пульс аккордов',
+  'change-timing': 'Смена аккорда на сильную долю',
+  'rhythm-pattern': 'Ритмический рисунок аккорда'
 };
 
 export const SHORT_NAMES: Record<NoteName, string> = {
@@ -73,7 +97,26 @@ export const SHORT_NAMES: Record<NoteName, string> = {
   'D#': 'D♯',
   'F#': 'F♯',
   'G#': 'G♯',
-  'A#': 'A♯'
+  'A#': 'A♯',
+  P8: 'P8',
+  P5: 'P5',
+  M3: 'M3',
+  m3: 'm3',
+  major: 'Мажор',
+  minor: 'Минор',
+  first: '1-е обр.',
+  second: '2-е обр.',
+  root: 'Осн.',
+  slash: 'Slash',
+  I: 'I',
+  V: 'V',
+  vi: 'vi',
+  IV: 'IV',
+  'I-V-vi-IV': 'I–V–vi–IV',
+  'C-G/B-Am-F': 'C–G/B–Am–F',
+  pulse: 'Пульс',
+  'change-timing': 'Смена',
+  'rhythm-pattern': 'Ритм'
 };
 
 export const GRADE_NAMES: Record<Grade, string> = {
@@ -88,7 +131,21 @@ export const SKILL_NAMES: Record<Skill, string> = {
   identify: 'назвать',
   patternIdentify: 'ориентир → назвать',
   notationToKey: 'нота → клавиша',
-  soundToKey: 'звук → клавиша'
+  soundToKey: 'звук → клавиша',
+  notationBassToKey: 'басовая нота → клавиша',
+  intervalBuild: 'построить интервал',
+  intervalIdentify: 'назвать интервал',
+  triadBuild: 'построить трезвучие',
+  triadIdentify: 'назвать трезвучие',
+  triadInversionBuild: 'построить обращение',
+  triadInversionIdentify: 'назвать обращение',
+  chordSymbolRead: 'аккордовое обозначение',
+  harmonyFunctionIdentify: 'функция аккорда',
+  harmonyNextChord: 'следующий аккорд',
+  harmonyProgressionPlay: 'сыграть последовательность',
+  chordPulse: 'держать пульс',
+  chordChangeTiming: 'сменить аккорд вовремя',
+  chordRhythmPattern: 'сыграть ритмический рисунок'
 };
 
 export const CURRICULUM_GROUPS = {
@@ -108,6 +165,16 @@ export const STAFF_HINTS: Partial<Record<NoteName, string>> = {
   G: 'G4 — вторая линия снизу.',
   A: 'A4 — второе пространство снизу.',
   B: 'B4 — средняя линия скрипичного стана.'
+};
+
+export const BASS_STAFF_HINTS: Partial<Record<NoteName, string>> = {
+  F: 'F3 — линия F между двумя точками басового ключа (4-я линия снизу).',
+  C: 'C3 — во втором промежутке басового нотоносца снизу.',
+  E: 'E3 — в третьем промежутке басового нотоносца (прямо под линией F).',
+  G: 'G3 — в четвёртом промежутке басового нотоносца (прямо над линией F).',
+  D: 'D3 — на средней (3-й) линии басового нотоносца.',
+  A: 'A3 — на верхней (5-й) линии басового нотоносца.',
+  B: 'B3 — над верхней линией басового стана, прямо под Middle C (C4).'
 };
 
 export const SOUND_HINTS: Partial<Record<NoteName, string>> = {

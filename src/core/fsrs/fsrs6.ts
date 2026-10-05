@@ -1,4 +1,4 @@
-import type { Card, Grade, MemoryState, UserSettings } from './types';
+import type { Card, Grade, UserSettings } from './types';
 import { W, DECAY, FACTOR, DAY_MS } from './constants';
 import { clamp } from './math';
 

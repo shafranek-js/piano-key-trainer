@@ -10,7 +10,24 @@ dist-ssr
 # Environment variables
 .env
 .env.local
+.env.*
 .env.*.local
+!.env.example
+
+# Test / build artifacts
+coverage
+*.tsbuildinfo
+
+# Generated diagnostics exports (temporary evidence, not source)
+diagnostics-*.json
+
+# Generated milestone delivery archives
+piano-key-trainer-*.zip
+
+# Temporary browser profiles (smoke scripts write to os.tmpdir, but keep repo clean)
+chrome-profile/
+*-chrome-profile/
+browser-profile/
 
 # Logs
 npm-debug.log*

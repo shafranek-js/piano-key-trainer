@@ -1,0 +1,807 @@
+{
+  "status": "PASS",
+  "appUrl": "http://127.0.0.1:57858/piano-key-trainer/",
+  "roadmap": {
+    "before": {
+      "title": "Гармония и сопровождение",
+      "status": "available",
+      "current": true,
+      "description": "Этап 10 из 10\n○ Доступно\nДополнительный модуль\nГармония и сопровождение\n\nПоследовательности аккордов, функции I–V–vi–IV и плавные переходы в block chords.\n\nНачать модуль →",
+      "action": "Начать модуль →"
+    },
+    "after": {
+      "harmony": "completed",
+      "inversions": "completed",
+      "current": true
+    }
+  },
+  "orientation": "C → G → Am → F; C=I, G=V, Am=vi, F=IV",
+  "input": {
+    "rootProgression": {
+      "sequence": [
+        "C",
+        "G",
+        "Am",
+        "F"
+      ],
+      "step": "smoothModel",
+      "feedback": true
+    },
+    "screenGByB": {
+      "step": "guidedSequence",
+      "prompt": true
+    },
+    "midiGByB": {
+      "outcome": "correct",
+      "fullReleaseRequired": true
+    },
+    "midiPrematureNextChordIgnored": true,
+    "pcNoteKeys": "ignored on semantic Harmony tasks",
+    "semanticDigit1": "C answered through canonical selectAnswer",
+    "advancedModuleDockLayout": [
+      {
+        "module": "Bass / Grand Staff",
+        "width": 1366,
+        "height": 768,
+        "keyboardTop": 532,
+        "keyboardBottom": 756,
+        "stageTop": 107,
+        "stageBottom": 526,
+        "stageScrollTop": 0,
+        "stageScrollHeight": 419,
+        "stageClientHeight": 419,
+        "taskBottomAfterScroll": 506.21875,
+        "feedbackBottomAfterScroll": null,
+        "lastControlBottomAfterScroll": 507.21875,
+        "feedbackText": "",
+        "initialCardBottom": 506.21875,
+        "initialFeedbackBottom": null,
+        "initialLastControlBottom": 507.21875,
+        "initialStageBottom": 526,
+        "horizontalOverflow": [],
+        "workspaceBottom": 756
+      },
+      {
+        "module": "Intervals",
+        "width": 1366,
+        "height": 768,
+        "keyboardTop": 532,
+        "keyboardBottom": 756,
+        "stageTop": 107,
+        "stageBottom": 526,
+        "stageScrollTop": 39,
+        "stageScrollHeight": 458,
+        "stageClientHeight": 419,
+        "taskBottomAfterScroll": 506.125,
+        "feedbackBottomAfterScroll": null,
+        "lastControlBottomAfterScroll": 507.125,
+        "feedbackText": "",
+        "initialCardBottom": 545.125,
+        "initialFeedbackBottom": null,
+        "initialLastControlBottom": 546.125,
+        "initialStageBottom": 526,
+        "horizontalOverflow": [],
+        "workspaceBottom": 756
+      },
+      {
+        "module": "Triads",
+        "width": 1366,
+        "height": 768,
+        "keyboardTop": 532,
+        "keyboardBottom": 756,
+        "stageTop": 107,
+        "stageBottom": 526,
+        "stageScrollTop": 55,
+        "stageScrollHeight": 474,
+        "stageClientHeight": 419,
+        "taskBottomAfterScroll": 505.71875,
+        "feedbackBottomAfterScroll": null,
+        "lastControlBottomAfterScroll": 506.71875,
+        "feedbackText": "",
+        "initialCardBottom": 560.71875,
+        "initialFeedbackBottom": null,
+        "initialLastControlBottom": 561.71875,
+        "initialStageBottom": 526,
+        "horizontalOverflow": [],
+        "workspaceBottom": 756
+      },
+      {
+        "module": "Chord Inversions",
+        "width": 1366,
+        "height": 768,
+        "keyboardTop": 532,
+        "keyboardBottom": 756,
+        "stageTop": 107,
+        "stageBottom": 526,
+        "stageScrollTop": 0,
+        "stageScrollHeight": 419,
+        "stageClientHeight": 419,
+        "taskBottomAfterScroll": 490.40625,
+        "feedbackBottomAfterScroll": null,
+        "lastControlBottomAfterScroll": 491.40625,
+        "feedbackText": "",
+        "initialCardBottom": 490.40625,
+        "initialFeedbackBottom": null,
+        "initialLastControlBottom": 491.40625,
+        "initialStageBottom": 526,
+        "horizontalOverflow": [],
+        "workspaceBottom": 756
+      }
+    ]
+  },
+  "semanticQuestionFlow": {
+    "checks": [
+      {
+        "task": "function identification",
+        "prompt": "Какой аккорд имеет функцию I (тоника) в C major?",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "C",
+          "G",
+          "Am",
+          "F"
+        ],
+        "feedback": "",
+        "feedbackVisible": false,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": false,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": false
+      },
+      {
+        "task": "function identification 2",
+        "prompt": "G = какая функция в C major?",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "I",
+          "V",
+          "vi",
+          "IV"
+        ],
+        "feedback": "Верно.",
+        "feedbackVisible": true,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": true,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": true
+      },
+      {
+        "task": "function identification 3",
+        "prompt": "Какой аккорд имеет функцию vi в C major?",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "C",
+          "G",
+          "Am",
+          "F"
+        ],
+        "feedback": "Верно.",
+        "feedbackVisible": true,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": true,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": true
+      },
+      {
+        "task": "function identification 4",
+        "prompt": "F = какая функция в C major?",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "I",
+          "V",
+          "vi",
+          "IV"
+        ],
+        "feedback": "Верно.",
+        "feedbackVisible": true,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": true,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": true
+      },
+      {
+        "task": "function identification 5",
+        "prompt": "Какой аккорд является V в C major?",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "C",
+          "G",
+          "Am",
+          "F"
+        ],
+        "feedback": "Верно.",
+        "feedbackVisible": true,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": true,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": true
+      },
+      {
+        "task": "function identification 6",
+        "prompt": "Am = какая функция в C major?",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "I",
+          "V",
+          "vi",
+          "IV"
+        ],
+        "feedback": "Верно.",
+        "feedbackVisible": true,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": true,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": true
+      },
+      {
+        "task": "function identification 7",
+        "prompt": "Какой аккорд является IV в C major?",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "C",
+          "G",
+          "Am",
+          "F"
+        ],
+        "feedback": "Верно.",
+        "feedbackVisible": true,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": true,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": true
+      },
+      {
+        "task": "function identification 8",
+        "prompt": "C = какая функция в C major?",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "I",
+          "V",
+          "vi",
+          "IV"
+        ],
+        "feedback": "Верно.",
+        "feedbackVisible": true,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": true,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": true
+      },
+      {
+        "task": "smoother inversion choice",
+        "prompt": "Сейчас звучит C major. Как удобнее перейти к G major?",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "G",
+          "G/B"
+        ],
+        "feedback": "Верно: F.",
+        "feedbackVisible": true,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": true,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": true
+      },
+      {
+        "task": "next chord recognition",
+        "prompt": "C → G/B → Am → ?",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "C",
+          "G",
+          "Am",
+          "F"
+        ],
+        "feedback": "Верно.",
+        "feedbackVisible": true,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": true,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": true
+      },
+      {
+        "task": "transfer trial 1",
+        "prompt": "G = какая функция в C major?",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "I",
+          "V",
+          "vi",
+          "IV"
+        ],
+        "feedback": "Последовательность сыграна.",
+        "feedbackVisible": true,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": true,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": true
+      },
+      {
+        "task": "transfer trial 2",
+        "prompt": "C → G/B → Am → ?",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "C",
+          "G",
+          "Am",
+          "F"
+        ],
+        "feedback": "Верно с первой попытки.",
+        "feedbackVisible": true,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": true,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": true
+      },
+      {
+        "task": "transfer trial 3 progression",
+        "prompt": "Сыграйте C → G → Am → F",
+        "visible": true
+      },
+      {
+        "task": "transfer trial 4",
+        "prompt": "Какой аккорд имеет функцию vi в C major?",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "C",
+          "G",
+          "Am",
+          "F"
+        ],
+        "feedback": "Первая попытка этой задачи засчитана как ошибка. Исправьте ответ, чтобы продолжить.",
+        "feedbackVisible": true,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": true,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": true
+      },
+      {
+        "task": "transfer trial 5",
+        "prompt": "Для плавного перехода C → G выберите изученный вариант G major.",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "G",
+          "G/B"
+        ],
+        "feedback": "Верно с первой попытки.",
+        "feedbackVisible": true,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": true,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": true
+      },
+      {
+        "task": "transfer trial 6 progression",
+        "prompt": "Сыграйте C → G/B → Am → F",
+        "visible": true
+      },
+      {
+        "task": "transfer trial 7",
+        "prompt": "Какой аккорд является IV в C major?",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "C",
+          "G",
+          "Am",
+          "F"
+        ],
+        "feedback": "Верно с первой попытки.",
+        "feedbackVisible": true,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": true,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": true
+      },
+      {
+        "task": "transfer trial 8",
+        "prompt": "I → V → ? → IV",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "I",
+          "V",
+          "vi",
+          "IV"
+        ],
+        "feedback": "Первая попытка этой задачи засчитана как ошибка. Исправьте ответ, чтобы продолжить.",
+        "feedbackVisible": true,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": true,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": true
+      },
+      {
+        "task": "transfer trial 9 progression",
+        "prompt": "Сыграйте Am → F → C → G",
+        "visible": true
+      },
+      {
+        "task": "transfer trial 10",
+        "prompt": "Какой аккорд имеет функцию I (тоника) в C major?",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "C",
+          "G",
+          "Am",
+          "F"
+        ],
+        "feedback": "Верно с первой попытки.",
+        "feedbackVisible": true,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": true,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": true
+      },
+      {
+        "task": "transfer trial 11",
+        "prompt": "F → G → C → ?",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "C",
+          "G",
+          "Am",
+          "F"
+        ],
+        "feedback": "Верно с первой попытки.",
+        "feedbackVisible": true,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": true,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": true
+      },
+      {
+        "task": "transfer trial 12 progression",
+        "prompt": "Сыграйте F → G → C",
+        "visible": true
+      },
+      {
+        "task": "remediation 1 progression",
+        "prompt": "Сыграйте C → G → Am → F",
+        "visible": true
+      },
+      {
+        "task": "remediation 2",
+        "prompt": "Для плавного перехода C → G выберите изученный вариант G major.",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "G",
+          "G/B"
+        ],
+        "feedback": "Верно: F.",
+        "feedbackVisible": true,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": true,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": true
+      },
+      {
+        "task": "remediation 3",
+        "prompt": "Какой аккорд является IV в C major?",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "C",
+          "G",
+          "Am",
+          "F"
+        ],
+        "feedback": "Верно.",
+        "feedbackVisible": true,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": true,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": true
+      },
+      {
+        "task": "retry trial 1",
+        "prompt": "Какой аккорд является V в C major?",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "C",
+          "G",
+          "Am",
+          "F"
+        ],
+        "feedback": "",
+        "feedbackVisible": false,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": false,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": false
+      },
+      {
+        "task": "retry trial 2",
+        "prompt": "I → V → ? → IV",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "I",
+          "V",
+          "vi",
+          "IV"
+        ],
+        "feedback": "Верно с первой попытки.",
+        "feedbackVisible": true,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": true,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": true
+      },
+      {
+        "task": "retry trial 3 progression",
+        "prompt": "Сыграйте C → G/B → Am → F",
+        "visible": true
+      },
+      {
+        "task": "retry trial 4",
+        "prompt": "Am = какая функция в C major?",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "I",
+          "V",
+          "vi",
+          "IV"
+        ],
+        "feedback": "Верно с первой попытки.",
+        "feedbackVisible": true,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": true,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": true
+      },
+      {
+        "task": "retry trial 5",
+        "prompt": "Для перехода C → G выберите более плавный изученный вариант.",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "G",
+          "G/B"
+        ],
+        "feedback": "Верно с первой попытки.",
+        "feedbackVisible": true,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": true,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": true
+      },
+      {
+        "task": "retry trial 6 progression",
+        "prompt": "Сыграйте Am → F → C → G",
+        "visible": true
+      },
+      {
+        "task": "retry trial 7",
+        "prompt": "C → G/B → Am → ?",
+        "promptVisible": true,
+        "optionsVisible": true,
+        "choices": [
+          "C",
+          "G",
+          "Am",
+          "F"
+        ],
+        "feedback": "Верно с первой попытки.",
+        "feedbackVisible": true,
+        "promptAboveOptions": true,
+        "feedbackBelowOptions": true,
+        "promptFullyInWorkspace": true,
+        "optionsFullyInWorkspace": true,
+        "feedbackFullyInWorkspace": true
+      },
+      {
+        "task": "retry trial 8 progression",
+        "prompt": "Сыграйте F → G → C",
+        "visible": true
+      }
+    ],
+    "correctiveTransferTrial": {
+      "prompt": "Какой аккорд является IV в C major?",
+      "promptVisible": true,
+      "optionsVisible": true,
+      "choices": [
+        "C",
+        "G",
+        "Am",
+        "F"
+      ],
+      "feedback": "Первая попытка этой задачи засчитана как ошибка. Исправьте ответ, чтобы продолжить. F — IV, аккорд четвёртой ступени.",
+      "feedbackVisible": true,
+      "promptAboveOptions": true,
+      "feedbackBelowOptions": true,
+      "promptFullyInWorkspace": true,
+      "optionsFullyInWorkspace": true,
+      "feedbackFullyInWorkspace": true
+    },
+    "dailyPracticeSemantic": {
+      "prompt": "C = какая функция?",
+      "promptVisible": true,
+      "optionsVisible": true,
+      "choices": [
+        "I",
+        "V",
+        "vi",
+        "IV"
+      ],
+      "feedback": "",
+      "feedbackVisible": false,
+      "promptAboveOptions": true,
+      "feedbackBelowOptions": false,
+      "promptFullyInWorkspace": true,
+      "optionsFullyInWorkspace": true,
+      "feedbackFullyInWorkspace": false
+    },
+    "screenshot": "acceptance/m3j/screenshots/05-transfer-question-corrective-feedback.png"
+  },
+  "persistence": {
+    "midProgressionReload": {
+      "step": "independentSequence",
+      "progress": "3 из 4",
+      "selectionCount": 0
+    },
+    "harmonyDockLayout": [
+      {
+        "width": 1920,
+        "height": 1080,
+        "keyboardTop": 816,
+        "keyboardBottom": 1068,
+        "stageTop": 107,
+        "stageBottom": 810,
+        "stageScrollTop": 0,
+        "stageScrollHeight": 703,
+        "stageClientHeight": 703,
+        "taskBottomAfterScroll": 737.6875,
+        "feedbackBottomAfterScroll": 712.6875,
+        "lastControlBottomAfterScroll": 663.09375,
+        "feedbackText": "Верно: G/B.",
+        "initialCardBottom": 737.6875,
+        "initialFeedbackBottom": 712.6875,
+        "initialLastControlBottom": 663.09375,
+        "initialStageBottom": 810,
+        "horizontalOverflow": [],
+        "workspaceBottom": 1068
+      },
+      {
+        "width": 1920,
+        "height": 900,
+        "keyboardTop": 656,
+        "keyboardBottom": 888,
+        "stageTop": 107,
+        "stageBottom": 650,
+        "stageScrollTop": 91,
+        "stageScrollHeight": 634,
+        "stageClientHeight": 543,
+        "taskBottomAfterScroll": 612.375,
+        "feedbackBottomAfterScroll": 587.375,
+        "lastControlBottomAfterScroll": 537.78125,
+        "feedbackText": "Верно: G/B.",
+        "initialCardBottom": 703.375,
+        "initialFeedbackBottom": 678.375,
+        "initialLastControlBottom": 628.78125,
+        "initialStageBottom": 650,
+        "horizontalOverflow": [],
+        "workspaceBottom": 888
+      },
+      {
+        "width": 1366,
+        "height": 768,
+        "keyboardTop": 532,
+        "keyboardBottom": 756,
+        "stageTop": 107,
+        "stageBottom": 526,
+        "stageScrollTop": 215,
+        "stageScrollHeight": 634,
+        "stageClientHeight": 419,
+        "taskBottomAfterScroll": 488.375,
+        "feedbackBottomAfterScroll": 463.375,
+        "lastControlBottomAfterScroll": 413.78125,
+        "feedbackText": "Верно: G/B.",
+        "initialCardBottom": 703.375,
+        "initialFeedbackBottom": 678.375,
+        "initialLastControlBottom": 628.78125,
+        "initialStageBottom": 526,
+        "horizontalOverflow": [],
+        "workspaceBottom": 756
+      }
+    ],
+    "failedAssessmentAfterReload": {
+      "trials": 12,
+      "correctFirstAttempts": 9
+    },
+    "completionAfterReload": "retention"
+  },
+  "assessment": {
+    "initial": {
+      "total": 12,
+      "correctFirstAttempts": 9,
+      "accuracy": 0.75,
+      "phase": "result"
+    },
+    "remediation": 3,
+    "retry": {
+      "total": 8,
+      "correctFirstAttempts": 8,
+      "accuracy": 1,
+      "phase": "passed"
+    }
+  },
+  "dailyPractice": {
+    "task": "harmonyProgressionPlay:C-G/B-Am-F",
+    "input": "MIDI full chords; exact G/B matched screen-piano outcome",
+    "reviewLogCount": 1,
+    "firstCorrect": true,
+    "dueAtAfter": 1791694888389.8198,
+    "persistedBeforeNextDecision": true,
+    "transitionId": "review-1",
+    "nextCard": "harmonyFunctionIdentify:I"
+  },
+  "diagnostics": {
+    "harmonyStatus": "completed",
+    "available": true,
+    "learningGates": {
+      "functions": "retention",
+      "nextChord": "retention",
+      "progressionPlay": "retention"
+    },
+    "newHarmonyCards": 6,
+    "dailyPracticeEligible": 6,
+    "transfer": {
+      "phase": "passed",
+      "blockKind": "retry"
+    }
+  },
+  "runtimeExceptions": [],
+  "consoleErrors": [],
+  "screenshots": [
+    "acceptance\\m3j\\screenshots\\01-program-harmony-current.png",
+    "acceptance\\m3j\\screenshots\\02-harmony-orientation.png",
+    "acceptance\\m3j\\screenshots\\03-smooth-bass-transition.png",
+    "acceptance\\m3j\\screenshots\\04-independent-progression-3-of-4.png",
+    "acceptance\\m3j\\screenshots\\05-transfer-question-corrective-feedback.png",
+    "acceptance\\m3j\\screenshots\\06-program-harmony-completed.png"
+  ]
+}

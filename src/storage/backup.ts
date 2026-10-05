@@ -11,7 +11,7 @@ import type {
 } from '../core/fsrs/types';
 import type { LearningProgressRecord } from '../core/learning/types';
 import { normalizeBackupLearningProgress } from '../core/learning/progress';
-import type { ColdTestRecord, LessonProgressRecord } from './db';
+import type { ColdTestRecord, LessonProgressRecord, PianoTrainerDatabase } from './db';
 
 export const BACKUP_SCHEMA_VERSION = 1;
 export const BACKUP_APP_ID = 'piano-key-trainer';
@@ -385,4 +385,35 @@ export function validateAndNormalizeBackup(raw: unknown): BackupValidationResult
       warnings
     }
   };
+}
+
+/**
+ * Replaces the profile stores inside one IndexedDB transaction.
+ * A failure at any step aborts the transaction, leaving the previous profile intact.
+ * `mergedSettings` must already include the current settings merged with the backup.
+ */
+export async function applyBackupAtomically(
+  database: PianoTrainerDatabase,
+  backup: NormalizedBackup,
+  mergedSettings: UserSettings
+): Promise<void> {
+  await database.transaction(
+    'rw',
+    [database.cards, database.reviewLogs, database.coldTests, database.lessonProgress, database.learningProgress, database.settings],
+    async () => {
+      await database.cards.clear();
+      if (backup.cards.length) await database.cards.bulkPut(backup.cards);
+      await database.reviewLogs.clear();
+      if (backup.reviewLogs.length) await database.reviewLogs.bulkPut(backup.reviewLogs);
+      await database.coldTests.clear();
+      if (backup.coldTests.length) await database.coldTests.bulkPut(backup.coldTests);
+      await database.lessonProgress.clear();
+      if (backup.lessonProgress.length) await database.lessonProgress.bulkPut(backup.lessonProgress);
+      await database.learningProgress.clear();
+      if (backup.learningProgress.length) await database.learningProgress.bulkPut(backup.learningProgress);
+      if (Object.keys(backup.settings).length) {
+        await database.settings.put({ key: 'userSettings', value: mergedSettings });
+      }
+    }
+  );
 }

@@ -212,7 +212,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
 
   // Storage
   import { db, type ColdTestRecord, type LessonProgressRecord } from './storage/db';
-  import { BACKUP_SCHEMA_VERSION, normalizeBackupCard, validateAndNormalizeBackup } from './storage/backup';
+  import { BACKUP_SCHEMA_VERSION, applyBackupAtomically, normalizeBackupCard, validateAndNormalizeBackup } from './storage/backup';
   import { checkAndMigrateLocalStorage } from './storage/migrator';
 
   // Components
@@ -358,25 +358,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       // Never replace the database while an in-flight review commit is queued.
       await reviewPersistenceQueue;
       const mergedSettings = { ...$state.snapshot(settings), ...backup.settings };
-      await db.transaction(
-        'rw',
-        [db.cards, db.reviewLogs, db.coldTests, db.lessonProgress, db.learningProgress, db.settings],
-        async () => {
-          await db.cards.clear();
-          if (backup.cards.length) await db.cards.bulkPut(backup.cards);
-          await db.reviewLogs.clear();
-          if (backup.reviewLogs.length) await db.reviewLogs.bulkPut(backup.reviewLogs);
-          await db.coldTests.clear();
-          if (backup.coldTests.length) await db.coldTests.bulkPut(backup.coldTests);
-          await db.lessonProgress.clear();
-          if (backup.lessonProgress.length) await db.lessonProgress.bulkPut(backup.lessonProgress);
-          await db.learningProgress.clear();
-          if (backup.learningProgress.length) await db.learningProgress.bulkPut(backup.learningProgress);
-          if (Object.keys(backup.settings).length) {
-            await db.settings.put({ key: 'userSettings', value: mergedSettings });
-          }
-        }
-      );
+      await applyBackupAtomically(db, backup, mergedSettings);
 
       cards = backup.cards;
       reviewLogs = backup.reviewLogs;

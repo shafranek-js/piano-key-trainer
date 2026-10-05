@@ -631,7 +631,11 @@ export function reduceChordRhythmState(
         selectedKeyIds: [],
         expectedOnset: null,
         sequenceIndex: success && (state.step === 'fullProgression' || state.step === 'independentPlay') ? state.sequenceIndex + 1 : state.sequenceIndex,
-        feedbackText: rhythmFeedback(last),
+        feedbackText: state.step === 'twoStrikes' && success
+          ? `✓ Оба удара приняты · ${timingBandLabel(last.timingBand)}.`
+          : state.step === 'twoStrikes' && !failed && !success
+            ? '✓ Первый удар. Отпустите клавиши и сыграйте аккорд ещё раз на доле 3.'
+            : rhythmFeedback(last),
         feedbackTone: failed ? 'bad' : success ? 'good' : 'warn',
         lastTimingBand: last.timingBand,
         lastOutcome: last
@@ -848,6 +852,18 @@ export function rhythmRunPhase(state: ChordRhythmModuleState): RhythmRunPhase {
 /** The grading window is open exactly when the visible target beat is active. */
 export function isRhythmTimingWindowOpen(state: ChordRhythmModuleState): boolean {
   return state.isRunning && state.timingWindowOpen && !state.lateWindow;
+}
+
+/**
+ * Deterministic acceptance-window predicate used by the UI cue and smoke assertions:
+ * the window is [targetOnset - 300, targetOnset + 300] inclusive.
+ */
+export function isWithinRhythmAcceptanceWindow(
+  targetOnset: number,
+  at: number,
+  acceptWindowMs = CHORD_RHYTHM_ACCEPT_WINDOW_MS
+): boolean {
+  return at >= targetOnset - acceptWindowMs && at <= targetOnset + acceptWindowMs;
 }
 
 /** Maps the first failed assessment trial back to a targeted guided rhythm step. */

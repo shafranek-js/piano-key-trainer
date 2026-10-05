@@ -3681,9 +3681,12 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     // while the visible acceptance window opens at onset - 300 ms.
     if (moduleMode) chordRhythmState = { ...chordRhythmState!, expectedOnset: onset, countInValue: null };
     else dailyRhythmViewState = { ...dailyRhythmViewState!, expectedOnset: onset, countInValue: null };
+    const windowStart = onset - CHORD_RHYTHM_ACCEPT_WINDOW_MS;
+    const windowEnd = onset + CHORD_RHYTHM_ACCEPT_WINDOW_MS;
     if (typeof window !== 'undefined') {
-      // Invalidate the previous target so diagnostics/smoke helpers never read stale onsets.
-      (window as unknown as { __m3kTimingTarget?: unknown }).__m3kTimingTarget = null;
+      // Publish the canonical target immediately (grading is armed); the UI cue still waits
+      // for the actual acceptance window below.
+      (window as unknown as { __m3kTimingTarget?: unknown }).__m3kTimingTarget = { onset, windowStart, windowEnd };
     }
     chordRhythmDiagnostics = {
       ...chordRhythmDiagnostics,
@@ -3696,8 +3699,6 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       detectedChordLabel: null,
       timedTrialCancelledReason: null
     };
-    const windowStart = onset - CHORD_RHYTHM_ACCEPT_WINDOW_MS;
-    const windowEnd = onset + CHORD_RHYTHM_ACCEPT_WINDOW_MS;
     if (rhythmOpenTimer != null) window.clearTimeout(rhythmOpenTimer);
     rhythmOpenTimer = window.setTimeout(() => {
       if (generation !== rhythmRunGeneration) return;
@@ -3708,9 +3709,12 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       }
       rhythmVisualTargetShownAt = performance.now();
       if (typeof window !== 'undefined') {
-        (window as unknown as { __m3kTimingTarget?: unknown }).__m3kTimingTarget = { onset, windowStart, windowEnd };
-        const hook = (window as unknown as { __m3kOnTimingWindowOpen?: (at: number) => void }).__m3kOnTimingWindowOpen;
-        hook?.(performance.now());
+        const debugWindow = window as unknown as {
+          __m3kTimingWindowOpenAt?: number;
+          __m3kOnTimingWindowOpen?: (at: number) => void;
+        };
+        debugWindow.__m3kTimingWindowOpenAt = performance.now();
+        debugWindow.__m3kOnTimingWindowOpen?.(performance.now());
       }
     }, Math.max(0, windowStart - performance.now()));
     if (rhythmDeadlineTimer != null) window.clearTimeout(rhythmDeadlineTimer);
@@ -3866,7 +3870,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
         // and the two-bar change exercise grades after the second bar.
         commitDailyRhythmOutcome(outcome, inputMethod);
       } else if (outcome.correct && !isTwoBarChangeExercise(next)) {
-        dailyRhythmFeedback = 'Верно. Теперь сыграйте аккорд на доле 3.';
+        dailyRhythmFeedback = '✓ Первый удар. Отпустите клавиши и сыграйте аккорд на доле 3.';
         dailyRhythmFeedbackTone = 'warn';
       }
     }
@@ -6385,6 +6389,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
                 state={chordRhythmState}
                 midiConnected={midiReady}
                 midiStartPending={rhythmMidiStartPending}
+                midiHeldKeyCount={midiChordHeldKeyIds.length}
                 onAdvance={handleAdvanceChordRhythmStage}
                 onStartRun={handleStartRhythmRun}
                 onSubmit={() => submitRhythmChord(chordRhythmState?.selectedKeyIds ?? [], 'screen')}
@@ -6404,6 +6409,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
                 state={dailyRhythmViewState}
                 midiConnected={midiReady}
                 midiStartPending={rhythmMidiStartPending}
+                midiHeldKeyCount={midiChordHeldKeyIds.length}
                 dailySkill={rhythmDailySkill(currentCard)}
                 dailyChordId={dailyRhythmChordId}
                 dailyFeedback={dailyRhythmFeedback}

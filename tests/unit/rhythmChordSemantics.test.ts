@@ -9,6 +9,7 @@ import {
   isResumableChangeBar2,
   isRhythmTimingWindowOpen,
   isTwoBarChangeExercise,
+  isWithinRhythmAcceptanceWindow,
   reduceChordRhythmState,
   resolveRhythmTargetChord,
   rhythmRunPhase,
@@ -356,6 +357,96 @@ describe('M3K two-bar change exercise — C → G/B over two consecutive bars', 
   });
 });
 
+describe('M3K twoStrikes — two distinct attacks in one question', () => {
+  const ON_TIME = classifyRhythmTiming(1_000, 1_010, true);
+  const LATE_ACCEPTED = classifyRhythmTiming(2_000, 2_250, true);
+  const TOO_LATE = classifyRhythmTiming(2_000, 2_301, true);
+  const C_KEYS = notes('C4', 'E4', 'G4');
+
+  function freshTwoStrikes(): ChordRhythmModuleState {
+    let state: ChordRhythmModuleState = { ...createChordRhythmModuleState(), step: 'twoStrikes' };
+    state = reduceChordRhythmState(state, { type: 'startRun', expectedOnset: 1_000 });
+    return reduceChordRhythmState(state, { type: 'clockBeat', beat: 0, countInValue: null });
+  }
+
+  function strike1(state: ChordRhythmModuleState): ChordRhythmModuleState {
+    return reduceChordRhythmState(state, {
+      type: 'recordOutcome',
+      outcome: ON_TIME,
+      classification: classifyRhythmChord('C', C_KEYS),
+      questionInstanceId: 'q-two-strikes'
+    });
+  }
+
+  it('accepts strike 1 and waits for the release + second strike', () => {
+    const state = strike1(freshTwoStrikes());
+    expect(state.isRunning).toBe(true);
+    expect(state.outcomes).toHaveLength(1);
+    expect(state.expectedOnset).toBeNull();
+    expect(state.feedbackText).toContain('Первый удар');
+    expect(state.feedbackText).toContain('Отпустите клавиши');
+    expect(state.feedbackTone).toBe('warn');
+  });
+
+  it('accepts the same chord on strike 2 as one successful exercise', () => {
+    let state = strike1(freshTwoStrikes());
+    state = reduceChordRhythmState(state, { type: 'clockBeat', beat: 0, countInValue: null });
+    const second = classifyRhythmTiming(2_000, 2_010, true);
+    state = reduceChordRhythmState(state, {
+      type: 'recordOutcome',
+      outcome: second,
+      classification: classifyRhythmChord('C', C_KEYS),
+      questionInstanceId: 'q-two-strikes'
+    });
+    expect(state.isRunning).toBe(false);
+    expect(state.outcomes).toHaveLength(0);
+    expect(state.feedbackText).toContain('Оба удара приняты');
+    expect(state.feedbackTone).toBe('good');
+  });
+
+  it('accepts an accepted-late second strike and fails a >300 ms second strike', () => {
+    let lateState = strike1(freshTwoStrikes());
+    lateState = reduceChordRhythmState(lateState, { type: 'clockBeat', beat: 0, countInValue: null });
+    expect(LATE_ACCEPTED.timingAccepted).toBe(true);
+    lateState = reduceChordRhythmState(lateState, {
+      type: 'recordOutcome',
+      outcome: LATE_ACCEPTED,
+      classification: classifyRhythmChord('C', C_KEYS),
+      questionInstanceId: 'q-two-strikes'
+    });
+    expect(lateState.isRunning).toBe(false);
+    expect(lateState.feedbackText).toContain('Оба удара приняты');
+    expect(lateState.feedbackText).toContain('Немного поздно — засчитано');
+
+    let lateFail = strike1(freshTwoStrikes());
+    lateFail = reduceChordRhythmState(lateFail, { type: 'clockBeat', beat: 0, countInValue: null });
+    expect(TOO_LATE.timingAccepted).toBe(false);
+    lateFail = reduceChordRhythmState(lateFail, {
+      type: 'recordOutcome',
+      outcome: TOO_LATE,
+      classification: classifyRhythmChord('C', C_KEYS),
+      questionInstanceId: 'q-two-strikes'
+    });
+    expect(lateFail.isRunning).toBe(false);
+    expect(lateFail.feedbackTone).toBe('bad');
+  });
+
+  it('fails the exercise when strike 2 plays a wrong chord at accepted timing', () => {
+    let state = strike1(freshTwoStrikes());
+    state = reduceChordRhythmState(state, { type: 'clockBeat', beat: 0, countInValue: null });
+    const wrongChord = classifyRhythmChord('C', notes('G3', 'B3', 'D4'));
+    expect(wrongChord.outcome).toBe('wrong_chord');
+    state = reduceChordRhythmState(state, {
+      type: 'recordOutcome',
+      outcome: classifyRhythmTiming(2_000, 2_010, wrongChord.chordCorrect),
+      classification: wrongChord,
+      questionInstanceId: 'q-two-strikes'
+    });
+    expect(state.isRunning).toBe(false);
+    expect(state.feedbackTone).toBe('bad');
+  });
+});
+
 describe('M3K beginner timing policy — ±140 ms precise / ±300 ms accepted', () => {
   const expected = 10_000;
   const band = (delta: number) => classifyRhythmTiming(expected, expected + delta, true);
@@ -392,6 +483,20 @@ describe('M3K beginner timing policy — ±140 ms precise / ±300 ms accepted', 
     expect(missing.timingBand).toBe('missed');
     expect(missing.timingAccepted).toBe(false);
     expect(missing.chordCorrect).toBe(true);
+  });
+
+  it('acceptance-window predicate matches the PLAY NOW cue boundaries', () => {
+    const onset = 10_000;
+    expect(isWithinRhythmAcceptanceWindow(onset, onset - 301)).toBe(false);
+    expect(isWithinRhythmAcceptanceWindow(onset, onset - 300)).toBe(true);
+    expect(isWithinRhythmAcceptanceWindow(onset, onset)).toBe(true);
+    expect(isWithinRhythmAcceptanceWindow(onset, onset + 300)).toBe(true);
+    expect(isWithinRhythmAcceptanceWindow(onset, onset + 301)).toBe(false);
+    // The cue boundary always matches the classifier boundary.
+    expect(classifyRhythmTiming(onset, onset - 300, true).timingAccepted).toBe(true);
+    expect(classifyRhythmTiming(onset, onset - 301, true).timingAccepted).toBe(false);
+    expect(classifyRhythmTiming(onset, onset + 300, true).timingAccepted).toBe(true);
+    expect(classifyRhythmTiming(onset, onset + 301, true).timingAccepted).toBe(false);
   });
 
   it('keeps chord and timing independent across the matrix', () => {

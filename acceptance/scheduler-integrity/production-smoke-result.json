@@ -1,6 +1,6 @@
 {
   "status": "PASS",
-  "previewUrl": "http://127.0.0.1:49837/piano-key-trainer/",
+  "previewUrl": "http://127.0.0.1:57681/piano-key-trainer/",
   "settingsBurst": {
     "activationCountInAllDueSession": 1,
     "suppressedDuplicateRounds": 2,
@@ -8,15 +8,15 @@
   },
   "correctReview": {
     "reviewLogDelta": 1,
-    "cardDueAtAfter": 1793795357429.8215,
+    "cardDueAtAfter": 1793801391992.3154,
     "transitionId": "review-1",
     "nextSelected": "find:C"
   },
   "wrongThenCorrective": {
     "reviewLogCount": 1,
     "grade": 1,
-    "dueAtAfterFirst": 1791232191258,
-    "dueAtAfterCorrection": 1791232191258
+    "dueAtAfterFirst": 1791238225488,
+    "dueAtAfterCorrection": 1791238225488
   },
   "unansweredRestartStress": {
     "activations": 11,

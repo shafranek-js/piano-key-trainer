@@ -18,6 +18,7 @@
     state,
     midiConnected = false,
     midiStartPending = false,
+    midiHeldKeyCount = 0,
     dailySkill = null,
     dailyChordId = 'C',
     dailyFeedback = '',
@@ -35,6 +36,7 @@
     state: ChordRhythmModuleState;
     midiConnected?: boolean;
     midiStartPending?: boolean;
+    midiHeldKeyCount?: number;
     dailySkill?: ChordRhythmSkill | null;
     dailyChordId?: HarmonyChordId;
     dailyFeedback?: string;
@@ -84,9 +86,13 @@
   const timingWindowOpen = $derived(isRhythmTimingWindowOpen(state));
   const classification = $derived(state.lastClassification);
   const changeExercise = $derived(isTwoBarChangeExercise(state));
+  const twoStrikes = $derived(state.step === 'twoStrikes');
+  const firstStrikeAccepted = $derived(twoStrikes && state.outcomes.length === 1 && state.isRunning);
+  const strikeNumber = $derived(twoStrikes ? (state.outcomes.length >= 1 ? 2 : 1) : null);
+  const releaseRequired = $derived(Boolean(firstStrikeAccepted && midiHeldKeyCount > 0));
 </script>
 
-<section class="chord-rhythm-stage" data-testid="chord-rhythm-stage" data-rhythm-step={state.step} data-rhythm-phase={phase} data-timing-window={timingWindowOpen ? 'open' : 'closed'} data-change-bar={state.barIndex}>
+<section class="chord-rhythm-stage" data-testid="chord-rhythm-stage" data-rhythm-step={state.step} data-rhythm-phase={phase} data-timing-window={timingWindowOpen ? 'open' : 'closed'} data-play-now={timingWindowOpen && !releaseRequired ? 'visible' : 'hidden'} data-release-required={releaseRequired ? 'true' : 'false'} data-change-bar={state.barIndex}>
   <div class="rhythm-stage-card">
     <div class="rhythm-eyebrow">{dailySkill ? 'ЕЖЕДНЕВНАЯ ПРАКТИКА · РИТМ АККОРДОВ' : 'ДОПОЛНИТЕЛЬНЫЙ МОДУЛЬ · РИТМ АККОРДОВ'}</div>
     <div class="rhythm-stage-progress" aria-label="Прогресс этапа"><span style={`width:${progressPct}%`}></span></div>
@@ -145,7 +151,13 @@
       {:else if state.step === 'fullProgression'}
         <p class="rhythm-copy">Играйте по одному аккорду на такт. Новый аккорд вступает на первую долю: <strong>{targetChordId}</strong>. Перед каждым тактом запускайте отсчёт.</p>
       {:else if state.step === 'twoStrikes'}
-        <p class="rhythm-copy">Держите один аккорд и сыграйте его дважды за такт: на долях <strong>1</strong> и <strong>3</strong>. Отсчёт запускается заранее.</p>
+        <p class="rhythm-copy">
+          {#if midiConnected}
+            Сыграйте аккорд C два раза: на доле 1 и ещё раз на доле 3. После первого удара отпустите клавиши и снова нажмите аккорд на доле 3.
+          {:else}
+            Сыграйте аккорд C два раза: на доле 1 и ещё раз на доле 3. После первого удара выберите три клавиши снова и нажмите «Сыграть аккорд» на доле 3.
+          {/if}
+        </p>
       {:else if state.step === 'independentPlay'}
         <p class="rhythm-copy">Без подсказки смените аккорд на сильную долю последовательности <strong>C → G/B → Am → F</strong>.</p>
       {:else if state.step === 'transferAssessment'}
@@ -179,13 +191,30 @@
           <span class:active={state.activeBeat === beat} class:strong={beat === 0}>{beat + 1}</span>
         {/each}
       </div>
+      {#if twoStrikes}
+        <div class="rhythm-strike-progress" data-testid="rhythm-strike-progress">
+          {#if state.feedbackText.includes('Оба удара')}
+            ✓ Удары 2 из 2
+          {:else if state.outcomes.length >= 1}
+            Удар 2 из 2 · доля 3
+          {:else}
+            Удар 1 из 2 · доля 1
+          {/if}
+        </div>
+      {/if}
       <div class="rhythm-count-label" data-testid="rhythm-timing-state">
         {#if midiStartPending}
           Отпустите клавиши, чтобы начать отсчёт…
         {:else if phase === 'countIn'}
           Приготовьтесь: <strong>{state.countInValue}</strong> · 3 · 2 · 1
+        {:else if releaseRequired}
+          <strong class="rhythm-release-hint" data-testid="rhythm-release-hint">Отпустите клавиши перед вторым ударом</strong>
+        {:else if timingWindowOpen}
+          <strong class="rhythm-play-now" data-testid="rhythm-play-now">{twoStrikes ? `Удар ${strikeNumber} из 2 · ` : ''}ИГРАЙТЕ СЕЙЧАС</strong>
         {:else if phase === 'armed'}
-          <strong class="rhythm-play-now" data-testid="rhythm-play-now">ИГРАЙТЕ СЕЙЧАС</strong>
+          Приготовьтесь…
+        {:else if firstStrikeAccepted}
+          ✓ Первый удар · Следующий удар: доля 3
         {:else if phase === 'late'}
           Слишком поздно — время не изменится, но можно сыграть аккорд для диагностики
         {:else if phase === 'retry'}
@@ -224,7 +253,7 @@
             <span data-testid="rhythm-expected-label">Ожидалось: <strong>{classification.targetChordLabel}</strong></span>
           {/if}
           <span data-testid="rhythm-chord-result">Аккорд: <strong class:good={state.lastOutcome.chordCorrect} class:bad={!state.lastOutcome.chordCorrect}>{state.lastOutcome.chordCorrect ? '✓' : '✗'}{#if classification && !state.lastOutcome.chordCorrect} · {rhythmChordOutcomeLabel(classification.outcome)}{/if}</strong></span>
-          <span data-testid="rhythm-timing-result">Время: <strong class:good={state.lastOutcome.timingBand === 'on_time'} class:bad={state.lastOutcome.timingBand !== 'on_time'}>{timingBandLabel(state.lastOutcome.timingBand)}</strong></span>
+          <span data-testid="rhythm-timing-result" data-timing-accepted={state.lastOutcome.timingAccepted ? 'accepted' : 'failed'}>Время: <strong class:good={state.lastOutcome.timingAccepted} class:bad={!state.lastOutcome.timingAccepted}>{timingBandLabel(state.lastOutcome.timingBand)}</strong></span>
         </div>
       {/if}
       {#if dailyFeedback}
@@ -276,6 +305,8 @@
   .rhythm-beats span.active { transform: scale(1.1); background: #46bde7; color: #061220; border-color: #9de6ff; box-shadow: 0 0 20px rgba(70,189,231,.55); }
   .rhythm-count-label { min-height: 1.4em; color: #96a8c0; font-size: .85rem; }
   .rhythm-play-now { color: #7ef0b0; font-size: 1.08rem; letter-spacing: .04em; text-shadow: 0 0 14px rgba(126,240,176,.45); }
+  .rhythm-release-hint { color: #ffd76e; font-size: .95rem; letter-spacing: .02em; }
+  .rhythm-strike-progress { margin: 8px auto 0; color: #9fb2ca; font-size: .85rem; font-weight: 700; letter-spacing: .03em; }
   .rhythm-input-help { max-width: 720px; margin: 14px auto 5px; color: #b8c5d8; font-size: .92rem; line-height: 1.45; }
   .midi-ready { margin-left: 6px; color: #88e5a8; font-weight: 700; }
   .rhythm-selection { color: #aebbd0; margin: 6px auto; }

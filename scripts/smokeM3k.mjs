@@ -191,6 +191,7 @@ async function createSyntheticProfile() {
       profiles: {
         changeOnBeatOne: sessionSnapshot({ stage: 'changeOnBeatOne', sequenceIndex: 0, assessment: assessment() }),
         oneChordPerBar: sessionSnapshot({ stage: 'oneChordPerBar', sequenceIndex: 0, assessment: assessment() }),
+        twoStrikes: sessionSnapshot({ stage: 'twoStrikes', sequenceIndex: 0, assessment: assessment() }),
         liveAssessment: sessionSnapshot({ stage: 'transferAssessment', sequenceIndex: 0, assessment: assessment() }),
         failingAssessment: sessionSnapshot({
           stage: 'transferAssessment',
@@ -428,6 +429,10 @@ async function waitChordOutcome(cdp, description) {
     expected:document.querySelector('[data-testid="rhythm-expected-label"]')?.innerText || '',
     feedback:document.querySelector('[data-testid="chord-rhythm-stage"] .rhythm-feedback')?.innerText || '',
     bar:document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.changeBar ?? null,
+    playNow:document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.playNow ?? null,
+    timingAcceptedAttr:document.querySelector('[data-testid="rhythm-timing-result"]')?.dataset.timingAccepted ?? null,
+    timingHasBad:document.querySelector('[data-testid="rhythm-timing-result"] strong')?.classList.contains('bad') ?? null,
+    timingHasGood:document.querySelector('[data-testid="rhythm-timing-result"] strong')?.classList.contains('good') ?? null,
     attempts:(window.__m3kRecentAttempts || []).slice(-3),
     trace:window.__m3kRecentAttempts?.at(-1) ?? null
   }))()`);
@@ -605,12 +610,58 @@ try {
     await delay(120);
   }
 
-  // 6. Beginner timing acceptance: 0 → Точ, -250 → принято (рано), +250 → принято (поздно), +350 → отказ.
+  // 6. PLAY NOW cue is synchronized with the real ±300 ms acceptance window.
+  // 6a. After count-in, before the window: cue hidden; a note now is too_early and the cue never appears.
+  await gestureStart(cdp, [50]);
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'armed' && document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.timingWindow === 'closed'`, 'armed before the window');
+  assert(await cdp.evaluate(`document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.playNow === 'hidden'`),
+    'PLAY NOW must be hidden before the acceptance window opens.');
+  const preWindow = await cdp.evaluate(`({ remaining: (window.__m3kTimingTarget?.onset ?? 0) - performance.now() })`);
+  assert(preWindow.remaining > 300, `Pre-window check must run more than 300 ms before the target: ${JSON.stringify(preWindow)}`);
+  const preWindowTraces = await cdp.evaluate('window.__m3kAttemptCount ?? 0');
+  const earlyPlayed = await cdp.evaluate(`window.__m3kPlayAt(${JSON.stringify(C_MAJOR_ROOT)}, -500)`);
+  assert(earlyPlayed, 'Pre-window chord was not played.');
+  await waitFor(cdp, `(window.__m3kAttemptCount ?? 0) > ${preWindowTraces}`, 'pre-window evaluation');
+  const earlyOutcome = await waitChordOutcome(cdp, 'pre-window too_early outcome');
+  assert(earlyOutcome.trace?.timingBand === 'too_early' && earlyOutcome.trace?.timingAccepted === false,
+    `Immediate pre-window note must be too_early: ${JSON.stringify(earlyOutcome.trace)}`);
+  assert(earlyOutcome.timingAcceptedAttr === 'failed' && earlyOutcome.timingHasBad === true,
+    `Pre-window timing must render as failed: ${JSON.stringify({ attr: earlyOutcome.timingAcceptedAttr, bad: earlyOutcome.timingHasBad })}`);
+  assert(earlyOutcome.playNow === 'hidden', 'PLAY NOW became visible before the acceptance window.');
+  await midiOff(cdp, C_MAJOR_ROOT);
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'prepare'`, 'prepare after pre-window check', 120);
+
+  // 6b. At the window boundary the cue appears exactly with timingWindowOpen and a chord is accepted.
+  await gestureStart(cdp, [50]);
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.playNow === 'visible'`, 'PLAY NOW visible at window open');
+  assert(await cdp.evaluate(`document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.timingWindow === 'open'`),
+    'PLAY NOW must be visible exactly when the timing window is open.');
+  const cueBoundary = await cdp.evaluate(`({
+    openAt: window.__m3kTimingWindowOpenAt ?? null,
+    onset: window.__m3kTimingTarget?.onset ?? null
+  })`);
+  assert(typeof cueBoundary.openAt === 'number' && typeof cueBoundary.onset === 'number',
+    `Cue boundary diagnostics missing: ${JSON.stringify(cueBoundary)}`);
+  assert(Math.abs(cueBoundary.openAt - (cueBoundary.onset - 300)) < 80,
+    `PLAY NOW must open at target - 300 ms: ${JSON.stringify(cueBoundary)}`);
+  const cueTraces = await cdp.evaluate('window.__m3kAttemptCount ?? 0');
+  const cuePlayed = await cdp.evaluate(`window.__m3kPlayAt(${JSON.stringify(C_MAJOR_ROOT)}, 0)`);
+  assert(cuePlayed, 'Boundary chord was not played.');
+  await waitFor(cdp, `(window.__m3kAttemptCount ?? 0) > ${cueTraces}`, 'boundary evaluation');
+  const boundaryOutcome = await waitChordOutcome(cdp, 'boundary outcome');
+  assert(boundaryOutcome.trace?.timingBand === 'on_time' && boundaryOutcome.trace?.timingAccepted === true,
+    `Chord at the open boundary must be accepted on time: ${JSON.stringify(boundaryOutcome.trace)}`);
+  assert(boundaryOutcome.timingAcceptedAttr === 'accepted' && boundaryOutcome.timingHasBad === false,
+    `Accepted timing must not render as failed: ${JSON.stringify({ attr: boundaryOutcome.timingAcceptedAttr, bad: boundaryOutcome.timingHasBad })}`);
+  await midiOff(cdp, C_MAJOR_ROOT);
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'prepare'`, 'prepare after boundary check', 120);
+
+  // 7. Beginner timing acceptance: 0 → Точ, -250 → принято (рано), +250 → принято (поздно), +350 → отказ.
   const timingCases = [
-    { delta: 0, band: 'on_time', label: 'Точно' },
-    { delta: -250, band: 'early', label: 'Немного рано — засчитано', screenshot: '02-accepted-early.png' },
-    { delta: 250, band: 'late', label: 'Немного поздно — засчитано', screenshot: '03-accepted-late.png' },
-    { delta: 350, band: 'missed', label: 'Слишком поздно', failed: true }
+    { delta: 0, band: 'on_time', label: 'Точно', accepted: true },
+    { delta: -250, band: 'early', label: 'Немного рано — засчитано', accepted: true, screenshot: '02-accepted-early.png' },
+    { delta: 250, band: 'late', label: 'Немного поздно — засчитано', accepted: true, screenshot: '03-accepted-late.png' },
+    { delta: 350, band: 'missed', label: 'Слишком поздно', accepted: false }
   ];
   for (const timingCase of timingCases) {
     await gestureStart(cdp, [48]);
@@ -619,15 +670,66 @@ try {
     assert(played, `Timing case ${timingCase.delta} ms: chord was not played.`);
     await waitFor(cdp, `(window.__m3kAttemptCount ?? 0) > ${tracesBefore}`, `evaluation for ${timingCase.delta} ms`);
     const outcome = await waitChordOutcome(cdp, `timing ${timingCase.delta} ms`);
-    assert(outcome.trace?.timingBand === timingCase.band && outcome.trace?.timingAccepted === !timingCase.failed,
+    assert(outcome.trace?.timingBand === timingCase.band && outcome.trace?.timingAccepted === timingCase.accepted,
       `Timing case ${timingCase.delta} ms: ${JSON.stringify(outcome.trace)}`);
     assert(outcome.feedback.includes(timingCase.label), `Timing case ${timingCase.delta} ms: feedback missing "${timingCase.label}": ${outcome.feedback}`);
+    if (timingCase.accepted) {
+      assert(outcome.timingAcceptedAttr === 'accepted' && outcome.timingHasBad === false,
+        `Accepted timing ${timingCase.delta} ms must not render as failed: ${JSON.stringify({ attr: outcome.timingAcceptedAttr, bad: outcome.timingHasBad })}`);
+    } else {
+      assert(outcome.timingAcceptedAttr === 'failed' && outcome.timingHasBad === true,
+        `Failed timing ${timingCase.delta} ms must render as failed: ${JSON.stringify({ attr: outcome.timingAcceptedAttr, bad: outcome.timingHasBad })}`);
+    }
     if (timingCase.screenshot) screenshots.push(await saveScreenshot(cdp, timingCase.screenshot));
     await midiOff(cdp, C_MAJOR_ROOT);
     await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'prepare'`, `prepare after ${timingCase.delta} ms case`, 120);
   }
 
-  // 4. Advanced-module exclusivity and screen-piano corrective reload (stabilization preservation).
+  // 8. twoStrikes: two distinct MIDI attacks of the same chord in one question.
+  await seedDatabase(cdp, { cards: synthetic.cards, learningProgress: synthetic.profiles.twoStrikes });
+  await waitForMidi(cdp);
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmStep === 'twoStrikes'`, 'twoStrikes stage');
+  await gestureStart(cdp, [50]);
+  const strikesBefore = await cdp.evaluate('window.__m3kAttemptCount ?? 0');
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.timingWindow === 'open'`, 'strike 1 window');
+  const strikeOne = await cdp.evaluate(`window.__m3kPlayAt(${JSON.stringify(C_MAJOR_ROOT)}, 0)`);
+  assert(strikeOne, 'Strike 1 was not played.');
+  await midiOff(cdp, C_MAJOR_ROOT);
+  await waitFor(cdp, `(window.__m3kAttemptCount ?? 0) > ${strikesBefore}`, 'strike 1 evaluation');
+  await waitFor(cdp, `document.querySelector('[data-testid="rhythm-strike-progress"]')?.innerText.includes('Удар 2 из 2')`, 'second strike progress');
+  const strikeQuestionId = await cdp.evaluate('window.__m3kRecentAttempts?.at(-1)?.questionInstanceId ?? null');
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.playNow === 'visible'`, 'strike 2 window', 120);
+  const strikeTwo = await cdp.evaluate(`window.__m3kPlayAt(${JSON.stringify(C_MAJOR_ROOT)}, 0)`);
+  assert(strikeTwo, 'Strike 2 was not played.');
+  await midiOff(cdp, C_MAJOR_ROOT);
+  await waitFor(cdp, `(window.__m3kAttemptCount ?? 0) > ${strikesBefore + 1}`, 'strike 2 evaluation');
+  const twoStrikesOutcome = await waitChordOutcome(cdp, 'twoStrikes success');
+  assert(twoStrikesOutcome.feedback.includes('Оба удара приняты'), `twoStrikes did not complete: ${twoStrikesOutcome.feedback}`);
+  assert(twoStrikesOutcome.trace?.questionInstanceId === strikeQuestionId && Boolean(strikeQuestionId),
+    `Both strikes must share one question: ${JSON.stringify({ first: strikeQuestionId, second: twoStrikesOutcome.trace?.questionInstanceId })}`);
+  assert((await cdp.evaluate('window.__m3kAttemptCount ?? 0')) === strikesBefore + 2, 'twoStrikes must produce exactly two evaluations.');
+  const strikeLogs = await readStore(cdp, 'reviewLogs');
+  assert(strikeLogs.length === 0, `twoStrikes module assessment must not write ReviewLogs: ${JSON.stringify(strikeLogs)}`);
+
+  // 8b. Holding the chord after strike 1 must surface a release prompt, not a silent lock.
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'prepare'`, 'prepare for held strike test', 120);
+  await gestureStart(cdp, [50]);
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.timingWindow === 'open'`, 'held strike 1 window');
+  const heldStrikeOne = await cdp.evaluate(`window.__m3kPlayAt(${JSON.stringify(C_MAJOR_ROOT)}, 0)`);
+  assert(heldStrikeOne, 'Held strike 1 was not played.');
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.releaseRequired === 'true'`, 'release required after held strike 1');
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.playNow === 'hidden'`, 'PLAY NOW suppressed while keys are held');
+  const heldUi = await cdp.evaluate(`(() => ({
+    releaseHint: document.querySelector('[data-testid="rhythm-release-hint"]')?.innerText || '',
+    progress: document.querySelector('[data-testid="rhythm-strike-progress"]')?.innerText || ''
+  }))()`);
+  assert(heldUi.releaseHint.includes('Отпустите клавиши'), `Release prompt missing while holding: ${JSON.stringify(heldUi)}`);
+  assert(heldUi.progress.includes('Удар 2 из 2'), `Strike progress missing while holding: ${JSON.stringify(heldUi)}`);
+  await midiOff(cdp, C_MAJOR_ROOT);
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.releaseRequired === 'false'`, 'release cleared after note-off');
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'prepare'`, 'prepare after held strike run', 160);
+
+  // 9. Advanced-module exclusivity and screen-piano corrective reload (stabilization preservation).
   await startRoadmapModule(cdp, 'intervals', '[data-testid="interval-stage"]');
   assert(await cdp.evaluate(`!document.querySelector('[data-testid="m3k-module-stage"]')`), 'Starting Intervals left a stale Chord Rhythm module mounted.');
   await seedDatabase(cdp, { cards: synthetic.cards, learningProgress: synthetic.profiles.liveAssessment });

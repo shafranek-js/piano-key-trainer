@@ -150,6 +150,7 @@ import { getCurriculumPhases } from './core/curriculum/curriculum';
     currentRhythmTrial,
     reduceChordRhythmState,
     resetAdvancedModuleStates,
+    resolveRhythmTargetChord,
     targetedRemediationStep,
     type AdvancedModuleId,
     type HarmonyCurriculumState,
@@ -3497,10 +3498,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   }
 
   function rhythmTargetChord(state: ChordRhythmModuleState): HarmonyChordId {
-    if (state.step === 'fullProgression' || state.step === 'independentPlay') return CHORD_RHYTHM_SEQUENCE[state.sequenceIndex % CHORD_RHYTHM_SEQUENCE.length];
-    if (state.step === 'transferAssessment' || state.step === 'transferRemediation') return currentRhythmTrial(state).chordId;
-    if (state.step === 'changeOnBeatOne') return 'G/B';
-    return 'C';
+    return resolveRhythmTargetChord(state);
   }
 
   function rhythmDailySkill(card: Card | null): 'chordPulse' | 'chordChangeTiming' | 'chordRhythmPattern' | null {
@@ -3613,6 +3611,10 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
           rhythmDeadlineTimer = window.setTimeout(() => {
             handleRhythmMissedOnset(moduleMode);
           }, Math.max(0, onset + CHORD_RHYTHM_MISSED_AFTER_MS - performance.now()));
+          if (typeof window !== 'undefined') {
+            const hook = (window as unknown as { __m3kOnTimingWindowOpen?: (at: number) => void }).__m3kOnTimingWindowOpen;
+            hook?.(performance.now());
+          }
         }
         if (beat.index === expectedOnsets.length - 1 && isPulseOnly) {
           if (moduleMode && chordRhythmState) chordRhythmState = { ...chordRhythmState, isRunning: false, activeBeat: 3, countInValue: null };

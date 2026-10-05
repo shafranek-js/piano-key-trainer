@@ -1,6 +1,6 @@
 {
   "status": "PASS",
-  "appUrl": "http://127.0.0.1:50334/piano-key-trainer/",
+  "appUrl": "http://127.0.0.1:54148/piano-key-trainer/",
   "roadmap": {
     "before": {
       "title": "Гармония и сопровождение",
@@ -774,7 +774,7 @@
     "input": "MIDI full chords; exact G/B matched screen-piano outcome",
     "reviewLogCount": 1,
     "firstCorrect": true,
-    "dueAtAfter": 1791760846321.7632,
+    "dueAtAfter": 1791764175003.4695,
     "persistedBeforeNextDecision": true,
     "transitionId": "review-1",
     "nextCard": "harmonyFunctionIdentify:I"

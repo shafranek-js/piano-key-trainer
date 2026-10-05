@@ -514,7 +514,16 @@ try {
     const resolvedTempRoot = path.resolve(tempRoot);
     const resolvedSystemTemp = path.resolve(os.tmpdir());
     if (resolvedTempRoot.startsWith(`${resolvedSystemTemp}${path.sep}`) && path.basename(resolvedTempRoot).startsWith('piano-trainer-scheduler-integrity-')) {
-      await rm(resolvedTempRoot, { recursive: true, force: true });
+      // Chrome's crashpad helper can outlive the main process on Windows; retry the cleanup
+      // instead of failing a smoke whose assertions already passed.
+      for (let attempt = 0; attempt < 6; attempt++) {
+        try {
+          await rm(resolvedTempRoot, { recursive: true, force: true });
+          break;
+        } catch {
+          await delay(400);
+        }
+      }
     }
   }
 }

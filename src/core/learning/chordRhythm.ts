@@ -605,6 +605,23 @@ export function currentRhythmTrial(state: ChordRhythmModuleState): RhythmAssessm
   return getRhythmAssessmentTrial(state.assessment.blockKind, state.assessment.trialIndex);
 }
 
+/**
+ * Single source of truth for the target chord shown to the learner and graded by
+ * the evaluator. UI copy and classification must always use the same target.
+ */
+export function resolveRhythmTargetChord(state: ChordRhythmModuleState): HarmonyChordId {
+  if (state.step === 'fullProgression' || state.step === 'independentPlay') {
+    return CHORD_RHYTHM_SEQUENCE[state.sequenceIndex % CHORD_RHYTHM_SEQUENCE.length];
+  }
+  if (state.step === 'transferAssessment' || state.step === 'transferRemediation') {
+    return currentRhythmTrial(state).chordId;
+  }
+  if (state.step === 'changeOnBeatOne') {
+    return 'C';
+  }
+  return 'C';
+}
+
 export function rhythmStrikeCount(state: ChordRhythmModuleState): number {
   if (state.dailySkill) return state.dailySkill === 'chordRhythmPattern' ? 2 : 1;
   if (state.step === 'twoStrikes') return 2;

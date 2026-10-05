@@ -4,6 +4,7 @@
     currentRhythmTrial,
     getRhythmAssessmentLength,
     isRhythmTimingWindowOpen,
+    resolveRhythmTargetChord,
     rhythmChordOutcomeLabel,
     rhythmRunPhase,
     timingBandLabel
@@ -64,11 +65,7 @@
   const trial = $derived(currentRhythmTrial(state));
   const targetChordId = $derived.by((): HarmonyChordId => {
     if (dailySkill) return dailyChordId;
-    if (state.step === 'fullProgression' || state.step === 'independentPlay') {
-      return (['C', 'G/B', 'Am', 'F'] as const)[state.sequenceIndex % 4];
-    }
-    if (state.step === 'transferAssessment' || state.step === 'transferRemediation') return trial.chordId;
-    return 'C';
+    return resolveRhythmTargetChord(state);
   });
   const targetChord = $derived(HARMONY_CHORDS[targetChordId]);
   const assessmentLength = $derived(dailySkill ? 1 : getRhythmAssessmentLength(state.assessment));

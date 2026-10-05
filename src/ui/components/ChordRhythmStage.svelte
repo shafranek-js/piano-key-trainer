@@ -1,6 +1,13 @@
 <script lang="ts">
   import type { ChordRhythmModuleState, ChordRhythmStep, ChordRhythmSkill } from '../../core/learning/chordRhythm';
-  import { currentRhythmTrial, getRhythmAssessmentLength } from '../../core/learning/chordRhythm';
+  import {
+    currentRhythmTrial,
+    getRhythmAssessmentLength,
+    isRhythmTimingWindowOpen,
+    rhythmChordOutcomeLabel,
+    rhythmRunPhase,
+    timingBandLabel
+  } from '../../core/learning/chordRhythm';
   import { HARMONY_CHORDS, type HarmonyChordId } from '../../core/learning/harmony';
 
   let {
@@ -71,9 +78,12 @@
   const progressPct = $derived(dailySkill ? 100 : isAssessment
     ? Math.round(state.assessment.trialsCompleted / assessmentLength * 100)
     : Math.round((['pulseOrientation', 'countingPulse', 'oneChordPerBar', 'changeOnBeatOne', 'fullProgression', 'twoStrikes', 'independentPlay'].indexOf(state.step) + 1) / 7 * 100));
+  const phase = $derived(rhythmRunPhase(state));
+  const timingWindowOpen = $derived(isRhythmTimingWindowOpen(state));
+  const classification = $derived(state.lastClassification);
 </script>
 
-<section class="chord-rhythm-stage" data-testid="chord-rhythm-stage" data-rhythm-step={state.step}>
+<section class="chord-rhythm-stage" data-testid="chord-rhythm-stage" data-rhythm-step={state.step} data-rhythm-phase={phase} data-timing-window={timingWindowOpen ? 'open' : 'closed'}>
   <div class="rhythm-stage-card">
     <div class="rhythm-eyebrow">{dailySkill ? 'ЕЖЕДНЕВНАЯ ПРАКТИКА · РИТМ АККОРДОВ' : 'ДОПОЛНИТЕЛЬНЫЙ МОДУЛЬ · РИТМ АККОРДОВ'}</div>
     <div class="rhythm-stage-progress" aria-label="Прогресс этапа"><span style={`width:${progressPct}%`}></span></div>
@@ -121,17 +131,17 @@
       {#if state.step === 'countingPulse'}
         <p class="rhythm-copy">Слушайте четыре равные доли. Первая доля каждого такта выделена сильным щелчком.</p>
       {:else if state.step === 'oneChordPerBar'}
-        <p class="rhythm-copy">Подготовьте три клавиши аккорда <strong>C</strong>, затем нажмите «Сыграть аккорд» около первой доли.</p>
+        <p class="rhythm-copy">Подготовьте три клавиши аккорда <strong>C</strong>. Запустите отсчёт и сыграйте аккорд на первую долю такта.</p>
       {:else if state.step === 'changeOnBeatOne'}
-        <p class="rhythm-copy">Аккорд меняется только на следующую сильную долю — <strong>раз</strong>. Приготовьте <strong>{targetChordId}</strong> до начала такта.</p>
+        <p class="rhythm-copy">Аккорд меняется только на следующую сильную долю — <strong>раз</strong>. Приготовьте <strong>{targetChordId}</strong> до начала такта, запустите отсчёт и играйте на «раз».</p>
       {:else if state.step === 'fullProgression'}
-        <p class="rhythm-copy">Играйте по одному аккорду на такт. Новый аккорд вступает на первую долю: <strong>{targetChordId}</strong>.</p>
+        <p class="rhythm-copy">Играйте по одному аккорду на такт. Новый аккорд вступает на первую долю: <strong>{targetChordId}</strong>. Перед каждым тактом запускайте отсчёт.</p>
       {:else if state.step === 'twoStrikes'}
-        <p class="rhythm-copy">Держите один аккорд и сыграйте его дважды за такт: на долях <strong>1</strong> и <strong>3</strong>.</p>
+        <p class="rhythm-copy">Держите один аккорд и сыграйте его дважды за такт: на долях <strong>1</strong> и <strong>3</strong>. Отсчёт запускается заранее.</p>
       {:else if state.step === 'independentPlay'}
         <p class="rhythm-copy">Без подсказки смените аккорд на сильную долю последовательности <strong>C → G/B → Am → F</strong>.</p>
       {:else if state.step === 'transferAssessment'}
-        <p class="rhythm-copy">Задание {displayTrialNumber} из {assessmentLength}. Приготовьте аккорд <strong>{targetChordId}</strong>{trial.beatsPerChord === 2 ? ' и сыграйте на долях 1 и 3' : ' и сыграйте на первой доле'}.</p>
+        <p class="rhythm-copy">Задание {displayTrialNumber} из {assessmentLength}. Целевой аккорд: <strong>{targetChordId}</strong>. Сначала отсчёт, затем играйте{ trial.beatsPerChord === 2 ? ' на долях 1 и 3' : ' на первую долю'}.</p>
       {:else if state.step === 'transferRemediation'}
         <p class="rhythm-copy">Коррекция {state.assessment.remediationIndex + 1} из {state.assessment.remediationTrialIndexes.length}. Снова сыграйте <strong>{targetChordId}</strong> точно на указанную долю.</p>
       {/if}
@@ -150,12 +160,35 @@
           <span class:active={state.activeBeat === beat} class:strong={beat === 0}>{beat + 1}</span>
         {/each}
       </div>
-      <div class="rhythm-count-label">{state.countInValue !== null ? `Приготовьтесь ${state.countInValue}` : state.isRunning ? `Доля ${Math.max(1, state.activeBeat + 1)} · приготовьтесь сыграть на «раз»` : 'Начните с отсчёта'}</div>
+      <div class="rhythm-count-label" data-testid="rhythm-timing-state">
+        {#if phase === 'countIn'}
+          Приготовьтесь: <strong>{state.countInValue}</strong> · 3 · 2 · 1
+        {:else if phase === 'armed'}
+          <strong class="rhythm-play-now" data-testid="rhythm-play-now">ИГРАЙТЕ СЕЙЧАС</strong>
+        {:else if phase === 'late'}
+          Пропущена доля — время не изменится, но можно сыграть аккорд для диагностики
+        {:else if phase === 'retry'}
+          Исправьте аккорд в новом отсчёте
+        {:else}
+          Начните с отсчёта
+        {/if}
+      </div>
 
       {#if state.step !== 'countingPulse'}
-        <div class="rhythm-input-help">Выберите ровно три ноты заранее, затем нажмите «Сыграть аккорд» у нужной доли. MIDI: сыграйте три ноты вместе. {#if midiConnected}<span class="midi-ready">MIDI подключён</span>{/if}</div>
+        <div class="rhythm-input-help">
+          {#if midiConnected}
+            MIDI подключён: играйте аккорд <strong>{targetChordId}</strong> точно на целевой доле — кнопка «Сыграть аккорд» не нужна.
+          {:else}
+            На экранной клавиатуре: выберите 3 клавиши заранее, запустите отсчёт и нажмите «Сыграть аккорд» на целевой доле.
+          {/if}
+        </div>
         <div class="rhythm-selection" data-testid="rhythm-selected-count">Выбрано клавиш: <strong>{state.selectedKeyIds.length} из 3</strong></div>
-        <button class="btn btn-primary rhythm-play" data-testid="rhythm-submit-chord" disabled={!state.isRunning || state.selectedKeyIds.length !== 3} onclick={onSubmit}>Сыграть аккорд</button>
+        <button
+          class="btn btn-primary rhythm-play"
+          data-testid="rhythm-submit-chord"
+          disabled={state.selectedKeyIds.length !== 3 || phase === 'evaluated'}
+          onclick={onSubmit}
+        >Сыграть аккорд</button>
       {/if}
 
       {#if state.feedbackText}
@@ -163,8 +196,12 @@
       {/if}
       {#if state.lastOutcome}
         <div class="rhythm-diagnostics" data-testid="rhythm-outcome-parts">
-          <span>Аккорд: <strong class:good={state.lastOutcome.chordCorrect} class:bad={!state.lastOutcome.chordCorrect}>{state.lastOutcome.chordCorrect ? 'верный' : 'неверный'}</strong></span>
-          <span>Время: <strong class:good={state.lastOutcome.timingBand === 'on_time'} class:bad={state.lastOutcome.timingBand !== 'on_time'}>{state.lastOutcome.timingBand === 'on_time' ? 'Точно' : state.lastOutcome.timingBand === 'early' ? 'Рано' : state.lastOutcome.timingBand === 'late' ? 'Поздно' : 'Пропущена доля'}</strong></span>
+          {#if classification}
+            <span data-testid="rhythm-played-label">Сыграно: <strong>{classification.detectedChordLabel ?? '—'}</strong></span>
+            <span data-testid="rhythm-expected-label">Ожидалось: <strong>{classification.targetChordLabel}</strong></span>
+          {/if}
+          <span data-testid="rhythm-chord-result">Аккорд: <strong class:good={state.lastOutcome.chordCorrect} class:bad={!state.lastOutcome.chordCorrect}>{state.lastOutcome.chordCorrect ? '✓' : '✗'}{#if classification && !state.lastOutcome.chordCorrect} · {rhythmChordOutcomeLabel(classification.outcome)}{/if}</strong></span>
+          <span data-testid="rhythm-timing-result">Время: <strong class:good={state.lastOutcome.timingBand === 'on_time'} class:bad={state.lastOutcome.timingBand !== 'on_time'}>{timingBandLabel(state.lastOutcome.timingBand)}</strong></span>
         </div>
       {/if}
       {#if dailyFeedback}
@@ -175,7 +212,7 @@
         {#if dailyCompleted}
           <button class="btn btn-secondary" data-testid="rhythm-next-question" onclick={onAdvance}>Следующее задание</button>
         {:else if !state.isRunning && !(state.step === 'transferRemediation' && state.feedbackTone === 'good')}
-          <button class="btn btn-primary" data-testid="rhythm-start-run" onclick={onStartRun}>{dailyCorrective ? 'Исправить в новом такте' : 'Приготовьтесь 4 · 3 · 2 · 1'}</button>
+          <button class="btn btn-primary" data-testid="rhythm-start-run" onclick={onStartRun}>{dailyCorrective ? 'Исправить в новом такте' : 'Начать отсчёт'}</button>
         {/if}
         {#if state.step === 'countingPulse' && !state.isRunning && state.activeBeat === 3}
           <button class="btn btn-secondary" onclick={onAdvance}>Продолжить</button>
@@ -212,6 +249,7 @@
   .rhythm-beats span.strong { border-color: #e6bf53; color: #ffe18a; }
   .rhythm-beats span.active { transform: scale(1.1); background: #46bde7; color: #061220; border-color: #9de6ff; box-shadow: 0 0 20px rgba(70,189,231,.55); }
   .rhythm-count-label { min-height: 1.4em; color: #96a8c0; font-size: .85rem; }
+  .rhythm-play-now { color: #7ef0b0; font-size: 1.08rem; letter-spacing: .04em; text-shadow: 0 0 14px rgba(126,240,176,.45); }
   .rhythm-input-help { max-width: 720px; margin: 14px auto 5px; color: #b8c5d8; font-size: .92rem; line-height: 1.45; }
   .midi-ready { margin-left: 6px; color: #88e5a8; font-weight: 700; }
   .rhythm-selection { color: #aebbd0; margin: 6px auto; }

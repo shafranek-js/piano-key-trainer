@@ -6,6 +6,7 @@
   import { AudioEngine } from './audio/AudioEngine';
   import { MetronomeClock } from './audio/MetronomeClock';
   import { MidiController, type MidiNoteOnEvent, type MidiNoteOffEvent } from './audio/MidiController';
+  import { midiFromKeyId } from './audio/types';
   import {
     DEFAULT_SETTINGS,
     NATURAL_NOTES,
@@ -136,10 +137,13 @@ import { getCurriculumPhases } from './core/curriculum/curriculum';
     harmonyCardNotes,
     CHORD_RHYTHM_BPM,
     CHORD_RHYTHM_ITEM_IDS,
+    CHORD_RHYTHM_LATE_WINDOW_MS,
     CHORD_RHYTHM_MISSED_AFTER_MS,
+    CHORD_RHYTHM_ON_TIME_WINDOW_MS,
     CHORD_RHYTHM_SEQUENCE,
     chordRhythmCardNotes,
     canStartRhythmRemediation,
+    classifyRhythmChord,
     classifyRhythmTiming,
     createChordRhythmModuleState,
     createRhythmAssessment,
@@ -155,6 +159,7 @@ import { getCurriculumPhases } from './core/curriculum/curriculum';
     type TrialInputMethod,
     type ChordRhythmModuleState,
     type ChordRhythmAction,
+    type RhythmChordClassification,
     type RhythmTimingOutcome
   } from './core/learning';
 import { isFsrsCardDue } from './core/fsrs/cardClassification';
@@ -473,6 +478,31 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   const isHarmonyAvailable = $derived(advancedModuleStates.harmony.available);
   const harmonyStatus = $derived(advancedModuleStates.harmony.progressStatus);
 
+  interface RhythmAttemptTrace {
+    at: number;
+    questionInstanceId: string | null;
+    inputMethod: 'screen' | 'midi';
+    rawMidiNotes: number[];
+    normalizedKeyIds: string[];
+    pitchClasses: string[];
+    bassPitchClass: string | null;
+    targetChord: string;
+    targetPitchClasses: string[];
+    targetBassRequirement: string | null;
+    expectedOnset: number | null;
+    actualOnset: number | null;
+    timingDeltaMs: number | null;
+    timingBand: string;
+    classificationOutcome: string;
+    chordCorrect: boolean;
+    detectedChordLabel: string | null;
+    countInStartedAt: number;
+    countInFinishedAt: number;
+    visualTargetShownAt: number | null;
+    timingWindowStart: number | null;
+    timingWindowEnd: number | null;
+  }
+
   let chordRhythmState = $state<ChordRhythmModuleState | null>(null);
   let dailyRhythmViewState = $state<ChordRhythmModuleState | null>(null);
   let dailyRhythmFeedback = $state('');
@@ -483,12 +513,17 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   let chordRhythmActionQueue: Promise<void> = Promise.resolve();
   let rhythmClock = new MetronomeClock();
   let rhythmDeadlineTimer: number | null = null;
+  let rhythmLateCutoffTimer: number | null = null;
   let rhythmTargetOnsets: number[] = [];
   let rhythmNextTargetIndex = 0;
   let rhythmQuestionInstanceId: string | null = null;
   let rhythmCountInEndsAt = 0;
+  let rhythmCountInStartedAt = 0;
+  let rhythmVisualTargetShownAt: number | null = null;
   let rhythmOutcomePending = false;
   let rhythmRunGeneration = 0;
+  const rhythmMidiByKeyId = new Map<string, number>();
+  let m3kRecentAttempts: RhythmAttemptTrace[] = [];
   const isChordRhythmActive = $derived(chordRhythmState !== null);
   const isChordRhythmAvailable = $derived(advancedModuleStates.chordRhythm.available);
   const chordRhythmStatus = $derived(advancedModuleStates.chordRhythm.progressStatus);
@@ -499,8 +534,20 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     timingDeltaMs: number | null;
     timingBand: string | null;
     chordCorrect: boolean | null;
+    classificationOutcome: string | null;
+    detectedChordLabel: string | null;
     timedTrialCancelledReason: string | null;
-  }>({ targetBpm: CHORD_RHYTHM_BPM, expectedOnset: null, actualOnset: null, timingDeltaMs: null, timingBand: null, chordCorrect: null, timedTrialCancelledReason: null });
+  }>({
+    targetBpm: CHORD_RHYTHM_BPM,
+    expectedOnset: null,
+    actualOnset: null,
+    timingDeltaMs: null,
+    timingBand: null,
+    chordCorrect: null,
+    classificationOutcome: null,
+    detectedChordLabel: null,
+    timedTrialCancelledReason: null
+  });
 
   // Hardware status
   let audioStatus = $state('Инициализация…');
@@ -3461,10 +3508,34 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     return null;
   }
 
+  function setRhythmFeedback(moduleMode: boolean, text: string, tone: 'good' | 'bad' | 'warn' | '') {
+    if (moduleMode) {
+      if (chordRhythmState) chordRhythmState = { ...chordRhythmState, feedbackText: text, feedbackTone: tone };
+    } else if (dailyRhythmViewState) {
+      dailyRhythmFeedback = text;
+      dailyRhythmFeedbackTone = tone;
+    }
+  }
+
+  function pushRhythmAttemptTrace(trace: RhythmAttemptTrace) {
+    m3kRecentAttempts = [...m3kRecentAttempts, trace].slice(-5);
+    if (typeof window !== 'undefined') {
+      (window as unknown as { __m3kRecentAttempts: RhythmAttemptTrace[] }).__m3kRecentAttempts = m3kRecentAttempts;
+    }
+  }
+
+  function resolveRhythmMidiNotes(keyIds: readonly string[]): number[] {
+    return keyIds
+      .map(keyId => rhythmMidiByKeyId.get(keyId) ?? midiFromKeyId(keyId))
+      .filter((midi): midi is number => midi !== null);
+  }
+
   function cancelChordRhythmRun(reason: string) {
     rhythmRunGeneration += 1;
     if (rhythmDeadlineTimer != null) window.clearTimeout(rhythmDeadlineTimer);
     rhythmDeadlineTimer = null;
+    if (rhythmLateCutoffTimer != null) window.clearTimeout(rhythmLateCutoffTimer);
+    rhythmLateCutoffTimer = null;
     rhythmClock.stop();
     rhythmOutcomePending = false;
     midiChordTracker.reset();
@@ -3486,6 +3557,8 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     const state = moduleMode ? chordRhythmState : dailyRhythmViewState;
     if (!state || (state.step === 'transferResult' || state.step === 'moduleComplete')) return;
     if (rhythmDeadlineTimer != null) window.clearTimeout(rhythmDeadlineTimer);
+    if (rhythmLateCutoffTimer != null) window.clearTimeout(rhythmLateCutoffTimer);
+    rhythmLateCutoffTimer = null;
     rhythmClock.stop();
     const generation = ++rhythmRunGeneration;
     let context = AudioEngine.getInstance().getContext();
@@ -3504,6 +3577,8 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       : state.step === 'twoStrikes' || ((state.step === 'transferAssessment' || state.step === 'transferRemediation') && currentRhythmTrial(state).beatsPerChord === 2) || (!moduleMode && rhythmDailySkill(currentCard) === 'chordRhythmPattern')
         ? [0, 2]
         : [0];
+    rhythmCountInStartedAt = performance.now();
+    rhythmVisualTargetShownAt = null;
     const expectedOnsets = rhythmClock.startSequence({
       bpm: CHORD_RHYTHM_BPM,
       countInBeats,
@@ -3520,9 +3595,20 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
         const nextTargetOffset = beatTargets[rhythmNextTargetIndex];
         if (targetOffset === nextTargetOffset) {
           const onset = expectedOnsets[beat.index];
+          rhythmVisualTargetShownAt = performance.now();
           if (moduleMode) chordRhythmState = { ...chordRhythmState!, expectedOnset: onset, countInValue: null };
           else dailyRhythmViewState = { ...dailyRhythmViewState!, expectedOnset: onset, countInValue: null };
-          chordRhythmDiagnostics = { ...chordRhythmDiagnostics, expectedOnset: onset, actualOnset: null, timingDeltaMs: null, timingBand: null, chordCorrect: null, timedTrialCancelledReason: null };
+          chordRhythmDiagnostics = {
+            ...chordRhythmDiagnostics,
+            expectedOnset: onset,
+            actualOnset: null,
+            timingDeltaMs: null,
+            timingBand: null,
+            chordCorrect: null,
+            classificationOutcome: null,
+            detectedChordLabel: null,
+            timedTrialCancelledReason: null
+          };
           if (rhythmDeadlineTimer != null) window.clearTimeout(rhythmDeadlineTimer);
           rhythmDeadlineTimer = window.setTimeout(() => {
             handleRhythmMissedOnset(moduleMode);
@@ -3551,18 +3637,33 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   function handleRhythmMissedOnset(moduleMode: boolean) {
     rhythmDeadlineTimer = null;
     rhythmClock.stop();
-    rhythmOutcomePending = true;
+    rhythmOutcomePending = false;
     const state = moduleMode ? chordRhythmState : dailyRhythmViewState;
-    if (!state || !state.isRunning) { rhythmOutcomePending = false; return; }
+    if (!state || !state.isRunning || state.expectedOnset === null) return;
+    // Soft miss: keep the late-diagnostic window open. Nothing is graded yet;
+    // the cutoff timer or a late chord resolves the attempt exactly once.
     const next = reduceChordRhythmState(state, { type: 'missedOnset' });
+    if (moduleMode) chordRhythmState = next;
+    else dailyRhythmViewState = next;
+    if (rhythmLateCutoffTimer != null) window.clearTimeout(rhythmLateCutoffTimer);
+    rhythmLateCutoffTimer = window.setTimeout(() => {
+      handleRhythmLateCutoff(moduleMode);
+    }, CHORD_RHYTHM_LATE_WINDOW_MS);
+  }
+
+  function handleRhythmLateCutoff(moduleMode: boolean) {
+    rhythmLateCutoffTimer = null;
+    const state = moduleMode ? chordRhythmState : dailyRhythmViewState;
+    if (!state || !state.lateWindow) return;
+    const outcome = state.lastOutcome ?? classifyRhythmTiming(state.expectedOnset ?? 0, null, false);
+    const next = reduceChordRhythmState(state, { type: 'missedExpired' });
     if (moduleMode) {
       chordRhythmState = next;
       void persistChordRhythmState(next);
     } else {
       dailyRhythmViewState = next;
-      commitDailyRhythmOutcome(next.lastOutcome!, 'screen');
+      commitDailyRhythmOutcome(outcome, 'screen');
     }
-    rhythmOutcomePending = false;
   }
 
   function toggleRhythmKey(keyId: string) {
@@ -3575,17 +3676,34 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     }
   }
 
-  function submitRhythmChord(keyIds: readonly string[], inputMethod: 'screen' | 'midi', midiTimestamp?: number) {
+  function submitRhythmChord(keyIds: readonly string[], inputMethod: 'screen' | 'midi', midiTimestamp?: number, rawMidiNotes?: readonly number[]) {
     if (!isActivePracticeSession(currentSessionId)) return;
     const moduleMode = chordRhythmState !== null;
     const state = moduleMode ? chordRhythmState : dailyRhythmViewState;
-    if (!state || !state.isRunning || state.step === 'countingPulse' || state.countInValue !== null || rhythmOutcomePending || state.expectedOnset === null) return;
+    if (!state || state.step === 'countingPulse' || state.step === 'transferResult' || state.step === 'moduleComplete') return;
     if (inputMethod === 'midi' && !midiReady) return;
+
+    // Explicit pre-window contract: pressing Play before the count-in never grades.
+    if (!state.isRunning) {
+      setRhythmFeedback(moduleMode, 'Сначала запустите отсчёт.', 'warn');
+      return;
+    }
+    if (state.countInValue !== null) {
+      setRhythmFeedback(moduleMode, `Приготовьтесь: отсчёт ${state.countInValue} · 3 · 2 · 1`, 'warn');
+      return;
+    }
+    if (state.expectedOnset === null || rhythmOutcomePending) return;
+
     const actualOnset = midiTimestamp ?? performance.now();
     if (actualOnset < rhythmCountInEndsAt) return;
     const chordId = moduleMode ? rhythmTargetChord(state) : dailyRhythmChordId;
-    const chordCorrect = classifyHarmonyChord([...keyIds], chordId).outcome === 'correct';
-    const outcome = classifyRhythmTiming(state.expectedOnset, actualOnset, chordCorrect);
+    const inputNotes = keyIds.map((keyId, index) => ({
+      keyId,
+      midi: rawMidiNotes?.[index] ?? rhythmMidiByKeyId.get(keyId) ?? undefined
+    }));
+    const classification = classifyRhythmChord(chordId, inputNotes);
+    const outcome = classifyRhythmTiming(state.expectedOnset, actualOnset, classification.chordCorrect);
+
     chordRhythmDiagnostics = {
       targetBpm: CHORD_RHYTHM_BPM,
       expectedOnset: outcome.expectedOnset,
@@ -3593,13 +3711,47 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       timingDeltaMs: outcome.timingDeltaMs,
       timingBand: outcome.timingBand,
       chordCorrect: outcome.chordCorrect,
+      classificationOutcome: classification.outcome,
+      detectedChordLabel: classification.detectedChordLabel,
       timedTrialCancelledReason: null
     };
+    pushRhythmAttemptTrace({
+      at: Date.now(),
+      questionInstanceId: rhythmQuestionInstanceId,
+      inputMethod,
+      rawMidiNotes: rawMidiNotes ? [...rawMidiNotes] : (inputMethod === 'midi' ? resolveRhythmMidiNotes(keyIds) : []),
+      normalizedKeyIds: [...keyIds],
+      pitchClasses: classification.playedPitchClasses,
+      bassPitchClass: classification.playedBass,
+      targetChord: chordId,
+      targetPitchClasses: classification.targetPitchClasses,
+      targetBassRequirement: classification.targetBassRequirement,
+      expectedOnset: outcome.expectedOnset,
+      actualOnset: outcome.actualOnset,
+      timingDeltaMs: outcome.timingDeltaMs,
+      timingBand: outcome.timingBand,
+      classificationOutcome: classification.outcome,
+      chordCorrect: classification.chordCorrect,
+      detectedChordLabel: classification.detectedChordLabel,
+      countInStartedAt: rhythmCountInStartedAt,
+      countInFinishedAt: rhythmCountInEndsAt,
+      visualTargetShownAt: rhythmVisualTargetShownAt,
+      timingWindowStart: outcome.expectedOnset - CHORD_RHYTHM_ON_TIME_WINDOW_MS,
+      timingWindowEnd: outcome.expectedOnset + CHORD_RHYTHM_MISSED_AFTER_MS
+    });
+    if (typeof window !== 'undefined') {
+      (window as unknown as { __m3kLastClassification: RhythmChordClassification | null }).__m3kLastClassification = classification;
+    }
+
     if (rhythmDeadlineTimer != null) window.clearTimeout(rhythmDeadlineTimer);
     rhythmDeadlineTimer = null;
+    if (rhythmLateCutoffTimer != null) window.clearTimeout(rhythmLateCutoffTimer);
+    rhythmLateCutoffTimer = null;
     rhythmNextTargetIndex += 1;
     const next = reduceChordRhythmState(state, {
-      type: 'recordOutcome', outcome,
+      type: 'recordOutcome',
+      outcome,
+      classification,
       questionInstanceId: rhythmQuestionInstanceId ?? `m3k-${currentSessionId}-${Date.now()}`
     });
     if (moduleMode) {
@@ -3608,7 +3760,13 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       if (!next.isRunning) void persistChordRhythmState(next);
     } else {
       dailyRhythmViewState = next;
-      commitDailyRhythmOutcome(outcome, inputMethod);
+      if (!next.isRunning) {
+        // One question instance resolves once: two-strike patterns only grade after both strikes.
+        commitDailyRhythmOutcome(outcome, inputMethod);
+      } else if (outcome.correct) {
+        dailyRhythmFeedback = 'Верно. Теперь сыграйте аккорд на доле 3.';
+        dailyRhythmFeedbackTone = 'warn';
+      }
     }
     if (next.isRunning && rhythmNextTargetIndex < rhythmTargetOnsets.length) {
       const expectedOnset = rhythmTargetOnsets[rhythmNextTargetIndex];
@@ -5534,8 +5692,12 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
             midiReady && rhythmState?.isRunning && rhythmState.step !== 'countingPulse' &&
             rhythmState.countInValue === null && performance.now() >= rhythmCountInEndsAt
           ) {
+            rhythmMidiByKeyId.set(ev.keyId, ev.midi);
             midiChordTracker.handleNoteOn(ev.keyId, chordKeyIds => {
-              submitRhythmChord(chordKeyIds, 'midi', ev.timestamp);
+              const chordMidiNotes = chordKeyIds
+                .map(keyId => rhythmMidiByKeyId.get(keyId) ?? midiFromKeyId(keyId))
+                .filter((midi): midi is number => midi !== null);
+              submitRhythmChord(chordKeyIds, 'midi', ev.timestamp, chordMidiNotes);
             });
             midiChordHeldKeyIds = midiChordTracker.getActiveNotes();
           }
@@ -5598,6 +5760,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     });
     const unsubscribeMidiNoteOff = midi.onNoteOff((ev: MidiNoteOffEvent) => {
       midiActiveKeyIds = midiActiveKeyIds.filter(id => id !== ev.keyId);
+      rhythmMidiByKeyId.delete(ev.keyId);
       audioEngine.releaseVoice(ev.voiceKey, 0.12);
       midiChordTracker.handleNoteOff(ev.keyId);
       midiChordHeldKeyIds = midiChordTracker.getActiveNotes();

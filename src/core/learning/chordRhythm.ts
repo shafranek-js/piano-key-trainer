@@ -1,4 +1,5 @@
-import type { HarmonyChordId } from './harmony';
+import { midiFromKeyId, pitchClassFromMidi } from '../../audio/types';
+import { HARMONY_CHORDS, type HarmonyChordId } from './harmony';
 import type { Skill } from '../fsrs/types';
 import type { NoteName } from '../fsrs/types';
 import type { ProgressCollectionInput } from './curriculumFlow';
@@ -13,6 +14,8 @@ export const CHORD_RHYTHM_REQUIRED_ACCURACY = 0.8;
 export const CHORD_RHYTHM_MAX_REMEDIATION = 3;
 export const CHORD_RHYTHM_ON_TIME_WINDOW_MS = 140;
 export const CHORD_RHYTHM_MISSED_AFTER_MS = 420;
+/** Grace window after the missed threshold where a late chord is still diagnosed (never re-graded). */
+export const CHORD_RHYTHM_LATE_WINDOW_MS = 900;
 
 export const CHORD_RHYTHM_ITEM_IDS = {
   PULSE: 'advanced-chord-rhythm:pulse',
@@ -47,8 +50,11 @@ export interface ChordRhythmModuleState {
   countInValue: number | null;
   expectedOnset: number | null;
   isRunning: boolean;
+  /** True between the missed threshold and the late-diagnostic cutoff. */
+  lateWindow: boolean;
   attemptIndex: number;
   outcomes: RhythmTimingOutcome[];
+  lastClassification: RhythmChordClassification | null;
   feedbackText: string;
   feedbackTone: 'good' | 'bad' | 'warn' | '';
   lastTimingBand: TimingBand | null;
@@ -64,8 +70,9 @@ export type ChordRhythmAction =
   | { type: 'clockBeat'; beat: number; countInValue?: number | null }
   | { type: 'selectKey'; keyId: string }
   | { type: 'clearSelection' }
-  | { type: 'recordOutcome'; outcome: RhythmTimingOutcome; questionInstanceId: string }
+  | { type: 'recordOutcome'; outcome: RhythmTimingOutcome; questionInstanceId: string; classification?: RhythmChordClassification | null }
   | { type: 'missedOnset' }
+  | { type: 'missedExpired' }
   | { type: 'finishCorrective' }
   | { type: 'startRemediation' }
   | { type: 'finishRemediationItem' }
@@ -128,6 +135,151 @@ export function classifyRhythmTiming(
     chordCorrect,
     correct: chordCorrect && timingBand === 'on_time'
   };
+}
+
+export type RhythmChordOutcome =
+  | 'correct'
+  | 'wrong_quality'
+  | 'wrong_bass'
+  | 'wrong_chord'
+  | 'incomplete_chord'
+  | 'extra_notes';
+
+export interface RhythmChordInputNote {
+  keyId?: string;
+  midi?: number;
+}
+
+export type DetectedChordQuality = 'major' | 'minor' | 'diminished' | 'augmented' | 'unknown';
+
+export interface RhythmChordClassification {
+  outcome: RhythmChordOutcome;
+  chordCorrect: boolean;
+  playedPitchClasses: string[];
+  playedBass: string | null;
+  detectedQuality: DetectedChordQuality;
+  detectedChordLabel: string | null;
+  targetChordLabel: string;
+  targetPitchClasses: string[];
+  targetBassRequirement: string | null;
+  rejectionReason: string | null;
+}
+
+const PITCH_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const;
+const MAJOR_TRIAD = [0, 4, 7] as const;
+const MINOR_TRIAD = [0, 3, 7] as const;
+const DIMINISHED_TRIAD = [0, 3, 6] as const;
+const AUGMENTED_TRIAD = [0, 4, 8] as const;
+
+function pitchIndexOf(pitchClass: string): number {
+  return PITCH_NAMES.indexOf(pitchClass as (typeof PITCH_NAMES)[number]);
+}
+
+function resolveNoteMidi(note: RhythmChordInputNote): number | null {
+  if (typeof note.midi === 'number' && Number.isFinite(note.midi)) return Math.round(note.midi);
+  if (note.keyId) return midiFromKeyId(note.keyId);
+  return null;
+}
+
+function uniquePitchClasses(midiNotes: readonly number[]): string[] {
+  const seen = new Set<string>();
+  for (const midi of midiNotes) seen.add(pitchClassFromMidi(midi));
+  return [...seen];
+}
+
+function detectTriad(pitchClasses: readonly string[]): { root: string; quality: DetectedChordQuality } | null {
+  if (pitchClasses.length !== 3) return null;
+  for (const root of pitchClasses) {
+    const rootIndex = pitchIndexOf(root);
+    if (rootIndex < 0) continue;
+    const intervals = pitchClasses
+      .filter(pc => pc !== root)
+      .map(pc => (pitchIndexOf(pc) - rootIndex + 12) % 12)
+      .sort((a, b) => a - b);
+    if (intervals[0] === MAJOR_TRIAD[1] && intervals[1] === MAJOR_TRIAD[2]) return { root, quality: 'major' };
+    if (intervals[0] === MINOR_TRIAD[1] && intervals[1] === MINOR_TRIAD[2]) return { root, quality: 'minor' };
+    if (intervals[0] === DIMINISHED_TRIAD[1] && intervals[1] === DIMINISHED_TRIAD[2]) return { root, quality: 'diminished' };
+    if (intervals[0] === AUGMENTED_TRIAD[1] && intervals[1] === AUGMENTED_TRIAD[2]) return { root, quality: 'augmented' };
+  }
+  return null;
+}
+
+function chordLabel(detected: { root: string; quality: DetectedChordQuality } | null, bass: string | null): string | null {
+  if (!detected) return null;
+  if (bass && bass !== detected.root) return `${detected.root} ${detected.quality}, бас ${bass}`;
+  return `${detected.root} ${detected.quality}`;
+}
+
+/**
+ * Canonical M3K rhythm contract:
+ * - a plain chord symbol (`C`, `Am`, `F`) means chord identity: correct triad pitch classes in
+ *   any octave and any inversion;
+ * - a slash symbol (`G/B`) additionally requires the lowest sounding note to be the requested bass
+ *   pitch class (octave-independent);
+ * - exact octave/register is never required unless the UI explicitly shows one.
+ * Screen piano and physical MIDI both go through this single evaluator.
+ */
+export function classifyRhythmChord(
+  targetChordId: HarmonyChordId,
+  notes: readonly RhythmChordInputNote[]
+): RhythmChordClassification {
+  const target = HARMONY_CHORDS[targetChordId];
+  const targetMidi = target.keyIds
+    .map(keyId => midiFromKeyId(keyId))
+    .filter((midi): midi is number => midi !== null);
+  const targetPitchClasses = uniquePitchClasses(targetMidi);
+  const targetBass = pitchClassFromMidi(midiFromKeyId(target.bassKeyId) ?? 0);
+  const targetIsSlash = target.id.includes('/');
+
+  const resolvedMidi = notes
+    .map(resolveNoteMidi)
+    .filter((midi): midi is number => midi !== null)
+    .sort((a, b) => a - b);
+  const playedPitchClasses = uniquePitchClasses(resolvedMidi);
+  const playedBass = resolvedMidi.length ? pitchClassFromMidi(resolvedMidi[0]) : null;
+  const detected = detectTriad(playedPitchClasses);
+  const base = {
+    playedPitchClasses,
+    playedBass,
+    detectedQuality: detected?.quality ?? ('unknown' as DetectedChordQuality),
+    detectedChordLabel: chordLabel(detected, playedBass),
+    targetChordLabel: target.symbol,
+    targetPitchClasses,
+    targetBassRequirement: targetIsSlash ? targetBass : null
+  };
+
+  if (notes.length < 3 || resolvedMidi.length < 3 || playedPitchClasses.length < 3) {
+    return { ...base, outcome: 'incomplete_chord', chordCorrect: false, rejectionReason: 'incomplete_chord' };
+  }
+  if (notes.length > 3 || resolvedMidi.length > 3) {
+    return { ...base, outcome: 'extra_notes', chordCorrect: false, rejectionReason: 'extra_notes' };
+  }
+
+  const samePitchClasses = playedPitchClasses.length === targetPitchClasses.length &&
+    playedPitchClasses.every(pc => targetPitchClasses.includes(pc));
+  if (samePitchClasses) {
+    if (targetIsSlash && playedBass !== targetBass) {
+      return { ...base, outcome: 'wrong_bass', chordCorrect: false, rejectionReason: 'wrong_bass' };
+    }
+    return { ...base, outcome: 'correct', chordCorrect: true, rejectionReason: null };
+  }
+
+  const targetRoot = pitchClassFromMidi(midiFromKeyId(target.rootKeyId) ?? 0);
+  if (detected && detected.root === targetRoot) {
+    return { ...base, outcome: 'wrong_quality', chordCorrect: false, rejectionReason: 'wrong_quality' };
+  }
+  return { ...base, outcome: 'wrong_chord', chordCorrect: false, rejectionReason: 'wrong_chord' };
+}
+
+export function rhythmChordOutcomeLabel(outcome: RhythmChordOutcome): string {
+  switch (outcome) {
+    case 'wrong_quality': return 'не та терция';
+    case 'wrong_bass': return 'неверный бас';
+    case 'wrong_chord': return 'другой аккорд';
+    case 'incomplete_chord': return 'меньше трёх нот';
+    case 'extra_notes': return 'лишние ноты';
+    default: return 'верно';
+  }
 }
 
 export function createRhythmAssessment(blockKind: RhythmAssessmentBlock = 'initial'): RhythmAssessmentState {
@@ -322,16 +474,16 @@ export function createChordRhythmModuleState(progress?: ProgressCollectionInput)
   if (map.get(CHORD_RHYTHM_ITEM_IDS.COMPLETE)?.state === 'retention') {
     return {
       step: 'moduleComplete', sequenceIndex: 0, selectedKeyIds: [], assessment,
-      activeBeat: -1, countInValue: null, expectedOnset: null, isRunning: false, attemptIndex: 0,
-      outcomes: [], feedbackText: '', feedbackTone: '', lastTimingBand: null, lastOutcome: null
+      activeBeat: -1, countInValue: null, expectedOnset: null, isRunning: false, lateWindow: false, attemptIndex: 0,
+      outcomes: [], lastClassification: null, feedbackText: '', feedbackTone: '', lastTimingBand: null, lastOutcome: null
     };
   }
   return {
     step,
     sequenceIndex: Math.max(0, snapshot?.sequenceIndex ?? 0),
     selectedKeyIds: [], assessment,
-    activeBeat: -1, countInValue: null, expectedOnset: null, isRunning: false, attemptIndex: 0,
-    outcomes: [], feedbackText: '', feedbackTone: '', lastTimingBand: null, lastOutcome: null
+    activeBeat: -1, countInValue: null, expectedOnset: null, isRunning: false, lateWindow: false, attemptIndex: 0,
+    outcomes: [], lastClassification: null, feedbackText: '', feedbackTone: '', lastTimingBand: null, lastOutcome: null
   };
 }
 
@@ -345,10 +497,10 @@ export function reduceChordRhythmState(
       const next = TEACHING_STEPS[at + 1];
       if (state.step === 'independentPlay') return { ...state, step: 'transferAssessment', assessment: createRhythmAssessment(), sequenceIndex: 0, feedbackText: '', feedbackTone: '' };
       if (!next) return state;
-      return { ...state, step: next, sequenceIndex: 0, selectedKeyIds: [], activeBeat: -1, expectedOnset: null, isRunning: false, outcomes: [], attemptIndex: 0, feedbackText: '', feedbackTone: '', lastTimingBand: null };
+      return { ...state, step: next, sequenceIndex: 0, selectedKeyIds: [], activeBeat: -1, expectedOnset: null, isRunning: false, lateWindow: false, outcomes: [], attemptIndex: 0, lastClassification: null, feedbackText: '', feedbackTone: '', lastTimingBand: null };
     }
     case 'selectBeat': return { ...state, activeBeat: action.beat };
-    case 'startRun': return { ...state, isRunning: true, activeBeat: -1, countInValue: 4, expectedOnset: action.expectedOnset, attemptIndex: 0, outcomes: [], feedbackText: '', feedbackTone: '', lastTimingBand: null, lastOutcome: null };
+    case 'startRun': return { ...state, isRunning: true, activeBeat: -1, countInValue: 4, expectedOnset: action.expectedOnset, lateWindow: false, attemptIndex: 0, outcomes: [], lastClassification: null, feedbackText: '', feedbackTone: '', lastTimingBand: null, lastOutcome: null };
     case 'clockBeat': return { ...state, activeBeat: action.beat, countInValue: action.countInValue ?? null };
     case 'selectKey': {
       if (state.selectedKeyIds.includes(action.keyId)) return { ...state, selectedKeyIds: state.selectedKeyIds.filter(id => id !== action.keyId) };
@@ -359,31 +511,34 @@ export function reduceChordRhythmState(
     case 'recordOutcome': {
       const outcomes = [...state.outcomes, action.outcome];
       const last = action.outcome;
-      const strikeCount = rhythmStrikeCount(state);
+      const classification = action.classification ?? null;
+      // Any evaluated chord closes the late-diagnostic window.
+      const base: ChordRhythmModuleState = { ...state, lateWindow: false, lastClassification: classification };
+      const strikeCount = rhythmStrikeCount(base);
       const success = last.correct && outcomes.length >= strikeCount;
       const failed = !last.correct;
       if (state.step === 'transferAssessment') {
         if (state.assessment.pendingCorrective) {
-          if (failed) return { ...state, outcomes, isRunning: false, selectedKeyIds: [], feedbackText: rhythmFeedback(last), feedbackTone: 'bad', lastTimingBand: last.timingBand, lastOutcome: last };
+          if (failed) return { ...base, outcomes, isRunning: false, selectedKeyIds: [], feedbackText: rhythmFeedback(last), feedbackTone: 'bad', lastTimingBand: last.timingBand, lastOutcome: last };
           if (success) {
             const assessment = finishRhythmCorrectiveRun(state.assessment);
-            return { ...state, assessment, step: assessment.phase === 'active' ? state.step : 'transferResult', outcomes: [], isRunning: false, attemptIndex: 0, selectedKeyIds: [], feedbackText: `✓ Исправлено. ${timingBandLabel(last.timingBand)}.`, feedbackTone: 'good', lastTimingBand: last.timingBand, lastOutcome: last };
+            return { ...base, assessment, step: assessment.phase === 'active' ? state.step : 'transferResult', outcomes: [], isRunning: false, attemptIndex: 0, selectedKeyIds: [], feedbackText: `✓ Исправлено. ${timingBandLabel(last.timingBand)}.`, feedbackTone: 'good', lastTimingBand: last.timingBand, lastOutcome: last };
           }
-          return { ...state, outcomes, attemptIndex: outcomes.length, selectedKeyIds: [], expectedOnset: null, feedbackText: rhythmFeedback(last), feedbackTone: 'warn', lastTimingBand: last.timingBand, lastOutcome: last };
+          return { ...base, outcomes, attemptIndex: outcomes.length, selectedKeyIds: [], expectedOnset: null, feedbackText: rhythmFeedback(last), feedbackTone: 'warn', lastTimingBand: last.timingBand, lastOutcome: last };
         }
         if (failed) {
           const assessment = recordRhythmAssessmentFirstAttempt(state.assessment, { questionInstanceId: action.questionInstanceId, correct: false });
-          return { ...state, assessment, outcomes, isRunning: false, attemptIndex: 0, selectedKeyIds: [], feedbackText: rhythmFeedback(last), feedbackTone: 'bad', lastTimingBand: last.timingBand, lastOutcome: last };
+          return { ...base, assessment, outcomes, isRunning: false, attemptIndex: 0, selectedKeyIds: [], feedbackText: rhythmFeedback(last), feedbackTone: 'bad', lastTimingBand: last.timingBand, lastOutcome: last };
         }
         if (success) {
           const assessment = recordRhythmAssessmentFirstAttempt(state.assessment, { questionInstanceId: action.questionInstanceId, correct: true });
           const done = assessment.phase !== 'active';
-          return { ...state, assessment, step: done ? 'transferResult' : state.step, outcomes: [], isRunning: false, selectedKeyIds: [], sequenceIndex: 0, feedbackText: `✓ Аккорд верный · ${timingBandLabel(last.timingBand)}.`, feedbackTone: 'good', lastTimingBand: last.timingBand, lastOutcome: last };
+          return { ...base, assessment, step: done ? 'transferResult' : state.step, outcomes: [], isRunning: false, selectedKeyIds: [], sequenceIndex: 0, feedbackText: `✓ Аккорд верный · ${timingBandLabel(last.timingBand)}.`, feedbackTone: 'good', lastTimingBand: last.timingBand, lastOutcome: last };
         }
-        return { ...state, outcomes, attemptIndex: outcomes.length, selectedKeyIds: [], expectedOnset: null, feedbackText: rhythmFeedback(last), feedbackTone: last.correct ? 'warn' : 'bad', lastTimingBand: last.timingBand, lastOutcome: last };
+        return { ...base, outcomes, attemptIndex: outcomes.length, selectedKeyIds: [], expectedOnset: null, feedbackText: rhythmFeedback(last), feedbackTone: last.correct ? 'warn' : 'bad', lastTimingBand: last.timingBand, lastOutcome: last };
       }
       return {
-        ...state,
+        ...base,
         outcomes: success ? [] : outcomes,
         attemptIndex: success ? 0 : outcomes.length,
         isRunning: !failed && !success,
@@ -397,33 +552,49 @@ export function reduceChordRhythmState(
       };
     }
     case 'missedOnset': {
+      // Soft miss: the timing window is over, but a late chord is still diagnosed
+      // (never re-graded) until the cutoff timer fires or the learner plays.
+      const outcome = classifyRhythmTiming(state.expectedOnset ?? 0, null, false);
+      return {
+        ...state,
+        lateWindow: true,
+        outcomes: [...state.outcomes, outcome],
+        isRunning: true,
+        selectedKeyIds: [],
+        feedbackText: 'Пропущена доля. Время уже не изменится, но можно сыграть аккорд для диагностики.',
+        feedbackTone: 'warn',
+        lastTimingBand: 'missed',
+        lastOutcome: outcome
+      };
+    }
+    case 'missedExpired': {
       const outcome = classifyRhythmTiming(state.expectedOnset ?? 0, null, false);
       if (state.step === 'transferAssessment') {
         const assessment = recordRhythmAssessmentFirstAttempt(state.assessment, {
           questionInstanceId: `missed:${state.assessment.blockKind}:${state.assessment.trialIndex}`,
           correct: false
         });
-        return { ...state, assessment, isRunning: false, feedbackText: rhythmFeedback(outcome), feedbackTone: 'bad', lastTimingBand: 'missed', lastOutcome: outcome };
+        return { ...state, assessment, lateWindow: false, isRunning: false, feedbackText: rhythmFeedback(outcome), feedbackTone: 'bad', lastTimingBand: 'missed', lastOutcome: outcome };
       }
-      return { ...state, isRunning: false, feedbackText: rhythmFeedback(outcome), feedbackTone: 'bad', lastTimingBand: 'missed', lastOutcome: outcome };
+      return { ...state, lateWindow: false, isRunning: false, feedbackText: rhythmFeedback(outcome), feedbackTone: 'bad', lastTimingBand: 'missed', lastOutcome: outcome };
     }
     case 'finishCorrective': {
       const assessment = finishRhythmCorrectiveRun(state.assessment);
       const isDone = assessment.phase !== 'active';
-      return { ...state, assessment, step: isDone ? 'transferResult' : state.step, outcomes: [], attemptIndex: 0, isRunning: false, selectedKeyIds: [], feedbackText: '', feedbackTone: '', expectedOnset: null };
+      return { ...state, assessment, step: isDone ? 'transferResult' : state.step, outcomes: [], attemptIndex: 0, isRunning: false, selectedKeyIds: [], feedbackText: '', feedbackTone: '', expectedOnset: null, lateWindow: false };
     }
     case 'startRemediation': {
       const assessment = startRhythmRemediation(state.assessment);
       if (assessment.phase === 'failed') return { ...state, assessment, step: 'transferResult', feedbackText: 'Проверка пока не пройдена. Повторите учебные этапы и попробуйте позже.', feedbackTone: 'warn' };
-      return { ...state, step: 'transferRemediation', assessment, outcomes: [], isRunning: false, selectedKeyIds: [], feedbackText: '', feedbackTone: '' };
+      return { ...state, step: 'transferRemediation', assessment, outcomes: [], isRunning: false, selectedKeyIds: [], lateWindow: false, feedbackText: '', feedbackTone: '' };
     }
     case 'finishRemediationItem': {
       const assessment = finishRhythmRemediation(state.assessment);
       const done = assessment.blockKind === 'retry' && assessment.phase === 'active';
-      return { ...state, assessment, step: done ? 'transferAssessment' : state.step, outcomes: [], isRunning: false, selectedKeyIds: [], feedbackText: '', feedbackTone: '' };
+      return { ...state, assessment, step: done ? 'transferAssessment' : state.step, outcomes: [], isRunning: false, selectedKeyIds: [], lateWindow: false, feedbackText: '', feedbackTone: '' };
     }
-    case 'completeModule': return { ...state, step: 'moduleComplete', isRunning: false, feedbackText: 'Модуль завершён. Навыки ритма добавлены в ежедневную практику.', feedbackTone: 'good' };
-    case 'cancel': return { ...state, isRunning: false, activeBeat: -1, countInValue: null, expectedOnset: null, selectedKeyIds: [], feedbackText: `Упражнение приостановлено: ${action.reason}. Ошибка не засчитана. Начните заново с отсчётом 4 · 3 · 2 · 1.`, feedbackTone: 'warn' };
+    case 'completeModule': return { ...state, step: 'moduleComplete', isRunning: false, lateWindow: false, feedbackText: 'Модуль завершён. Навыки ритма добавлены в ежедневную практику.', feedbackTone: 'good' };
+    case 'cancel': return { ...state, isRunning: false, lateWindow: false, activeBeat: -1, countInValue: null, expectedOnset: null, selectedKeyIds: [], feedbackText: `Упражнение приостановлено: ${action.reason}. Ошибка не засчитана. Начните заново с отсчётом 4 · 3 · 2 · 1.`, feedbackTone: 'warn' };
   }
 }
 
@@ -439,6 +610,23 @@ export function rhythmStrikeCount(state: ChordRhythmModuleState): number {
   if (state.step === 'twoStrikes') return 2;
   if (state.step === 'transferAssessment' || state.step === 'transferRemediation') return currentRhythmTrial(state).expectedBeatIndexes.length;
   return 1;
+}
+
+export type RhythmRunPhase = 'prepare' | 'countIn' | 'armed' | 'late' | 'evaluated' | 'retry';
+
+/** Explicit user-facing run phase for the timing state machine. */
+export function rhythmRunPhase(state: ChordRhythmModuleState): RhythmRunPhase {
+  if (state.step === 'transferResult' || state.step === 'moduleComplete') return 'evaluated';
+  if (state.lateWindow) return 'late';
+  if (state.isRunning && state.countInValue !== null) return 'countIn';
+  if (state.isRunning && state.expectedOnset !== null) return 'armed';
+  if (state.assessment.pendingCorrective) return 'retry';
+  return 'prepare';
+}
+
+/** The grading window is open exactly when the visible target beat is active. */
+export function isRhythmTimingWindowOpen(state: ChordRhythmModuleState): boolean {
+  return state.isRunning && state.countInValue === null && state.expectedOnset !== null && !state.lateWindow;
 }
 
 /** Maps the first failed assessment trial back to a targeted guided rhythm step. */

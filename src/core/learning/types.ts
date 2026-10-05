@@ -76,6 +76,26 @@ export interface LearningTransferAssessment {
   pendingCorrective?: boolean;
 }
 
+export interface ChordRhythmAssessmentSnapshot {
+  blockKind: 'initial' | 'retry';
+  phase: 'active' | 'result' | 'remediation' | 'passed' | 'failed';
+  trialIndex: number;
+  trialsCompleted: number;
+  correctFirstAttempts: number;
+  failedTrialIndexes: number[];
+  remediationTrialIndexes: number[];
+  remediationIndex: number;
+  remediationUsed: number;
+  pendingCorrective: boolean;
+  scoredQuestionIds: string[];
+}
+
+export interface ChordRhythmModuleSnapshot {
+  stage: string;
+  sequenceIndex?: number;
+  assessment?: ChordRhythmAssessmentSnapshot;
+}
+
 export interface LearningProgressRecord {
   id: string;
   itemId: string;
@@ -99,21 +119,7 @@ export interface LearningProgressRecord {
     trialHadWrong: boolean;
   };
   /** Persisted teaching position for Milestone 3K; active timed runs restart with a count-in. */
-  chordRhythmSnapshot?: {
-    stage: string;
-    sequenceIndex?: number;
-    assessment?: {
-      blockKind: 'initial' | 'retry';
-      phase: string;
-      trialIndex: number;
-      trialsCompleted: number;
-      correctFirstAttempts: number;
-      failedTrialIndexes: number[];
-      remediationTrialIndexes: number[];
-      remediationIndex: number;
-      remediationUsed: number;
-    };
-  };
+  chordRhythmSnapshot?: ChordRhythmModuleSnapshot;
   currentHintLevel: HintLevel;
   introducedAt?: number;
   mixReadyAt?: number;

@@ -14,11 +14,11 @@
     dailyCompleted = false,
     onAdvance,
     onStartRun,
-    onToggleKey,
     onSubmit,
     onRetry,
     onRemediation,
-    onComplete
+    onComplete,
+    onExit
   }: {
     state: ChordRhythmModuleState;
     midiConnected?: boolean;
@@ -30,11 +30,11 @@
     dailyCompleted?: boolean;
     onAdvance: () => void;
     onStartRun: () => void;
-    onToggleKey: (keyId: string) => void;
     onSubmit: () => void;
     onRetry: () => void;
     onRemediation: () => void;
     onComplete: () => void;
+    onExit: (destination: 'curriculum' | 'practice') => void;
   } = $props();
 
   const stepCopy: Record<ChordRhythmStep, { title: string; eyebrow: string }> = {
@@ -94,22 +94,29 @@
         {#if passed}
           Проверка пройдена. Три навыка ритма добавлены в ежедневную практику.
         {:else if state.assessment.phase === 'failed'}
-          Лимит коротких повторений исчерпан. Пройдите учебные шаги ещё раз перед новой проверкой.
+          Проверка пока не пройдена. Вернитесь к учебным шагам или продолжите в программе.
         {:else}
           Нужна короткая коррекция по ошибкам, затем новая проверка из 8 заданий.
         {/if}
       </div>
       {#if passed}
-        <button class="btn btn-primary rhythm-primary" onclick={onComplete}>Завершить модуль</button>
-      {:else if state.assessment.phase !== 'failed'}
-        <button class="btn btn-primary rhythm-primary" onclick={onRemediation}>Повторить ошибки и начать проверку из 8 заданий</button>
+        <button type="button" class="btn btn-primary rhythm-primary" onclick={onComplete}>Завершить модуль</button>
+      {:else if state.assessment.phase === 'failed'}
+        <div class="rhythm-actions">
+          <button type="button" class="btn btn-primary" data-testid="rhythm-return-to-learning" onclick={onRetry}>Вернуться к учебным шагам</button>
+          <button type="button" class="btn btn-secondary" data-testid="rhythm-exit-to-program" onclick={() => onExit('curriculum')}>В программу</button>
+        </div>
       {:else}
-        <button class="btn btn-secondary rhythm-primary" onclick={onRetry}>Вернуться к учебным шагам</button>
+        <button type="button" class="btn btn-primary rhythm-primary" data-testid="rhythm-start-remediation" onclick={onRemediation}>Повторить ошибки и начать проверку из 8 заданий</button>
       {/if}
     {:else if state.step === 'moduleComplete'}
       <p class="rhythm-copy">Вы освоили пульс в размере 4/4, смену аккорда на первую долю и рисунок на долях 1 и 3.</p>
       <div class="rhythm-progression">C <span>→</span> G/B <span>→</span> Am <span>→</span> F</div>
       <div class="rhythm-result good">Навыки ритма аккордов доступны в ежедневной практике.</div>
+      <div class="rhythm-actions">
+        <button type="button" class="btn btn-primary" data-testid="rhythm-continue-practice" onclick={() => onExit('practice')}>Продолжить тренировку</button>
+        <button type="button" class="btn btn-secondary" data-testid="rhythm-exit-to-program" onclick={() => onExit('curriculum')}>В программу</button>
+      </div>
     {:else}
       {#if state.step === 'countingPulse'}
         <p class="rhythm-copy">Слушайте четыре равные доли. Первая доля каждого такта выделена сильным щелчком.</p>

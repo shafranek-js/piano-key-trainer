@@ -31,7 +31,7 @@ import {
   recordIndependentAttempt,
   recordModelCompleted
 } from './progress';
-import { createTrialContext } from './trialPolicy';
+import { GRADED_FAILURE_CONTEXT, createTrialContext, hasPendingDelayedRetry, isDelayedCheckFirstAttempt } from './trialPolicy';
 import {
   HINT_LEVEL,
   type HintLevel,
@@ -3382,14 +3382,15 @@ export function advanceCurriculumProgress(
       };
     }
 
-    // Case D: Genuine unhinted H0 delayedCheck first attempt -> FSRS ELIGIBLE!
+    // Case D: Genuine unhinted H0 delayedCheck.
+    // A retry after remediation keeps `pending:delayedRetry` and must not grade FSRS again.
     const trialContext = createTrialContext({
       mode: 'delayedCheck',
       sessionId,
       cardId,
       itemId: noteItemId,
       hintLevel: HINT_LEVEL.NONE,
-      firstAttempt: true,
+      firstAttempt: isDelayedCheckFirstAttempt(progress[noteItemId].contexts),
       inputMethod,
       contextId: regionCtx
     });
@@ -3413,8 +3414,11 @@ export function advanceCurriculumProgress(
         ...curNoteRec,
         state: 'mixReady',
         contexts: appendUniqueContext(
-          curNoteRec.contexts,
-          'pending:delayedRetry'
+          appendUniqueContext(
+            curNoteRec.contexts,
+            'pending:delayedRetry'
+          ),
+          GRADED_FAILURE_CONTEXT
         ),
         updatedAt: at
       };
@@ -3440,7 +3444,7 @@ export function advanceCurriculumProgress(
 
     // Successful H0 delayedCheck -> promote note to 'retention' (RETENTION_MASTERED) and advance!
     const cleanContexts = progress[noteItemId].contexts.filter(
-      c => c !== 'pending:delayedRetry'
+      c => c !== 'pending:delayedRetry' && c !== GRADED_FAILURE_CONTEXT
     );
     const activatedNote = markFsrsActivated(
       {
@@ -3573,13 +3577,24 @@ export function applyCurriculumActionWithCards(
   });
 
   if (!attemptResult.cardMutated || !attemptResult.logEvent?.gradeableByFsrs) {
+    // Canonical rule: a remediation retry never grades FSRS, but its pedagogical
+    // transition (corrective requirement or retention on success) must still apply.
+    const itemId = getNoteCurriculumItemId(note as WhiteKeyNote);
+    const wasPendingRetry = hasPendingDelayedRetry(params.state.progress[itemId]?.contexts);
+    if (!wasPendingRetry) {
+      return {
+        state: params.state,
+        updatedProgress: [],
+        trialContext,
+        ignoredInput: false,
+        outcome: 'ignored',
+        fsrsDelayedCheck: transition.fsrsDelayedCheck,
+        attemptResult,
+        mutatedCard: null
+      };
+    }
     return {
-      state: params.state,
-      updatedProgress: [],
-      trialContext,
-      ignoredInput: false,
-      outcome: 'ignored',
-      fsrsDelayedCheck: transition.fsrsDelayedCheck,
+      ...transition,
       attemptResult,
       mutatedCard: null
     };

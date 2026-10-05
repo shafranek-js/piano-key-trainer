@@ -332,7 +332,8 @@ export function buildLearningRoadmap(params: BuildRoadmapParams = {}): readonly 
   // Order of priority:
   // 1) First stage that is 'in_progress'
   // 2) First stage that is 'available' (if none is actively in_progress)
-  // 3) If all available stages are complete, keep the last completed stage current.
+  // 3) Otherwise the most recently completed stage stays current.
+  // 4) When every one of the 11 stages is completed, no stage is current.
   let currentStageId: RoadmapStageId | null = null;
   const stageOrder: RoadmapStageId[] = [
     'keys',
@@ -364,12 +365,17 @@ export function buildLearningRoadmap(params: BuildRoadmapParams = {}): readonly 
     }
   }
 
-  if (!currentStageId && statuses.harmony === 'completed') {
-    currentStageId = statuses.chord_rhythm === 'available' ? 'chord_rhythm' : 'harmony';
+  if (!currentStageId) {
+    for (const id of [...stageOrder].reverse()) {
+      if (statuses[id] === 'completed') {
+        currentStageId = id;
+        break;
+      }
+    }
   }
-  if (!currentStageId && statuses.chord_rhythm === 'completed') currentStageId = 'chord_rhythm';
-  if (!currentStageId && statuses.inversions === 'completed') {
-    currentStageId = 'inversions';
+
+  if (stageOrder.every((id) => statuses[id] === 'completed')) {
+    currentStageId = null;
   }
 
   return ROADMAP_DEFINITIONS.map((def) => {

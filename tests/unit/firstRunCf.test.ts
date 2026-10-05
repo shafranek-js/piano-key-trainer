@@ -714,6 +714,53 @@ describe('Milestone 3B — First-Run C/F Guided Learning (Section 23)', () => {
     expect(findC.dueAt).toBe(dueAtAfterFirst);
     expect(findC.stats.trials).toBe(1);
     expect(logs).toHaveLength(1);
+    // Canonical remediation: corrective press keeps the anchor pending and routes
+    // through an intervening recall before a fresh unhinted H0 retry.
+    expect(state.step).toBe('delayedC');
+    expect(state.isInterveningRecall).toBe(true);
+    expect(state.targetNote).toBe('F');
+
+    // Intervening recall on the opposite anchor returns to a clean H0 retry.
+    const interveningPress = applyFirstRunCfActionWithCards({
+      state,
+      action: {
+        type: 'keyPress',
+        note: 'F',
+        keyId: 'F4',
+        at: 41_500,
+        sessionId: 'session-test'
+      },
+      cards,
+      settings: TEST_SETTINGS,
+      reviewLog: logs
+    });
+    state = interveningPress.state;
+    expect(interveningPress.outcome).toBe('progressed');
+    expect(state.isInterveningRecall).toBe(false);
+    expect(state.step).toBe('delayedC');
+    expect(state.targetNote).toBe('C');
+
+    // Fresh unhinted H0 retry succeeds: retention is reached with 0 additional grades.
+    const retryPress = applyFirstRunCfActionWithCards({
+      state,
+      action: {
+        type: 'keyPress',
+        note: 'C',
+        keyId: 'C4',
+        at: 42_000,
+        sessionId: 'session-test'
+      },
+      cards,
+      settings: TEST_SETTINGS,
+      reviewLog: logs
+    });
+    state = retryPress.state;
+    expect(retryPress.outcome).toBe('advanced');
+    expect(retryPress.attemptResult?.logEvent ?? null).toBeNull();
+    expect(findC.reps).toBe(1);
+    expect(findC.stats.trials).toBe(1);
+    expect(logs).toHaveLength(1);
+    expect(state.progress[FIRST_RUN_CF_ITEM_IDS.ANCHOR_C].state).toBe('retention');
     expect(state.step).toBe('delayedF');
   });
 

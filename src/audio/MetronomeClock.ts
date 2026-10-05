@@ -10,11 +10,13 @@ export interface MetronomeBeat {
 
 export type BeatCallback = (beat: MetronomeBeat) => void;
 
+export type MetronomeClickCancel = () => void;
+
 export interface MetronomeClockPort {
   now: () => number;
   setTimeout: (callback: () => void, delayMs: number) => number;
   clearTimeout: (id: number) => void;
-  scheduleClick: (accent: boolean, atMonotonicMs: number) => void;
+  scheduleClick: (accent: boolean, atMonotonicMs: number) => MetronomeClickCancel | void;
 }
 
 const browserClockPort: MetronomeClockPort = {
@@ -27,13 +29,14 @@ const browserClockPort: MetronomeClockPort = {
     const audioTime = ctx
       ? ctx.currentTime + Math.max(0, atMonotonicMs - performance.now()) / 1000
       : undefined;
-    engine.playMetronomeClick(accent, audioTime);
+    return engine.playMetronomeClick(accent, audioTime);
   }
 };
 
 export class MetronomeClock {
   private isRunning = false;
   private timers = new Set<number>();
+  private clickCancels = new Set<MetronomeClickCancel>();
   private generation = 0;
 
   constructor(private readonly port: MetronomeClockPort = browserClockPort) {}
@@ -53,14 +56,15 @@ export class MetronomeClock {
     const intervalMs = 60_000 / bpm;
     const startAt = this.port.now() + 80;
     const expectedOnsets: number[] = [];
-    this.isRunning = true;
+    this.isRunning = totalBeats > 0;
     for (let index = 0; index < totalBeats; index += 1) {
       const expectedOnsetMs = startAt + index * intervalMs;
       const beat = index % 4;
       const isAccent = beat === 0;
       const countIn = index < countInBeats;
       expectedOnsets.push(expectedOnsetMs);
-      this.port.scheduleClick(isAccent, expectedOnsetMs);
+      const cancelClick = this.port.scheduleClick(isAccent, expectedOnsetMs);
+      if (typeof cancelClick === 'function') this.clickCancels.add(cancelClick);
       const delay = Math.max(0, expectedOnsetMs - this.port.now());
       const timer = this.port.setTimeout(() => {
         this.timers.delete(timer);
@@ -78,6 +82,14 @@ export class MetronomeClock {
     this.isRunning = false;
     for (const timer of this.timers) this.port.clearTimeout(timer);
     this.timers.clear();
+    for (const cancelClick of this.clickCancels) {
+      try {
+        cancelClick();
+      } catch {
+        /* click already finished */
+      }
+    }
+    this.clickCancels.clear();
   }
 
   public get running(): boolean { return this.isRunning; }

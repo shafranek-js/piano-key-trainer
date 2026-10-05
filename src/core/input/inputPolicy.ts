@@ -167,7 +167,7 @@ export const PATTERN_IDENTIFY_QUESTIONS: Readonly<Record<'C' | 'F' | 'E' | 'B', 
 export function getPatternIdentifyPrompt(note: NoteName): string {
   return (
     (PATTERN_IDENTIFY_QUESTIONS as Readonly<Partial<Record<NoteName, string>>>)[note] ??
-    `Какая нота соответствует ориентиру ${note}?`
+    'Какая нота соответствует этому ориентиру?'
   );
 }
 

@@ -351,9 +351,10 @@ export class AudioEngine {
     return Promise.resolve();
   }
 
-  public playMetronomeClick(accent = false, scheduledTime?: number): void {
+  /** Plays a metronome click and returns a cancel handle for teardown. */
+  public playMetronomeClick(accent = false, scheduledTime?: number): () => void {
     const ctx = this.getOrCreateContext();
-    if (!ctx) return;
+    if (!ctx) return () => {};
 
     if (ctx.state === 'suspended') {
       void ctx.resume().catch(() => {});
@@ -375,5 +376,25 @@ export class AudioEngine {
 
     osc.start(t);
     osc.stop(t + 0.06);
+
+    return () => {
+      try {
+        gain.gain.cancelScheduledValues(ctx.currentTime);
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      } catch {
+        /* gain already disconnected */
+      }
+      try {
+        osc.stop(ctx.currentTime);
+      } catch {
+        /* oscillator already stopped */
+      }
+      try {
+        osc.disconnect();
+        gain.disconnect();
+      } catch {
+        /* nodes already detached */
+      }
+    };
   }
 }

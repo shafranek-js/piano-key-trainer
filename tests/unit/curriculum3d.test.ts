@@ -903,6 +903,8 @@ describe('Milestone 3D Rev1 — Per-Card Teaching/FSRS Integrity & Accidental Id
     expect(intervRes.state.targetNote).toBe('C');
 
     // Fresh independent H0 retry on notationCDelayedCheck -> FSRS-eligible!
+    // Canonical rule: the failed first attempt already graded Again once.
+    // The H0 retry completes pedagogical remediation with 0 additional FSRS mutations.
     const retryPassRes = applyMilestone3dActionWithCards({
       state: intervRes.state,
       action: { type: 'keyPress', note: 'C', keyId: 'C4' },
@@ -912,11 +914,11 @@ describe('Milestone 3D Rev1 — Per-Card Teaching/FSRS Integrity & Accidental Id
     });
     expect(retryPassRes.outcome).toBe('advanced');
     expect(retryPassRes.fsrsDelayedCheck?.isCorrect).toBe(true);
-    expect(retryPassRes.attemptResult?.logEvent).toBeTruthy();
+    expect(retryPassRes.attemptResult?.logEvent ?? null).toBeNull();
     if (retryPassRes.attemptResult?.logEvent) {
       logs.push(retryPassRes.attemptResult.logEvent);
     }
-    expect(logs.length).toBe(2);
+    expect(logs.length).toBe(1);
     expect(retryPassRes.state.step).toBe('notationFModel');
     expect(
       isCurriculumCardActive(cards.find(c => c.id === 'notationToKey:C')!, {

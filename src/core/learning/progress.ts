@@ -5,6 +5,7 @@ import {
   type LearningEvent,
   type LearningProgressRecord
 } from './types';
+import { normalizeChordRhythmSnapshot } from './chordRhythm';
 
 /**
  * Creates a fresh `LearningProgressRecord` in the `'unseen'` acquisition state.
@@ -238,6 +239,7 @@ export function normalizeBackupLearningProgress(
   if (!Array.isArray(candidate)) {
     return null;
   }
+  const acquisitionStates: readonly AcquisitionState[] = ['unseen', 'introduced', 'guided', 'qualifying', 'mixReady', 'retention'];
   const validRecords: LearningProgressRecord[] = [];
   for (const item of candidate) {
     if (!item || typeof item !== 'object') continue;
@@ -256,7 +258,7 @@ export function normalizeBackupLearningProgress(
     validRecords.push({
       id: rec.id,
       itemId: rec.itemId,
-      state: rec.state ?? 'unseen',
+      state: acquisitionStates.includes(rec.state as AcquisitionState) ? rec.state as AcquisitionState : 'unseen',
       modelCompleted: Boolean(rec.modelCompleted),
       guidedSuccesses: Number.isFinite(rec.guidedSuccesses) ? Number(rec.guidedSuccesses) : 0,
       independentUnhintedSuccesses: Number.isFinite(rec.independentUnhintedSuccesses)
@@ -291,12 +293,41 @@ export function normalizeBackupLearningProgress(
       transferLifetimeCorrectFirstAttempts: Number.isFinite(rec.transferLifetimeCorrectFirstAttempts)
         ? Math.max(0, Math.floor(Number(rec.transferLifetimeCorrectFirstAttempts)))
         : undefined,
-      currentHintLevel: (rec.currentHintLevel ?? HINT_LEVEL.NONE) as HintLevel,
-      introducedAt: rec.introducedAt,
-      mixReadyAt: rec.mixReadyAt,
-      firstFsrsEligibleAt: rec.firstFsrsEligibleAt,
+      harmonySnapshot: normalizeHarmonySnapshot(rec.harmonySnapshot),
+      chordRhythmSnapshot: normalizeChordRhythmSnapshot(rec.chordRhythmSnapshot),
+      currentHintLevel: ([0, 1, 2, 3] as HintLevel[]).includes(rec.currentHintLevel as HintLevel)
+        ? rec.currentHintLevel as HintLevel
+        : HINT_LEVEL.NONE,
+      introducedAt: normalizeOptionalTimestamp(rec.introducedAt),
+      mixReadyAt: normalizeOptionalTimestamp(rec.mixReadyAt),
+      firstFsrsEligibleAt: normalizeOptionalTimestamp(rec.firstFsrsEligibleAt),
       updatedAt: Number.isFinite(rec.updatedAt) ? Number(rec.updatedAt) : 0
     });
   }
   return validRecords;
+}
+
+function normalizeOptionalTimestamp(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+function normalizeHarmonySnapshot(value: unknown): LearningProgressRecord['harmonySnapshot'] | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as Record<string, unknown>;
+  if (typeof raw.step !== 'string' || raw.step.length === 0 || raw.step.length > 64) return undefined;
+  const count = (candidate: unknown): number => {
+    const num = typeof candidate === 'number' && Number.isFinite(candidate) && candidate >= 0
+      ? Math.floor(candidate)
+      : 0;
+    return num;
+  };
+  return {
+    step: raw.step,
+    sequenceIndex: count(raw.sequenceIndex),
+    quizIndex: count(raw.quizIndex),
+    assessmentIndex: count(raw.assessmentIndex),
+    assessmentChordIndex: count(raw.assessmentChordIndex),
+    awaitingCorrective: raw.awaitingCorrective === true,
+    trialHadWrong: raw.trialHadWrong === true
+  };
 }

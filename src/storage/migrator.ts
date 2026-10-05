@@ -1,4 +1,5 @@
 import { db } from './db';
+import { normalizeBackupCard, normalizeBackupReviewLog } from './backup';
 import type { Card, ReviewLogEvent } from '../core/fsrs/types';
 import { DEFAULT_SETTINGS } from '../core/fsrs/constants';
 
@@ -33,11 +34,15 @@ export async function checkAndMigrateLocalStorage(): Promise<boolean> {
       });
     }
 
-    // 2. Migrate cards
+    // 2. Migrate cards (normalized; never overwrite newer Dexie rows)
     if (v3State.cards && typeof v3State.cards === 'object') {
-      const cardsList = Object.values(v3State.cards) as Card[];
+      const cardsList = Object.values(v3State.cards)
+        .map(card => normalizeBackupCard(card))
+        .filter((card): card is Card => card !== null);
       if (cardsList.length) {
-        await db.cards.bulkPut(cardsList);
+        const existingIds = new Set((await db.cards.toArray()).map(card => card.id));
+        const newCards = cardsList.filter(card => !existingIds.has(card.id));
+        if (newCards.length) await db.cards.bulkPut(newCards);
       }
     }
 
@@ -45,8 +50,11 @@ export async function checkAndMigrateLocalStorage(): Promise<boolean> {
     const rawLogs = localStorage.getItem(LOG_KEY_V3);
     if (rawLogs) {
       try {
-        const logs = JSON.parse(rawLogs) as ReviewLogEvent[];
-        if (Array.isArray(logs) && logs.length) {
+        const parsed = JSON.parse(rawLogs);
+        const logs = Array.isArray(parsed)
+          ? parsed.map(log => normalizeBackupReviewLog(log)).filter((log): log is ReviewLogEvent => log !== null)
+          : [];
+        if (logs.length) {
           await db.reviewLogs.bulkPut(logs);
         }
       } catch (e) {

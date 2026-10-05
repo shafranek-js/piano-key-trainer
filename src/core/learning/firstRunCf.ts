@@ -16,6 +16,7 @@ import {
   type InputChannel
 } from '../input/inputPolicy';
 import {
+  appendUniqueContext,
   createInitialLearningProgress,
   markFsrsActivated,
   markMixReady,
@@ -23,7 +24,7 @@ import {
   recordIndependentAttempt,
   recordModelCompleted
 } from './progress';
-import { createTrialContext } from './trialPolicy';
+import { GRADED_FAILURE_CONTEXT, createTrialContext, hasPendingDelayedRetry, isDelayedCheckFirstAttempt } from './trialPolicy';
 import {
   HINT_LEVEL,
   type HintLevel,
@@ -1028,10 +1029,21 @@ export function createFirstRunCfState(
     ['C', 'F'] as FirstRunAnchorNote[]
   ).filter(n => !delayedCompletedNotes.includes(n));
 
-  const visuals = getStepVisualConfig(step, {
+  // A failed anchor keeps `pending:delayedRetry`; resume its corrective remediation after reload.
+  const pendingAnchorNote: FirstRunAnchorNote | null =
+    anchorC.contexts.includes('pending:delayedRetry')
+      ? 'C'
+      : anchorF.contexts.includes('pending:delayedRetry')
+        ? 'F'
+        : null;
+  const resumeRemediation = Boolean(pendingAnchorNote) && (step === 'delayedC' || step === 'delayedF');
+  const orderedDelayedQueue: FirstRunAnchorNote[] = pendingAnchorNote
+    ? [pendingAnchorNote, ...delayedQueue.filter(n => n !== pendingAnchorNote)]
+    : delayedQueue;
+  const resumeVisuals = getStepVisualConfig(step, {
     mixQueue: remainingMixQueue,
     identifyQueue,
-    awaitingCorrective: false,
+    awaitingCorrective: resumeRemediation,
     awaitingRemediationPress: false,
     isInterveningRecall: false
   });
@@ -1039,8 +1051,8 @@ export function createFirstRunCfState(
   return {
     step,
     progress,
-    ...visuals,
-    awaitingCorrective: false,
+    ...resumeVisuals,
+    awaitingCorrective: resumeRemediation,
     awaitingRemediationPress: false,
     isInterveningRecall: false,
     mixQueue: remainingMixQueue,
@@ -1051,7 +1063,7 @@ export function createFirstRunCfState(
     mixFContexts,
     identifyQueue,
     identifyCompletedNotes,
-    delayedQueue,
+    delayedQueue: orderedDelayedQueue,
     delayedCompletedNotes,
     feedbackText: '',
     feedbackTone: ''
@@ -2326,26 +2338,21 @@ export function advanceFirstRunCf(
         };
       }
 
-      // Advance to the next pending delayedCheck or complete
-      const remainingDelayed = state.delayedQueue.filter(n => n !== stepNote);
-      const nextStep: FirstRunCfStep =
-        remainingDelayed.length > 0
-          ? remainingDelayed[0] === 'C'
-            ? 'delayedC'
-            : 'delayedF'
-          : 'complete';
-
+      // Canonical remediation: the corrective press does not promote the anchor.
+      // It routes through an intervening recall and then a fresh unhinted H0 retry.
+      const otherNote: FirstRunAnchorNote = stepNote === 'C' ? 'F' : 'C';
       return {
         state: transitionToStep(
           {
             ...state,
-            progress,
-            delayedQueue: remainingDelayed
+            progress
           },
-          nextStep,
+          state.step,
           {
             awaitingCorrective: false,
-            feedbackText: `✓ Закрепили ${stepNote}!`,
+            awaitingRemediationPress: false,
+            isInterveningRecall: true,
+            feedbackText: `✓ Исправлено: это ${stepNote}. Найдите ${otherNote}, а затем повторим ${stepNote} без подсказки.`,
             feedbackTone: 'good'
           }
         ),
@@ -2439,14 +2446,15 @@ export function advanceFirstRunCf(
       };
     }
 
-    // Case D: Genuine unhinted H0 delayedCheck first attempt -> FSRS ELIGIBLE!
+    // Case D: Genuine unhinted H0 delayedCheck.
+    // A retry after remediation carries `pending:delayedRetry` and must not grade FSRS again.
     const trialContext = createTrialContext({
       mode: 'delayedCheck',
       sessionId,
       cardId,
       itemId,
       hintLevel: HINT_LEVEL.NONE,
-      firstAttempt: true,
+      firstAttempt: isDelayedCheckFirstAttempt(progress[itemId].contexts),
       inputMethod,
       contextId: regionCtx
     });
@@ -2465,13 +2473,21 @@ export function advanceFirstRunCf(
       : [...state.delayedCompletedNotes, stepNote];
 
     if (!isCorrect) {
-      // Wrong H0 delayedCheck: grades Again once via fsrsDelayedCheck, then requires corrective press
+      // Wrong H0 delayedCheck: grades Again once, keeps the anchor pending and requires corrective.
+      const anchorRecord = progress[itemId];
+      saveProgress({
+        ...anchorRecord,
+        contexts: appendUniqueContext(
+          appendUniqueContext(anchorRecord.contexts, 'pending:delayedRetry'),
+          GRADED_FAILURE_CONTEXT
+        ),
+        updatedAt: at
+      });
       return {
         state: transitionToStep(
           {
             ...state,
-            progress,
-            delayedCompletedNotes: nextDelayedCompleted
+            progress
           },
           state.step,
           {
@@ -2621,7 +2637,14 @@ export function applyFirstRunCfActionWithCards(
     trialContext
   });
 
-  if (!attemptResult.cardMutated || !attemptResult.logEvent?.gradeableByFsrs) {
+  const itemId =
+    note === 'C'
+      ? FIRST_RUN_CF_ITEM_IDS.ANCHOR_C
+      : FIRST_RUN_CF_ITEM_IDS.ANCHOR_F;
+  const anchorRecord = transition.state.progress[itemId];
+  const graded = attemptResult.cardMutated && Boolean(attemptResult.logEvent?.gradeableByFsrs);
+  const pendingRetrySuccess = isCorrect && hasPendingDelayedRetry(anchorRecord.contexts);
+  if (!graded && !pendingRetrySuccess) {
     return {
       state: params.state,
       updatedProgress: [],
@@ -2634,12 +2657,24 @@ export function applyFirstRunCfActionWithCards(
     };
   }
 
-  const itemId =
-    note === 'C'
-      ? FIRST_RUN_CF_ITEM_IDS.ANCHOR_C
-      : FIRST_RUN_CF_ITEM_IDS.ANCHOR_F;
+  if (!isCorrect) {
+    // Graded failure: FSRS applied once; the anchor stays pending for remediation.
+    return {
+      ...transition,
+      attemptResult,
+      mutatedCard: graded ? card : null
+    };
+  }
+
+  // A successful unhinted attempt clears the pending remediation without an extra FSRS grade.
+  const cleanAnchor = {
+    ...anchorRecord,
+    contexts: anchorRecord.contexts.filter(
+      c => c !== 'pending:delayedRetry' && c !== GRADED_FAILURE_CONTEXT
+    )
+  };
   const activatedAnchor = markFsrsActivated(
-    transition.state.progress[itemId],
+    cleanAnchor,
     reviewedAt
   );
   const nextProgress = {
@@ -2659,6 +2694,6 @@ export function applyFirstRunCfActionWithCards(
     },
     updatedProgress: nextUpdatedProgress,
     attemptResult,
-    mutatedCard: card
+    mutatedCard: graded ? card : null
   };
 }

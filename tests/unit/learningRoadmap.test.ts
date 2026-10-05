@@ -19,7 +19,7 @@ function createMockPhases(completedIds: string[] = []): CurriculumPhase[] {
 }
 
 describe('Learning Roadmap Model', () => {
-  it('defines exactly 10 stages in the specified educational sequence', () => {
+  it('defines exactly 11 stages in the specified educational sequence', () => {
     const expectedSequence: RoadmapStageId[] = [
       'keys',
       'white_notes',
@@ -30,13 +30,14 @@ describe('Learning Roadmap Model', () => {
       'intervals',
       'triads',
       'inversions',
-      'harmony'
+      'harmony',
+      'chord_rhythm'
     ];
 
-    expect(ROADMAP_DEFINITIONS).toHaveLength(10);
+    expect(ROADMAP_DEFINITIONS).toHaveLength(11);
     expect(ROADMAP_DEFINITIONS.map((s) => s.id)).toEqual(expectedSequence);
 
-    // Verify ordering sequence 1..10
+    // Verify ordering sequence 1..11
     ROADMAP_DEFINITIONS.forEach((def, index) => {
       expect(def.order).toBe(index + 1);
     });
@@ -53,8 +54,8 @@ describe('Learning Roadmap Model', () => {
 
     // 5 core learning areas covering the 6 phases (anchors, neighbors+remaining, black, notation, sound)
     expect(coreStages).toHaveLength(5);
-    // 5 standalone advanced modules, with Harmony locked until Inversions is complete
-    expect(advancedStages).toHaveLength(5);
+    // 6 standalone advanced modules, with Harmony locked until Inversions and Chord Rhythm after Harmony
+    expect(advancedStages).toHaveLength(6);
     expect(plannedStages).toHaveLength(0);
   });
 
@@ -78,6 +79,11 @@ describe('Learning Roadmap Model', () => {
     expect(roadmap[9].id).toBe('harmony');
     expect(roadmap[9].status).toBe('planned');
     expect(roadmap[9].statusLabelRu).toBe('Запланировано');
+
+    // Chord Rhythm is the 11th stage and remains planned behind Harmony.
+    expect(roadmap[10].id).toBe('chord_rhythm');
+    expect(roadmap[10].status).toBe('planned');
+    expect(roadmap[10].statusLabelRu).toBe('Запланировано');
   });
 
   it('advances current stage as core phases are completed', () => {
@@ -236,6 +242,60 @@ describe('Learning Roadmap Model', () => {
     });
     expect(completedHarmony[9].status).toBe('completed');
     expect(completedHarmony[9].isCurrent).toBe(true);
+
+    // Once Harmony is completed, Chord Rhythm (stage 11) becomes available.
+    const chordRhythmAvailable = buildLearningRoadmap({
+      phases: allPhases,
+      bassGrandStatus: 'completed',
+      intervalStatus: 'completed',
+      triadStatus: 'completed',
+      inversionStatus: 'completed',
+      harmonyStatus: 'completed',
+      chordRhythmStatus: 'not_started',
+      isInversionAvailable: true,
+      isHarmonyAvailable: true,
+      isChordRhythmAvailable: true
+    });
+    expect(chordRhythmAvailable[10].status).toBe('available');
+    expect(chordRhythmAvailable[10].isCurrent).toBe(true);
+
+    // Studying Chord Rhythm marks stage 11 current and in progress.
+    const chordRhythmInProgress = buildLearningRoadmap({
+      phases: allPhases,
+      bassGrandStatus: 'completed',
+      intervalStatus: 'completed',
+      triadStatus: 'completed',
+      inversionStatus: 'completed',
+      harmonyStatus: 'completed',
+      chordRhythmStatus: 'in_progress',
+      isInversionAvailable: true,
+      isHarmonyAvailable: true,
+      isChordRhythmAvailable: true
+    });
+    expect(chordRhythmInProgress[10].status).toBe('in_progress');
+    expect(chordRhythmInProgress[10].isCurrent).toBe(true);
+  });
+
+  it('clears currentStageId when all 11 stages are completed', () => {
+    const allPhases = createMockPhases(['anchors', 'neighbors', 'remaining', 'black', 'notation', 'sound']);
+    const roadmap = buildLearningRoadmap({
+      phases: allPhases,
+      bassGrandStatus: 'completed',
+      intervalStatus: 'completed',
+      triadStatus: 'completed',
+      inversionStatus: 'completed',
+      harmonyStatus: 'completed',
+      chordRhythmStatus: 'completed',
+      isIntervalAvailable: true,
+      isTriadAvailable: true,
+      isInversionAvailable: true,
+      isHarmonyAvailable: true,
+      isChordRhythmAvailable: true
+    });
+
+    expect(roadmap).toHaveLength(11);
+    expect(roadmap.every((stage) => stage.status === 'completed')).toBe(true);
+    expect(roadmap.every((stage) => stage.isCurrent === false)).toBe(true);
   });
 
   it('is a pure function that does not mutate input parameters', () => {

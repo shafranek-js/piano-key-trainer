@@ -15,6 +15,29 @@ export type FsrsEligibilityInput = Pick<
   kind?: ReviewKind;
 };
 
+/** Canonical marker written to `LearningProgressRecord.contexts` after a failed first attempt. */
+export const DELAYED_RETRY_CONTEXT = 'pending:delayedRetry';
+
+/** Set only when the failed first attempt actually graded FSRS (`Again`). */
+export const GRADED_FAILURE_CONTEXT = 'pending:gradedFailure';
+
+/**
+ * Canonical delayed-correction rule for every acquisition module:
+ * the first gradeable attempt mutates FSRS at most once; corrective/remediation
+ * retries after a graded failure are never first attempts.
+ */
+export function hasPendingDelayedRetry(contexts: readonly string[] | undefined): boolean {
+  return Boolean(contexts?.includes(DELAYED_RETRY_CONTEXT));
+}
+
+export function wasDelayedCheckGradedFailure(contexts: readonly string[] | undefined): boolean {
+  return Boolean(contexts?.includes(GRADED_FAILURE_CONTEXT));
+}
+
+export function isDelayedCheckFirstAttempt(contexts: readonly string[] | undefined): boolean {
+  return !wasDelayedCheckGradedFailure(contexts);
+}
+
 /**
  * Authoritative Milestone 3A policy determining whether a trial is eligible to mutate
  * FSRS scheduling state (`Card.stability`, `Card.difficulty`, `Card.reps`, `Card.dueAt`,

@@ -360,6 +360,23 @@ export function applyReviewAndBuildLog(
     };
   }
 
+  // Canonical rule: a remediation retry of a delayed check is not a first attempt
+  // and must not emit an additional ReviewLogEvent.
+  if (
+    trialContext.mode === 'delayedCheck' &&
+    fsrsEligibility.reason === 'ineligible_non_first_attempt'
+  ) {
+    return {
+      logEvent: null,
+      fsrsResult: null,
+      grade: null,
+      statsUpdated: false,
+      cardMutated: false,
+      trialContext,
+      fsrsEligibility
+    };
+  }
+
   // Non-FSRS activity:
   // - Legacy `freePractice` (`kind === 'practice' || kind === 'confusion'`) records a
   //   schedule-neutral diagnostic grade (3 = Good when firstCorrect && !effectiveHintUsed, else 1 = Again).

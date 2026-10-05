@@ -55,7 +55,6 @@ import { getCurriculumPhases } from './core/curriculum/curriculum';
   } from './core/input/activePracticeSession';
   import { resolveAdvancedModuleStates } from './core/learning/advancedModules';
   import {
-    normalizeBackupLearningProgress,
     createInitialLearningProgress,
     shouldEnterFirstRunCf,
     isFirstRunCfCompleted,
@@ -140,13 +139,15 @@ import { getCurriculumPhases } from './core/curriculum/curriculum';
     CHORD_RHYTHM_MISSED_AFTER_MS,
     CHORD_RHYTHM_SEQUENCE,
     chordRhythmCardNotes,
+    canStartRhythmRemediation,
     classifyRhythmTiming,
     createChordRhythmModuleState,
     createRhythmAssessment,
     currentRhythmTrial,
-    getRhythmAssessmentLength,
     reduceChordRhythmState,
-    rhythmStrikeCount,
+    resetAdvancedModuleStates,
+    targetedRemediationStep,
+    type AdvancedModuleId,
     type HarmonyCurriculumState,
     type HarmonyAction,
     type HarmonyChordId,
@@ -154,7 +155,6 @@ import { getCurriculumPhases } from './core/curriculum/curriculum';
     type TrialInputMethod,
     type ChordRhythmModuleState,
     type ChordRhythmAction,
-    type RhythmAssessmentState,
     type RhythmTimingOutcome
   } from './core/learning';
 import { isFsrsCardDue } from './core/fsrs/cardClassification';
@@ -212,6 +212,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
 
   // Storage
   import { db, type ColdTestRecord, type LessonProgressRecord } from './storage/db';
+  import { BACKUP_SCHEMA_VERSION, normalizeBackupCard, validateAndNormalizeBackup } from './storage/backup';
   import { checkAndMigrateLocalStorage } from './storage/migrator';
 
   // Components
@@ -304,6 +305,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       const learningProgressList = await db.learningProgress.toArray();
       const backup = {
         app: 'piano-key-trainer',
+        backupSchemaVersion: BACKUP_SCHEMA_VERSION,
         version: APP_VERSION,
         exportedAt: new Date().toISOString(),
         settings: $state.snapshot(settings),
@@ -328,44 +330,64 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   }
 
   async function importProfileData(file: File) {
+    let parsed: unknown;
     try {
       const text = await file.text();
-      const backup = JSON.parse(text);
-      if (!backup || typeof backup !== 'object') {
-        alert('Неверный формат файла резервной копии.');
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        alert('Не удалось прочитать JSON. Файл повреждён или не является резервной копией.');
         return;
       }
-      if (backup.settings) {
-        persistSettings(backup.settings);
-      }
-      if (Array.isArray(backup.cards) && backup.cards.length) {
-        await db.cards.clear();
-        await db.cards.bulkPut(backup.cards);
-        cards = backup.cards;
-      }
-      if (Array.isArray(backup.reviewLogs)) {
-        await db.reviewLogs.clear();
-        await db.reviewLogs.bulkPut(backup.reviewLogs);
-        reviewLogs = backup.reviewLogs;
-      }
-      if (Array.isArray(backup.coldTests)) {
-        await db.coldTests.clear();
-        await db.coldTests.bulkPut(backup.coldTests);
-        coldTests = backup.coldTests;
-      }
-      if (Array.isArray(backup.lessonProgress)) {
-        await db.lessonProgress.clear();
-        await db.lessonProgress.bulkPut(backup.lessonProgress);
-        lessonProgressMap = new Map(backup.lessonProgress.map((p: any) => [p.id, p]));
-      }
-      const importedLearningProgress = normalizeBackupLearningProgress(backup);
-      if (importedLearningProgress !== null) {
-        await db.learningProgress.clear();
-        if (importedLearningProgress.length) {
-          await db.learningProgress.bulkPut(importedLearningProgress);
+    } catch (e) {
+      console.error('Import read failed:', e);
+      alert('Ошибка при чтении файла резервной копии.');
+      return;
+    }
+
+    // Untrusted input: parse -> schema validate -> semantic normalize, and only then write.
+    const result = validateAndNormalizeBackup(parsed);
+    if (!result.ok) {
+      alert(result.error);
+      return;
+    }
+    const backup = result.backup;
+
+    try {
+      isProfileImporting = true;
+      // Never replace the database while an in-flight review commit is queued.
+      await reviewPersistenceQueue;
+      const mergedSettings = { ...$state.snapshot(settings), ...backup.settings };
+      await db.transaction(
+        'rw',
+        [db.cards, db.reviewLogs, db.coldTests, db.lessonProgress, db.learningProgress, db.settings],
+        async () => {
+          await db.cards.clear();
+          if (backup.cards.length) await db.cards.bulkPut(backup.cards);
+          await db.reviewLogs.clear();
+          if (backup.reviewLogs.length) await db.reviewLogs.bulkPut(backup.reviewLogs);
+          await db.coldTests.clear();
+          if (backup.coldTests.length) await db.coldTests.bulkPut(backup.coldTests);
+          await db.lessonProgress.clear();
+          if (backup.lessonProgress.length) await db.lessonProgress.bulkPut(backup.lessonProgress);
+          await db.learningProgress.clear();
+          if (backup.learningProgress.length) await db.learningProgress.bulkPut(backup.learningProgress);
+          if (Object.keys(backup.settings).length) {
+            await db.settings.put({ key: 'userSettings', value: mergedSettings });
+          }
         }
-        learningProgressMap = new Map(importedLearningProgress.map(p => [p.id, p]));
-      }
+      );
+
+      cards = backup.cards;
+      reviewLogs = backup.reviewLogs;
+      coldTests = backup.coldTests;
+      lessonProgressMap = new Map(backup.lessonProgress.map(p => [p.id, p]));
+      learningProgressMap = new Map(backup.learningProgress.map(p => [p.id, p]));
+      reviewPersistenceFailed = false;
+      pendingReviewCommitCount = 0;
+      deferredNextRoundCallId = null;
+      clearActiveAdvancedModuleStates();
+      if (Object.keys(backup.settings).length) persistSettings(backup.settings);
       if (
         shouldEnterFirstRunCf({
           cards,
@@ -418,17 +440,21 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
         curriculumState = null;
         curriculum3dState = null;
       }
-      alert('Данные профиля успешно восстановлены из резервной копии!');
+      const warning = backup.warnings.length ? ` ${backup.warnings.join(' ')}` : '';
+      alert(`Данные профиля успешно восстановлены из резервной копии.${warning}`);
       nextRound();
     } catch (e) {
       console.error('Import failed:', e);
-      alert('Ошибка при чтении файла резервной копии: ' + e);
+      alert('Ошибка при восстановлении профиля: ' + e);
+    } finally {
+      isProfileImporting = false;
     }
   }
 
   let cards = $state<Card[]>([]);
   let reviewLogs = $state<ReviewLogEvent[]>([]);
   let reviewPersistenceQueue: Promise<void> = Promise.resolve();
+  let isProfileImporting = false;
   let coldTests = $state<ColdTestRecord[]>([]);
   let lessonProgressMap = $state<Map<string, LessonProgressRecord>>(new Map());
   let learningProgressMap = $state<Map<string, LearningProgressRecord>>(new Map());
@@ -480,7 +506,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   let rhythmQuestionInstanceId: string | null = null;
   let rhythmCountInEndsAt = 0;
   let rhythmOutcomePending = false;
-  let rhythmInputMethod: 'screen' | 'midi' = 'screen';
+  let rhythmRunGeneration = 0;
   const isChordRhythmActive = $derived(chordRhythmState !== null);
   const isChordRhythmAvailable = $derived(advancedModuleStates.chordRhythm.available);
   const chordRhythmStatus = $derived(advancedModuleStates.chordRhythm.progressStatus);
@@ -902,7 +928,18 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
         console.warn('Error loading settings from IndexedDB', err);
       }
 
-      let storedCards = await db.cards.toArray();
+      const loadedCards = await db.cards.toArray();
+      const normalizedCards = loadedCards
+        .map(card => normalizeBackupCard(card))
+        .filter((card): card is Card => card !== null);
+      const cardsNeededNormalization =
+        normalizedCards.length !== loadedCards.length ||
+        loadedCards.some(card => !card.stats);
+      let storedCards = normalizedCards;
+      if (cardsNeededNormalization && storedCards.length) {
+        // Self-heal legacy/imported rows that predate `stats` normalization.
+        await db.cards.bulkPut(storedCards.map(card => $state.snapshot(card)));
+      }
       if (!storedCards.length) {
         const initialCards: Card[] = [];
         const skills: Skill[] = ['find', 'identify', 'patternIdentify', 'notationToKey', 'soundToKey', 'notationBassToKey'];
@@ -1077,17 +1114,26 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       }
 
       startLearningSession(sessionPreset);
+      const advancedResolved = resolveAdvancedModuleStates({ learningProgress: learningProgressMap, cards: storedCards, reviewLogs });
       const savedHarmonySnapshot = learningProgressMap.get(HARMONY_ITEM_IDS.SESSION)?.harmonySnapshot;
-      const harmonyResolved = resolveAdvancedModuleStates({ learningProgress: learningProgressMap, cards: storedCards, reviewLogs }).harmony;
+      const savedChordRhythmSnapshot = learningProgressMap.get(CHORD_RHYTHM_ITEM_IDS.SESSION)?.chordRhythmSnapshot;
       if (
         savedHarmonySnapshot &&
         learningProgressMap.get(HARMONY_ITEM_IDS.COMPLETE)?.state !== 'retention' &&
-        harmonyResolved.available
+        advancedResolved.harmony.available
       ) {
         activePage = 'practice';
         harmonyState = createHarmonyCurriculumState(learningProgressMap, Date.now());
         sessionEndsAt = null;
         syncHarmonyVisuals();
+      } else if (
+        savedChordRhythmSnapshot &&
+        learningProgressMap.get(CHORD_RHYTHM_ITEM_IDS.COMPLETE)?.state !== 'retention' &&
+        advancedResolved.chordRhythm.available
+      ) {
+        activePage = 'practice';
+        chordRhythmState = createChordRhythmModuleState(learningProgressMap);
+        sessionEndsAt = null;
       } else {
         nextRound();
       }
@@ -1528,7 +1574,8 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       dailyRhythmViewState = {
         ...createChordRhythmModuleState(),
         step: 'transferAssessment',
-        assessment: createRhythmAssessment('initial')
+        assessment: createRhythmAssessment('initial'),
+        dailySkill: activatedRhythmSkill
       };
       dailyRhythmChordId = CHORD_RHYTHM_SEQUENCE[sessionTrials % CHORD_RHYTHM_SEQUENCE.length];
       dailyRhythmFeedback = '';
@@ -1979,6 +2026,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     logEvent: ReviewLogEvent | null,
     cardMutated: boolean
   ) {
+    if (isProfileImporting) return Promise.resolve();
     const cardSnapshot = cardRef ? $state.snapshot(cardRef) : null;
     const logSnapshot = $state.snapshot(logEvent);
     const reviewTraceKey = logEvent ? `${logEvent.ts}:${logEvent.sessionId}:${logEvent.cardId}` : null;
@@ -2597,6 +2645,33 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     targetKeyIds = [...bassGrandState.targetKeyIds];
   }
 
+  /**
+   * Canonical advanced-module lifecycle: at most one advanced module may be active.
+   * Clears every sibling module state and returns the requested one untouched.
+   */
+  function clearActiveAdvancedModuleStates(keep: AdvancedModuleId | null = null) {
+    if (keep !== 'chordRhythm') {
+      cancelChordRhythmRun('переключение модуля');
+      dailyRhythmViewState = null;
+    }
+    const next = resetAdvancedModuleStates({
+      bassGrandStaff: bassGrandState,
+      intervals: intervalState,
+      triads: triadState,
+      inversions: inversionState,
+      harmony: harmonyState,
+      chordRhythm: chordRhythmState
+    }, keep);
+    bassGrandState = next.bassGrandStaff;
+    intervalState = next.intervals;
+    triadState = next.triads;
+    inversionState = next.inversions;
+    harmonyState = next.harmony;
+    chordRhythmState = next.chordRhythm;
+    midiChordTracker.reset();
+    midiChordHeldKeyIds = [];
+  }
+
   function handleStartBassGrandModule() {
     if (!advancedModuleStates.bassGrandStaff.available) return;
     activePage = 'practice';
@@ -2604,9 +2679,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     firstRunState = null;
     curriculumState = null;
     curriculum3dState = null;
-    intervalState = null;
-    triadState = null;
-    inversionState = null;
+    clearActiveAdvancedModuleStates('bassGrandStaff');
     clearActiveTask();
     bassGrandState = createBassGrandCurriculumState({
       learningProgress: learningProgressMap,
@@ -2742,9 +2815,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     firstRunState = null;
     curriculumState = null;
     curriculum3dState = null;
-    bassGrandState = null;
-    triadState = null;
-    inversionState = null;
+    clearActiveAdvancedModuleStates('intervals');
     clearActiveTask();
     intervalState = createIntervalCurriculumState({
       learningProgress: learningProgressMap,
@@ -2756,7 +2827,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   }
 
   async function dispatchIntervalAction(action: IntervalAction) {
-    if (!intervalState) return;
+    if (!intervalState || !isActivePracticeSession(currentSessionId)) return;
     const result = applyIntervalActionWithCards({
       state: intervalState,
       action,
@@ -2855,9 +2926,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     firstRunState = null;
     curriculumState = null;
     curriculum3dState = null;
-    bassGrandState = null;
-    intervalState = null;
-    inversionState = null;
+    clearActiveAdvancedModuleStates('triads');
     clearActiveTask();
     triadState = createTriadCurriculumState({
       learningProgress: learningProgressMap,
@@ -2876,7 +2945,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   }
 
   async function dispatchTriadAction(action: TriadAction) {
-    if (!triadState) return;
+    if (!triadState || !isActivePracticeSession(currentSessionId)) return;
     const cardsMap = new Map<string, Card>();
     for (const c of cards) cardsMap.set(c.id, c);
 
@@ -2984,9 +3053,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     firstRunState = null;
     curriculumState = null;
     curriculum3dState = null;
-    bassGrandState = null;
-    intervalState = null;
-    triadState = null;
+    clearActiveAdvancedModuleStates('inversions');
     clearActiveTask();
     inversionState = createInversionCurriculumState(learningProgressMap, Date.now());
     midiChordTracker.reset();
@@ -3020,7 +3087,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   }
 
   async function dispatchInversionAction(action: InversionAction) {
-    if (!inversionState) return;
+    if (!inversionState || !isActivePracticeSession(currentSessionId)) return;
     const cardsMap = new Map<string, Card>();
     for (const c of cards) cardsMap.set(c.id, c);
 
@@ -3132,10 +3199,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     firstRunState = null;
     curriculumState = null;
     curriculum3dState = null;
-    bassGrandState = null;
-    intervalState = null;
-    triadState = null;
-    inversionState = null;
+    clearActiveAdvancedModuleStates('harmony');
     clearActiveTask();
     harmonyState = createHarmonyCurriculumState(learningProgressMap, Date.now());
     sessionEndsAt = null;
@@ -3218,7 +3282,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     nextRound();
   }
 
-  function rhythmSnapshotFor(state: ChordRhythmModuleState) {
+  function rhythmSnapshotFor(state: ChordRhythmModuleState): NonNullable<LearningProgressRecord['chordRhythmSnapshot']> {
     return {
       stage: state.step,
       sequenceIndex: state.sequenceIndex,
@@ -3231,14 +3295,21 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
         failedTrialIndexes: [...state.assessment.failedTrialIndexes],
         remediationTrialIndexes: [...state.assessment.remediationTrialIndexes],
         remediationIndex: state.assessment.remediationIndex,
-        remediationUsed: state.assessment.remediationUsed
+        remediationUsed: state.assessment.remediationUsed,
+        pendingCorrective: state.assessment.pendingCorrective,
+        scoredQuestionIds: [...state.assessment.scoredQuestionIds]
       }
-    } as const;
+    };
   }
 
+  /**
+   * Optimistically applies the reduced state and serializes the snapshot write.
+   * The UI never runs ahead of the persisted state while a queued write is in flight.
+   */
   function persistChordRhythmState(next: ChordRhythmModuleState) {
     const previous = chordRhythmState;
     if (!previous || !isActivePracticeSession(currentSessionId)) return Promise.resolve();
+    chordRhythmState = next;
     const existing = learningProgressMap.get(CHORD_RHYTHM_ITEM_IDS.SESSION) ??
       createInitialLearningProgress(CHORD_RHYTHM_ITEM_IDS.SESSION, Date.now());
     const record: LearningProgressRecord = {
@@ -3255,7 +3326,6 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       const nextMap = new Map(learningProgressMap);
       nextMap.set(saved.id, saved);
       learningProgressMap = nextMap;
-      chordRhythmState = next;
     }).catch(error => {
       console.error('Chord rhythm progress persistence failed:', error);
       chordRhythmState = {
@@ -3283,12 +3353,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     firstRunState = null;
     curriculumState = null;
     curriculum3dState = null;
-    bassGrandState = null;
-    intervalState = null;
-    triadState = null;
-    inversionState = null;
-    harmonyState = null;
-    dailyRhythmViewState = null;
+    clearActiveAdvancedModuleStates('chordRhythm');
     clearActiveTask();
     chordRhythmState = createChordRhythmModuleState(learningProgressMap);
     sessionEndsAt = null;
@@ -3297,7 +3362,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   }
 
   function handleAdvanceChordRhythmStage() {
-    if (!chordRhythmState) return;
+    if (!chordRhythmState || !isActivePracticeSession(currentSessionId)) return;
     const sequenceStage = chordRhythmState.step === 'fullProgression' || chordRhythmState.step === 'independentPlay';
     if (sequenceStage && chordRhythmState.sequenceIndex < 4) {
       chordRhythmState = {
@@ -3311,17 +3376,19 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   }
 
   function startChordRhythmRemediation() {
-    if (!chordRhythmState) return;
+    if (!chordRhythmState || !isActivePracticeSession(currentSessionId)) return;
+    if (!canStartRhythmRemediation(chordRhythmState.assessment)) return;
     updateChordRhythmState({ type: 'startRemediation' }, true);
   }
 
   function finishChordRhythmRemediationItem() {
-    if (!chordRhythmState) return;
+    if (!chordRhythmState || !isActivePracticeSession(currentSessionId)) return;
     updateChordRhythmState({ type: 'finishRemediationItem' }, true);
   }
 
   async function completeChordRhythmModule() {
-    if (!chordRhythmState || chordRhythmState.assessment.phase !== 'passed') return;
+    if (!chordRhythmState || !isActivePracticeSession(currentSessionId)) return;
+    if (chordRhythmState.assessment.phase !== 'passed') return;
     const now = Date.now();
     const completionIds = [
       CHORD_RHYTHM_ITEM_IDS.PULSE,
@@ -3367,11 +3434,37 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
 
   function returnFromChordRhythmFailure() {
     if (!chordRhythmState) return;
-    chordRhythmState = createChordRhythmModuleState(learningProgressMap);
-    if (chordRhythmState.step === 'transferResult') {
-      chordRhythmState = { ...chordRhythmState, step: 'pulseOrientation', assessment: createRhythmAssessment(), sequenceIndex: 0 };
-    }
-    void persistChordRhythmState(chordRhythmState);
+    const targetStep = targetedRemediationStep(chordRhythmState);
+    const next: ChordRhythmModuleState = {
+      ...chordRhythmState,
+      step: targetStep,
+      sequenceIndex: 0,
+      selectedKeyIds: [],
+      assessment: createRhythmAssessment('initial'),
+      activeBeat: -1,
+      countInValue: null,
+      expectedOnset: null,
+      isRunning: false,
+      attemptIndex: 0,
+      outcomes: [],
+      feedbackText: 'Сфокусируемся на слабом навыке: пройдите короткий учебный этап и вернитесь к проверке.',
+      feedbackTone: 'warn',
+      lastTimingBand: null,
+      lastOutcome: null
+    };
+    void persistChordRhythmState(next);
+  }
+
+  /** Canonical M3K exit: completion is already persisted, then the module state is released. */
+  function exitChordRhythmModule(destination: 'curriculum' | 'practice' = 'curriculum') {
+    if (!chordRhythmState) return;
+    cancelChordRhythmRun('завершение модуля');
+    chordRhythmState = null;
+    dailyRhythmViewState = null;
+    clearActiveTask();
+    activePage = destination;
+    startLearningSession(sessionPreset);
+    nextRound();
   }
 
   function rhythmTargetChord(state: ChordRhythmModuleState): HarmonyChordId {
@@ -3387,9 +3480,11 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   }
 
   function cancelChordRhythmRun(reason: string) {
+    rhythmRunGeneration += 1;
     if (rhythmDeadlineTimer != null) window.clearTimeout(rhythmDeadlineTimer);
     rhythmDeadlineTimer = null;
     rhythmClock.stop();
+    rhythmOutcomePending = false;
     midiChordTracker.reset();
     midiChordHeldKeyIds = [];
     if (chordRhythmState?.isRunning) {
@@ -3404,13 +3499,16 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   }
 
   async function startChordRhythmRun() {
+    if (!isActivePracticeSession(currentSessionId)) return;
     const moduleMode = chordRhythmState !== null;
     const state = moduleMode ? chordRhythmState : dailyRhythmViewState;
     if (!state || (state.step === 'transferResult' || state.step === 'moduleComplete')) return;
     if (rhythmDeadlineTimer != null) window.clearTimeout(rhythmDeadlineTimer);
     rhythmClock.stop();
+    const generation = ++rhythmRunGeneration;
     let context = AudioEngine.getInstance().getContext();
     if (!context || context.state !== 'running') context = await AudioEngine.getInstance().ensureContext();
+    if (generation !== rhythmRunGeneration) return;
     if (!context || context.state !== 'running') {
       const feedback = 'Звук метронома сейчас недоступен. Разрешите воспроизведение звука и начните отсчёт ещё раз.';
       if (moduleMode && chordRhythmState) chordRhythmState = { ...chordRhythmState, feedbackText: feedback, feedbackTone: 'warn' };
@@ -3460,7 +3558,6 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     const expected = beatTargets.length ? expectedOnsets[countInBeats + beatTargets[0]] : 0;
     rhythmTargetOnsets = beatTargets.map(beat => expectedOnsets[countInBeats + beat]).filter(Number.isFinite);
     rhythmNextTargetIndex = 0;
-    rhythmInputMethod = 'screen';
     if (!state.assessment.pendingCorrective || !rhythmQuestionInstanceId) {
       rhythmQuestionInstanceId = currentCard ? currentQuestionInstanceId : activatePracticeQuestion(currentSessionId);
     }
@@ -3487,6 +3584,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   }
 
   function toggleRhythmKey(keyId: string) {
+    if (!isActivePracticeSession(currentSessionId)) return;
     if (chordRhythmState) {
       if (chordRhythmState.step === 'countingPulse' || chordRhythmState.step === 'transferResult' || chordRhythmState.step === 'moduleComplete') return;
       chordRhythmState = reduceChordRhythmState(chordRhythmState, { type: 'selectKey', keyId });
@@ -3496,6 +3594,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   }
 
   function submitRhythmChord(keyIds: readonly string[], inputMethod: 'screen' | 'midi', midiTimestamp?: number) {
+    if (!isActivePracticeSession(currentSessionId)) return;
     const moduleMode = chordRhythmState !== null;
     const state = moduleMode ? chordRhythmState : dailyRhythmViewState;
     if (!state || !state.isRunning || state.step === 'countingPulse' || state.countInValue !== null || rhythmOutcomePending || state.expectedOnset === null) return;
@@ -3514,7 +3613,6 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       chordCorrect: outcome.chordCorrect,
       timedTrialCancelledReason: null
     };
-    rhythmInputMethod = inputMethod;
     if (rhythmDeadlineTimer != null) window.clearTimeout(rhythmDeadlineTimer);
     rhythmDeadlineTimer = null;
     rhythmNextTargetIndex += 1;
@@ -3541,6 +3639,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
 
   function commitDailyRhythmOutcome(outcome: RhythmTimingOutcome, inputMethod: 'screen' | 'midi') {
     if (!currentCard || !isDailyRhythmActive || !outcome) return;
+    if (!isActivePracticeSession(currentSessionId)) return;
     const firstAttempt = !firstResponseRecorded;
     if (firstAttempt) {
       if (!claimFirstAnswerCommit(currentSessionId, currentQuestionInstanceId)) return;
@@ -5027,7 +5126,6 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   }
 
   function handleWindowKeydown(e: KeyboardEvent) {
-    if (!isActivePracticeSession(currentSessionId)) return;
     if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) return;
 
     if (e.key === 'Escape') {
@@ -5036,6 +5134,18 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       isSessionSummaryOpen = false;
       return;
     }
+
+    // Held keys must not fire a second semantic action.
+    if (e.repeat) return;
+
+    // Let focused interactive controls handle Enter/Space natively.
+    const interactiveTarget = e.target instanceof HTMLElement
+      ? e.target.closest('button, [role="button"], a[href], input, select, textarea')
+      : null;
+    if (interactiveTarget && (e.key === 'Enter' || e.code === 'Space' || e.key === ' ')) return;
+
+    if (!isActivePracticeSession(currentSessionId)) return;
+    if (activePage !== 'practice') return;
 
     if (isHarmonyActive && harmonyState) {
       if (e.repeat) return;
@@ -5530,13 +5640,19 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     }
 
     window.addEventListener('keydown', handleWindowKeydown);
+    const handleVisibilityChange = () => {
+      if (document.hidden) cancelChordRhythmRun('скрытие вкладки');
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       unsubscribeMidiStatus();
       unsubscribeMidiNoteOn();
       unsubscribeMidiNoteOff();
       endPracticeSession(currentSessionId);
+      cancelChordRhythmRun('выгрузка компонента');
       clearAutoAdvance();
       stopReactionTimer();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('pointerdown', unlockAudioOnFirstGesture, true);
       window.removeEventListener('keydown', unlockAudioOnFirstGesture, true);
       window.removeEventListener('keydown', handleWindowKeydown);
@@ -5562,6 +5678,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   $effect(() => {
     void activePage;
     void practiceActivity;
+    if (activePage !== 'practice') cancelChordRhythmRun('смена экрана');
     try {
       if (typeof sessionStorage !== 'undefined') {
         sessionStorage.setItem(ACTIVE_PAGE_SESSION_KEY, activePage);
@@ -6000,14 +6117,15 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
                 midiConnected={midiReady}
                 onAdvance={handleAdvanceChordRhythmStage}
                 onStartRun={() => void startChordRhythmRun()}
-                onToggleKey={toggleRhythmKey}
                 onSubmit={() => submitRhythmChord(chordRhythmState?.selectedKeyIds ?? [], 'screen')}
                 onRetry={() => {
                   if (chordRhythmState?.step === 'transferRemediation' && chordRhythmState.feedbackTone === 'good') finishChordRhythmRemediationItem();
+                  else if (chordRhythmState?.step === 'transferResult' && chordRhythmState.assessment.phase === 'failed') returnFromChordRhythmFailure();
                   else void startChordRhythmRun();
                 }}
                 onRemediation={startChordRhythmRemediation}
                 onComplete={() => void completeChordRhythmModule()}
+                onExit={(destination) => exitChordRhythmModule(destination)}
               />
             </div>
           {:else if isDailyRhythmActive && dailyRhythmViewState && currentCard}
@@ -6023,11 +6141,11 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
                 dailyCompleted={dailyRhythmCompleted}
                 onAdvance={advanceDailyRhythmQuestion}
                 onStartRun={() => void startChordRhythmRun()}
-                onToggleKey={toggleRhythmKey}
                 onSubmit={() => submitRhythmChord(dailyRhythmViewState?.selectedKeyIds ?? [], 'screen')}
                 onRetry={() => void startChordRhythmRun()}
                 onRemediation={() => void startChordRhythmRun()}
                 onComplete={advanceDailyRhythmQuestion}
+                onExit={advanceDailyRhythmQuestion}
               />
             </div>
           {:else if isHarmonyActive && harmonyState}
@@ -6100,11 +6218,11 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
                   : currentCard.skill === 'soundToKey'
                     ? `<span class="note">C4</span> → 🔊 → ?`
                     : currentCard.skill === 'intervalBuild'
-                      ? `Постройте интервал: <span class="note">${DISPLAY_NAMES[currentCard.note] || currentCard.note}</span> от ${structuralGuideKeyIds[0] || 'C4'}`
+                      ? `Постройте интервал: <span class="note">${DISPLAY_NAMES[currentCard.note] || '?'}</span> от ${structuralGuideKeyIds[0] || 'C4'}`
                       : currentCard.skill === 'intervalIdentify'
                         ? 'Определите интервал между подсвеченными клавишами'
                         : currentCard.skill === 'triadBuild'
-                          ? `Постройте трезвучие: <span class="note">${DISPLAY_NAMES[currentCard.note] || currentCard.note}</span> от ${structuralGuideKeyIds[0] || 'C4'}`
+                          ? `Постройте трезвучие: <span class="note">${DISPLAY_NAMES[currentCard.note] || '?'}</span> от ${structuralGuideKeyIds[0] || 'C4'}`
                           : currentCard.skill === 'triadIdentify'
                             ? 'Определите трезвучие по трём подсвеченным клавишам'
                             : currentCard.skill === 'triadInversionBuild'
@@ -6114,7 +6232,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
                               : currentCard.skill === 'triadInversionIdentify'
                                 ? 'Определите положение трезвучия по трём клавишам'
                                 : currentCard.skill === 'chordSymbolRead'
-                                  ? `Сыграйте аккорд по обозначению: <span class="note">${currentChordSymbol || DISPLAY_NAMES[currentCard.note] || currentCard.note}</span>`
+                                  ? `Сыграйте аккорд по обозначению: <span class="note">${currentChordSymbol || DISPLAY_NAMES[currentCard.note] || '?'}</span>`
                                   : getPatternIdentifyPrompt(currentCard.note)
             }
 
@@ -6275,24 +6393,8 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
           isGrandStaffComplete={isBassGrandModuleCompleteDerived}
           learningProgressMap={learningProgressMap}
           harmonyStatus={harmonyStatus}
-          onExport={async () => {
-            const data = { state: { settings, cards }, reviewLogs, coldTests };
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `piano-trainer-backup-${new Date().toISOString().slice(0, 10)}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-          }}
-          onImport={async (file: File) => {
-            const text = await file.text();
-            const data = JSON.parse(text);
-            if (data.state?.cards) {
-              await db.cards.bulkPut(Object.values(data.state.cards));
-              loadData();
-            }
-          }}
+          onExport={exportProfileData}
+          onImport={importProfileData}
           onReset={async () => {
             if (confirm('Сбросить весь прогресс FSRS?')) {
               await db.delete();

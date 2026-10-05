@@ -2,7 +2,7 @@ import type { HarmonyChordId } from './harmony';
 import type { Skill } from '../fsrs/types';
 import type { NoteName } from '../fsrs/types';
 import type { ProgressCollectionInput } from './curriculumFlow';
-import type { LearningProgressRecord } from './types';
+import type { ChordRhythmModuleSnapshot, LearningProgressRecord } from './types';
 
 export const CHORD_RHYTHM_BPM = 60;
 export const CHORD_RHYTHM_TIME_SIGNATURE = '4/4' as const;
@@ -53,6 +53,8 @@ export interface ChordRhythmModuleState {
   feedbackTone: 'good' | 'bad' | 'warn' | '';
   lastTimingBand: TimingBand | null;
   lastOutcome: RhythmTimingOutcome | null;
+  /** Daily-practice cards know their skill without going through an assessment trial index. */
+  dailySkill?: ChordRhythmSkill;
 }
 
 export type ChordRhythmAction =
@@ -200,15 +202,24 @@ function advanceRhythmAssessmentTrial(state: RhythmAssessmentState): RhythmAsses
   const nextIndex = state.trialIndex + 1;
   if (nextIndex < getRhythmAssessmentLength(state)) return { ...state, trialIndex: nextIndex };
   const passed = state.correctFirstAttempts / getRhythmAssessmentLength(state) >= CHORD_RHYTHM_REQUIRED_ACCURACY;
-  return { ...state, phase: passed ? 'passed' : 'result' };
+  if (passed) return { ...state, phase: 'passed' };
+  // A failed retry block is terminal: the learner explicitly chooses the next path.
+  return { ...state, phase: state.blockKind === 'retry' ? 'failed' : 'result' };
+}
+
+export function canStartRhythmRemediation(state: RhythmAssessmentState): boolean {
+  return state.phase === 'result' &&
+    state.blockKind === 'initial' &&
+    state.failedTrialIndexes.length > 0 &&
+    state.remediationUsed < CHORD_RHYTHM_MAX_REMEDIATION;
 }
 
 export function startRhythmRemediation(state: RhythmAssessmentState): RhythmAssessmentState {
-  if (state.phase !== 'result' || state.remediationUsed >= CHORD_RHYTHM_MAX_REMEDIATION) {
-    return { ...state, phase: state.blockKind === 'retry' ? 'failed' : state.phase };
+  if (state.phase !== 'result') return state;
+  if (!canStartRhythmRemediation(state)) {
+    return { ...state, phase: 'failed' };
   }
   const selected = state.failedTrialIndexes.slice(0, CHORD_RHYTHM_MAX_REMEDIATION);
-  if (!selected.length) return state;
   return {
     ...state,
     phase: 'remediation',
@@ -237,20 +248,78 @@ const TEACHING_STEPS: readonly ChordRhythmStep[] = [
   'fullProgression', 'twoStrikes', 'independentPlay'
 ];
 
+const CHORD_RHYTHM_STEPS: readonly ChordRhythmStep[] = [
+  ...TEACHING_STEPS, 'transferAssessment', 'transferResult', 'transferRemediation', 'moduleComplete'
+];
+
+const ASSESSMENT_BLOCKS: readonly RhythmAssessmentBlock[] = ['initial', 'retry'];
+const ASSESSMENT_PHASES: readonly RhythmAssessmentState['phase'][] = ['active', 'result', 'remediation', 'passed', 'failed'];
+
+function finiteCount(value: unknown, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback;
+}
+
+function finiteNumberArray(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is number => typeof item === 'number' && Number.isFinite(item) && item >= 0)
+    .map(item => Math.floor(item));
+}
+
+function stringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string');
+}
+
+/**
+ * Validates an untrusted persisted M3K snapshot (backup import, reload, legacy rows).
+ * Unknown or corrupt values fall back to safe defaults instead of crashing the stage.
+ */
+export function normalizeChordRhythmSnapshot(value: unknown): ChordRhythmModuleSnapshot | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as Record<string, unknown>;
+  const stage = typeof raw.stage === 'string' && CHORD_RHYTHM_STEPS.includes(raw.stage as ChordRhythmStep)
+    ? raw.stage as ChordRhythmStep
+    : undefined;
+  if (!stage) return undefined;
+  const snapshot: ChordRhythmModuleSnapshot = {
+    stage,
+    sequenceIndex: finiteCount(raw.sequenceIndex, 0)
+  };
+  const rawAssessment = raw.assessment;
+  if (rawAssessment && typeof rawAssessment === 'object') {
+    const assessment = rawAssessment as Record<string, unknown>;
+    snapshot.assessment = {
+      blockKind: ASSESSMENT_BLOCKS.includes(assessment.blockKind as RhythmAssessmentBlock)
+        ? assessment.blockKind as RhythmAssessmentBlock
+        : 'initial',
+      phase: ASSESSMENT_PHASES.includes(assessment.phase as RhythmAssessmentState['phase'])
+        ? assessment.phase as RhythmAssessmentState['phase']
+        : 'active',
+      trialIndex: finiteCount(assessment.trialIndex),
+      trialsCompleted: finiteCount(assessment.trialsCompleted),
+      correctFirstAttempts: finiteCount(assessment.correctFirstAttempts),
+      failedTrialIndexes: finiteNumberArray(assessment.failedTrialIndexes),
+      remediationTrialIndexes: finiteNumberArray(assessment.remediationTrialIndexes),
+      remediationIndex: finiteCount(assessment.remediationIndex),
+      remediationUsed: finiteCount(assessment.remediationUsed),
+      pendingCorrective: assessment.pendingCorrective === true,
+      scoredQuestionIds: stringArray(assessment.scoredQuestionIds)
+    };
+  }
+  return snapshot;
+}
+
 export function createChordRhythmModuleState(progress?: ProgressCollectionInput): ChordRhythmModuleState {
-  const record = normalizeRhythmProgress(progress).get(CHORD_RHYTHM_ITEM_IDS.SESSION);
-  const snapshot = record?.chordRhythmSnapshot;
-  const knownSteps: readonly ChordRhythmStep[] = [
-    ...TEACHING_STEPS, 'transferAssessment', 'transferResult', 'transferRemediation', 'moduleComplete'
-  ];
-  const step = snapshot && knownSteps.includes(snapshot.stage as ChordRhythmStep)
-    ? snapshot.stage as ChordRhythmStep
-    : 'pulseOrientation';
+  const map = normalizeRhythmProgress(progress);
+  const record = map.get(CHORD_RHYTHM_ITEM_IDS.SESSION);
+  const snapshot = normalizeChordRhythmSnapshot(record?.chordRhythmSnapshot);
+  const step: ChordRhythmStep = snapshot ? snapshot.stage as ChordRhythmStep : 'pulseOrientation';
   const saved = snapshot?.assessment;
   const assessment = saved
-    ? { ...createRhythmAssessment(saved.blockKind), ...saved, phase: saved.phase as RhythmAssessmentState['phase'], scoredQuestionIds: [] }
+    ? { ...createRhythmAssessment(saved.blockKind), ...saved, scoredQuestionIds: [...saved.scoredQuestionIds] }
     : createRhythmAssessment();
-  if (normalizeRhythmProgress(progress).get(CHORD_RHYTHM_ITEM_IDS.COMPLETE)?.state === 'retention') {
+  if (map.get(CHORD_RHYTHM_ITEM_IDS.COMPLETE)?.state === 'retention') {
     return {
       step: 'moduleComplete', sequenceIndex: 0, selectedKeyIds: [], assessment,
       activeBeat: -1, countInValue: null, expectedOnset: null, isRunning: false, attemptIndex: 0,
@@ -259,7 +328,7 @@ export function createChordRhythmModuleState(progress?: ProgressCollectionInput)
   }
   return {
     step,
-    sequenceIndex: Math.max(0, record?.chordRhythmSnapshot ? Number((record.chordRhythmSnapshot as any).sequenceIndex ?? 0) : 0),
+    sequenceIndex: Math.max(0, snapshot?.sequenceIndex ?? 0),
     selectedKeyIds: [], assessment,
     activeBeat: -1, countInValue: null, expectedOnset: null, isRunning: false, attemptIndex: 0,
     outcomes: [], feedbackText: '', feedbackTone: '', lastTimingBand: null, lastOutcome: null
@@ -308,8 +377,8 @@ export function reduceChordRhythmState(
         }
         if (success) {
           const assessment = recordRhythmAssessmentFirstAttempt(state.assessment, { questionInstanceId: action.questionInstanceId, correct: true });
-          const complete = assessment.phase === 'passed';
-          return { ...state, assessment, step: complete ? 'transferResult' : assessment.phase === 'result' ? 'transferResult' : state.step, outcomes: [], isRunning: false, selectedKeyIds: [], sequenceIndex: 0, feedbackText: `✓ Аккорд верный · ${timingBandLabel(last.timingBand)}.`, feedbackTone: 'good', lastTimingBand: last.timingBand, lastOutcome: last };
+          const done = assessment.phase !== 'active';
+          return { ...state, assessment, step: done ? 'transferResult' : state.step, outcomes: [], isRunning: false, selectedKeyIds: [], sequenceIndex: 0, feedbackText: `✓ Аккорд верный · ${timingBandLabel(last.timingBand)}.`, feedbackTone: 'good', lastTimingBand: last.timingBand, lastOutcome: last };
         }
         return { ...state, outcomes, attemptIndex: outcomes.length, selectedKeyIds: [], expectedOnset: null, feedbackText: rhythmFeedback(last), feedbackTone: last.correct ? 'warn' : 'bad', lastTimingBand: last.timingBand, lastOutcome: last };
       }
@@ -340,7 +409,7 @@ export function reduceChordRhythmState(
     }
     case 'finishCorrective': {
       const assessment = finishRhythmCorrectiveRun(state.assessment);
-      const isDone = assessment.phase === 'result' || assessment.phase === 'passed';
+      const isDone = assessment.phase !== 'active';
       return { ...state, assessment, step: isDone ? 'transferResult' : state.step, outcomes: [], attemptIndex: 0, isRunning: false, selectedKeyIds: [], feedbackText: '', feedbackTone: '', expectedOnset: null };
     }
     case 'startRemediation': {
@@ -366,9 +435,19 @@ export function currentRhythmTrial(state: ChordRhythmModuleState): RhythmAssessm
 }
 
 export function rhythmStrikeCount(state: ChordRhythmModuleState): number {
+  if (state.dailySkill) return state.dailySkill === 'chordRhythmPattern' ? 2 : 1;
   if (state.step === 'twoStrikes') return 2;
   if (state.step === 'transferAssessment' || state.step === 'transferRemediation') return currentRhythmTrial(state).expectedBeatIndexes.length;
   return 1;
+}
+
+/** Maps the first failed assessment trial back to a targeted guided rhythm step. */
+export function targetedRemediationStep(state: ChordRhythmModuleState): ChordRhythmStep {
+  const failedIndex = state.assessment.failedTrialIndexes[0];
+  const coverage = typeof failedIndex === 'number'
+    ? getRhythmAssessmentTrial(state.assessment.blockKind, failedIndex).coverageTag
+    : 'pulse';
+  return coverage === 'pattern' ? 'twoStrikes' : coverage === 'change' ? 'changeOnBeatOne' : 'oneChordPerBar';
 }
 
 export function rhythmFeedback(outcome: RhythmTimingOutcome): string {
@@ -411,6 +490,8 @@ export function getChordRhythmModuleStatus(
 ): 'not_started' | 'in_progress' | 'completed' {
   const map = normalizeRhythmProgress(progress);
   if (map.get(CHORD_RHYTHM_ITEM_IDS.COMPLETE)?.state === 'retention') return 'completed';
+  const sessionSnapshot = normalizeChordRhythmSnapshot(map.get(CHORD_RHYTHM_ITEM_IDS.SESSION)?.chordRhythmSnapshot);
+  if (sessionSnapshot) return 'in_progress';
   return Object.values(CHORD_RHYTHM_ITEM_IDS)
     .filter(id => id !== CHORD_RHYTHM_ITEM_IDS.SESSION)
     .some(id => map.get(id)?.state && map.get(id)?.state !== 'unseen')

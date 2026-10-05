@@ -24,7 +24,7 @@ import {
   recordIndependentAttempt,
   recordModelCompleted
 } from './progress';
-import { createTrialContext } from './trialPolicy';
+import { GRADED_FAILURE_CONTEXT, createTrialContext, isDelayedCheckFirstAttempt } from './trialPolicy';
 import {
   HINT_LEVEL,
   type HintLevel,
@@ -2730,19 +2730,23 @@ export function advanceMilestone3dProgress(
       };
     }
 
-    // Unhinted H0 delayedCheck -> FSRS eligible!
+    // Unhinted H0 delayedCheck. A retry after remediation is not a first attempt anymore.
     const ctx = makeTrialCtx({
       mode: 'delayedCheck',
       hintLevel: HINT_LEVEL.NONE,
       cardId: `find:${focus}`,
-      contextId: `delayed:${focus}`
+      contextId: `delayed:${focus}`,
+      firstAttempt: isDelayedCheckFirstAttempt(noteRec.contexts)
     });
 
     if (!isCorrect) {
       noteRec = {
         ...noteRec,
         contexts: appendUniqueContext(
-          appendUniqueContext(noteRec.contexts, 'pending:delayedRetry'),
+          appendUniqueContext(
+            appendUniqueContext(noteRec.contexts, 'pending:delayedRetry'),
+            GRADED_FAILURE_CONTEXT
+          ),
           'pending:corrective'
         ),
         updatedAt: now
@@ -2776,6 +2780,7 @@ export function advanceMilestone3dProgress(
       contexts: noteRec.contexts.filter(
         c =>
           c !== 'pending:delayedRetry' &&
+          c !== GRADED_FAILURE_CONTEXT &&
           c !== 'pending:corrective' &&
           c !== 'pending:interveningRecall'
       )
@@ -3381,13 +3386,17 @@ export function advanceMilestone3dProgress(
       mode: 'delayedCheck',
       hintLevel: HINT_LEVEL.NONE,
       cardId: `${skill}:${focus}`,
-      contextId: `delayed:${skill}:${focus}4`
+      contextId: `delayed:${skill}:${focus}4`,
+      firstAttempt: isDelayedCheckFirstAttempt(noteRec.contexts)
     });
     if (!isExactMatch) {
       noteRec = {
         ...noteRec,
         contexts: appendUniqueContext(
-          appendUniqueContext(noteRec.contexts, 'pending:delayedRetry'),
+          appendUniqueContext(
+            appendUniqueContext(noteRec.contexts, 'pending:delayedRetry'),
+            GRADED_FAILURE_CONTEXT
+          ),
           'pending:corrective'
         ),
         updatedAt: now
@@ -3425,6 +3434,7 @@ export function advanceMilestone3dProgress(
       contexts: noteRec.contexts.filter(
         c =>
           c !== 'pending:delayedRetry' &&
+          c !== GRADED_FAILURE_CONTEXT &&
           c !== 'pending:corrective' &&
           c !== 'pending:interveningRecall'
       )

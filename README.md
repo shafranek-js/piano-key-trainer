@@ -58,6 +58,7 @@
 * **Major / Minor Triads (3H):** Full three-note chord building, quality identification, and corrective feedback.
 * **Inversions & Chord Symbols (3I):** Root, first, and second inversion, slash symbols, inversion identification, and the introductory `C → G/B → Am → F` sequence.
 * **Harmony & Accompaniment I (3J):** Beginner-friendly I–V–vi–IV orientation, root-position and smooth bass transitions, guided/independent/memory block-chord sequences, bounded transfer with fresh retry, and three gated Daily Practice card families. Rhythm and two-hand accompaniment are outside this module.
+* **Chord Rhythm & Pulse I (3K — WIP stabilization checkpoint):** 4/4 pulse at 60 BPM, chord change on the first beat, two-strike pattern on beats 1 and 3 across `C → G/B → Am → F`, bounded assessment (12 initial / 8 retry trials, 80% threshold), at most three focused remediation tasks, reload-safe corrective state, targeted return-to-learning, and an explicit module exit back into the normal practice lifecycle. This checkpoint is stabilization of already-existing WIP only; M3K is **not accepted yet** and adds no new pedagogy.
 
 ### 3. Acoustic Sound, Web MIDI & 4-Octave Keyboard Ergonomics
 * **Salamander Grand Piano Audio (`src/audio/AudioEngine.ts`):** Real acoustic Yamaha C5 samples across 4 octaves (`C2–C6`), plus a Web Audio lookahead metronome (`src/audio/MetronomeClock.ts`). Never falls back to harsh synthetic oscillators.
@@ -158,6 +159,19 @@ This launches an isolated production preview and Chrome profile. It verifies the
 npm run package:m3j
 ```
 This creates `piano-key-trainer-milestone3j-rev1.zip` with the source, tests, every project script, package-script coverage checks, accepted prerequisite reports, and six current M3J screenshots. The ZIP build verifies that every `node scripts/<file>.mjs` command in `package.json` has its script in the archive and that two builds from unchanged inputs are byte-identical. It excludes nested ZIPs, `dist`, `node_modules`, `.git`, and temporary browser data.
+
+### 14. Production M3K Stabilization Smoke
+With a production build available, run the isolated Chrome smoke for the Chord Rhythm module:
+```bash
+npm run smoke:m3k
+```
+It starts a temporary Vite production preview unless `PIANO_TRAINER_APP_URL` is set, uses a temporary Chrome profile and synthetic progress that completes stages 1–10, and verifies: the #11 Program entry, advanced-module exclusivity, a wrong first assessment attempt that survives reload as a corrective requirement with zero FSRS review logs, remediation, a failed 8-trial retry that is terminal with working «Вернуться к учебным шагам» and «В программу» actions, module completion persistence, exit back into normal practice, and zero runtime/console errors. Evidence is written to `acceptance/audit-stabilization-a/screenshots/` (up to four screenshots).
+
+### 15. Package the Audit Stabilization Checkpoint
+```bash
+npm run package:audit-stabilization-a
+```
+This creates `piano-key-trainer-audit-stabilization-a.zip` from an explicit source, test, script, documentation, report, and current screenshot allowlist. It checks that every `node scripts/<file>.mjs` command in `package.json` has its script in the archive and that two builds from unchanged inputs are byte-identical. It excludes nested ZIPs, prior acceptance evidence, `dist`, `node_modules`, `.git`, browser profiles, and temporary data.
 
 ---
 

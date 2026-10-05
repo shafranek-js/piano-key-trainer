@@ -1,18 +1,18 @@
 {
   "status": "PASS",
-  "appUrl": "http://127.0.0.1:57858/piano-key-trainer/",
+  "appUrl": "http://127.0.0.1:50334/piano-key-trainer/",
   "roadmap": {
     "before": {
       "title": "Гармония и сопровождение",
       "status": "available",
       "current": true,
-      "description": "Этап 10 из 10\n○ Доступно\nДополнительный модуль\nГармония и сопровождение\n\nПоследовательности аккордов, функции I–V–vi–IV и плавные переходы в block chords.\n\nНачать модуль →",
+      "description": "Этап 10 из 11\n○ Доступно\nДополнительный модуль\nГармония и сопровождение\n\nПоследовательности аккордов, функции I–V–vi–IV и плавные переходы в block chords.\n\nНачать модуль →",
       "action": "Начать модуль →"
     },
     "after": {
       "harmony": "completed",
       "inversions": "completed",
-      "current": true
+      "current": false
     }
   },
   "orientation": "C → G → Am → F; C=I, G=V, Am=vi, F=IV",
@@ -774,7 +774,7 @@
     "input": "MIDI full chords; exact G/B matched screen-piano outcome",
     "reviewLogCount": 1,
     "firstCorrect": true,
-    "dueAtAfter": 1791694888389.8198,
+    "dueAtAfter": 1791760846321.7632,
     "persistedBeforeNextDecision": true,
     "transitionId": "review-1",
     "nextCard": "harmonyFunctionIdentify:I"

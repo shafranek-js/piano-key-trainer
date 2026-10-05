@@ -18,7 +18,9 @@
     "smoke:m3i": "node scripts/smokeM3i.mjs",
     "package:m3i-final": "node scripts/buildM3iFinalArchive.mjs",
     "smoke:m3j": "node scripts/smokeM3j.mjs",
+    "smoke:m3k": "node scripts/smokeM3k.mjs",
     "package:m3j": "node scripts/buildM3jArchive.mjs",
+    "package:audit-stabilization-a": "node scripts/buildAuditStabilizationArchive.mjs",
     "verify": "npm run typecheck && npm run check:svelte && npm test && npm run build"
   },
   "dependencies": {

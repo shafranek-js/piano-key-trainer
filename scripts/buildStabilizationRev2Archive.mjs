@@ -1,3 +1,6 @@
+// LEGACY (historical checkpoint): superseded Stabilization Rev2 packaging.
+// Not part of the current release workflow and intentionally not referenced by package.json.
+// Kept only as historical evidence; do not extend.
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

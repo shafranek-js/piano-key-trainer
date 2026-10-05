@@ -100,7 +100,7 @@
         {/if}
       </div>
       {#if passed}
-        <button type="button" class="btn btn-primary rhythm-primary" onclick={onComplete}>Завершить модуль</button>
+        <button type="button" class="btn btn-primary rhythm-primary" data-testid="rhythm-complete-module" onclick={onComplete}>Завершить модуль</button>
       {:else if state.assessment.phase === 'failed'}
         <div class="rhythm-actions">
           <button type="button" class="btn btn-primary" data-testid="rhythm-return-to-learning" onclick={onRetry}>Вернуться к учебным шагам</button>
@@ -155,7 +155,7 @@
       {#if state.step !== 'countingPulse'}
         <div class="rhythm-input-help">Выберите ровно три ноты заранее, затем нажмите «Сыграть аккорд» у нужной доли. MIDI: сыграйте три ноты вместе. {#if midiConnected}<span class="midi-ready">MIDI подключён</span>{/if}</div>
         <div class="rhythm-selection" data-testid="rhythm-selected-count">Выбрано клавиш: <strong>{state.selectedKeyIds.length} из 3</strong></div>
-        <button class="btn btn-primary rhythm-play" disabled={!state.isRunning || state.selectedKeyIds.length !== 3} onclick={onSubmit}>Сыграть аккорд</button>
+        <button class="btn btn-primary rhythm-play" data-testid="rhythm-submit-chord" disabled={!state.isRunning || state.selectedKeyIds.length !== 3} onclick={onSubmit}>Сыграть аккорд</button>
       {/if}
 
       {#if state.feedbackText}

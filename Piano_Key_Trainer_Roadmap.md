@@ -13,27 +13,26 @@
 - **3G — Interval Foundations:** `P8`, `P5`, `M3`, and `m3` build, identify, contrast, and transfer work.
 - **3H — Major and Minor Triads:** three-note chord building, quality identification, diagnostics, and transfer.
 - **3I — Chord Inversions and Chord Symbols:** accepted baseline; first and second inversion, inversion identification, slash symbols, and the introductory `C → G/B → Am → F` sequence.
+- **3J — Harmony and Accompaniment I:** accepted baseline; I–V–vi–IV functions, root-position and smooth-bass progressions, bounded transfer with focused remediation, and Daily Practice integration.
 - **Scheduler Integrity:** accepted baseline; active questions cannot be replaced by refresh, and persistence completes before the next scheduler decision.
 
-## Current checkpoint: Milestone 3J — Harmony & Accompaniment I
+## Current checkpoint: Milestone 3K — Chord Rhythm & Pulse I (WIP stabilization, NOT accepted)
 
-M3J adds an introductory harmony module after M3I. It teaches why chords form a sequence, the C major functions `I–V–vi–IV`, root-position `C → G → Am → F`, and the smoother bass path `C → G/B → Am → F`. Learners compare the two G voicings, choose the taught G/B example, then play guided, independent, memory, and bounded transfer sequences.
+M3K already exists in the working tree as an unfinished module. Checkpoint A ("Audit Remediation & M3K Stabilization") treats it as stabilization work only:
 
-The scope uses block chords only. It does not score rhythm, tempo, pedal, or two-hand independence and does not add seventh chords or a general inversion optimizer. An incorrect chord marks the progression's first attempt as failed; the learner completes a corrective replay without creating another FSRS outcome. Screen input selects and submits three keys; MIDI evaluates three unique held notes once and waits for full release before the next chord.
+- no new rhythm patterns, BPM values, accompaniment styles, two-hand mode, eighth notes, or syncopation;
+- quality gates restored to green (typecheck, Svelte check, tests, production build);
+- advanced modules have a single explicit exit lifecycle, one module active at a time, and input routing that always matches the visible module;
+- corrective/assessment state survives reload, bounded assessment never loops, and a failed retry is terminal with working return-to-learning and Program actions;
+- backup import is treated as untrusted input (versioned schema, validation, atomic transaction), and the canonical one-grade rule is enforced across curriculum modules;
+- FSRS algorithm retuning, MusicXML stabilization, audio fallback redesign, and the `App.svelte` architectural rewrite remain **out of scope** for this checkpoint.
 
-The transfer assessment has bounded blocks:
-
-- First check: exactly 12 first attempts, at least 80% correct.
-- If it fails: focused remediation and a fresh eight-trial retry; retry accuracy is calculated from the retry block only.
-- Corrective answers teach the response but do not change first-attempt accuracy.
-- Harmony FSRS cards remain inactive until their matching learning gate reaches retention. Scheduled progression playback is one question and can create at most one review transition and one ReviewLog.
-
-M3J is implemented in `src/core/learning/harmony.ts` and `src/ui/components/HarmonyStage.svelte`. Program, Progress, Daily Practice, and Diagnostics surface the learner-facing state. This checkpoint is **pending independent acceptance**; implementation and smoke evidence do not change its acceptance status.
+The learner-facing roadmap has **11 stages**; #11 is «Ритм аккордов». When all 11 stages are completed, no stage is marked current. M3K stays WIP until its own independent acceptance.
 
 ## Next educational direction
 
-- Rhythm scoring and two-hand accompaniment remain future work and are not part of M3J.
-- In the learner-facing Learning Roadmap the title is **#10 «Гармония и сопровождение»**. It becomes available after #9, and the UI does not expose internal milestone IDs.
+- Rhythm scoring and two-hand accompaniment remain future work beyond M3K stabilization.
+- In the learner-facing Learning Roadmap the title is **#11 «Ритм аккордов»**. It becomes available after #10, and the UI does not expose internal milestone IDs.
 
 ## Verification commands
 
@@ -46,4 +45,5 @@ npm run verify
 npm run smoke:m3i
 npm run smoke:scheduler-integrity
 npm run smoke:m3j
+npm run smoke:m3k
 ```

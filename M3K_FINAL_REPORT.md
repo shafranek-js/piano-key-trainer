@@ -62,7 +62,34 @@ New M3K-specific evaluator `classifyRhythmChord(targetChordId, notes)` in
   `detectedQuality`, `detectedChordLabel`, `targetChordLabel`, `targetPitchClasses`,
   `targetBassRequirement`, `rejectionReason`.
 - **One target resolver:** `resolveRhythmTargetChord(state)` is now the single source of truth used by
-  both the stage component and the evaluator; `changeOnBeatOne` resolves `C` everywhere.
+  both the stage component and the evaluator; it is bar-aware for the change exercise.
+
+## P0 fix — `changeOnBeatOne` teaches a real C → G/B change
+
+Stage 4 is no longer equivalent to `oneChordPerBar`; it is a deterministic **two-bar exercise over one
+question**:
+
+```text
+| C       | G/B     |
+| 1 2 3 4 | 1 2 3 4 |
+```
+
+- **State model:** `barIndex` (0 = C bar, 1 = G/B change bar) and bounded `barEvents` (per-bar chord,
+  chord correctness, timing band, classification outcome, detected label). Both are persisted in
+  `chordRhythmSnapshot` and validated by `normalizeChordRhythmSnapshot`, so a reload after bar 1
+  resumes directly on the change bar (`isResumableChangeBar2`).
+- **One run, one question:** bar 1 and bar 2 are scheduled inside a single 8-beat run
+  (targets at beats 1 of bar 1 and bar 2); both bars share one `questionInstanceId`. The exercise
+  resolves once: first chord wrong, second chord wrong, or a missed change downbeat fails the first
+  attempt; corrective replay does not create another grade.
+- **UI:** «Сейчас: C · Далее: G/B» before the change, bar counter «Такт 1 из 2» / «Такт 2 из 2» and
+  the bar-2 cue «СМЕНА → G/B» exactly at the change downbeat; the visible target and the grading
+  window are the same event.
+- **Feedback per bar:** `Такт 1 · C: ✓ · Такт 2 · G/B: ✓ · Смена: Точно`; a root-position G on the
+  change bar yields `Такт 2 · G/B: ✗ неверный бас · Смена: Точно`; a late correct change yields
+  `Такт 2 · G/B: ✓ · Смена: Пропущена доля`.
+- **Daily Practice:** the scheduled `chordChangeTiming` card uses the same two-bar reducer and the
+  same single-commit gate (one `ReviewLogEvent`/FSRS mutation maximum; corrective replay 0).
 
 ## MIDI normalization
 
@@ -116,9 +143,11 @@ advance, and whether MIDI needs a button:
 
 - Scheduled `chordPulse`, `chordChangeTiming`, `chordRhythmPattern` cards use the same
   octave-independent `classifyRhythmChord()` contract (no register-sensitive regression path).
-- A question resolves once: two-strike patterns only commit after both strikes; the first graded
-  attempt produces at most one `ReviewLogEvent` and one FSRS mutation, and corrective replay
-  produces zero additional grading. `questionInstanceId` and `claimFirstAnswerCommit` are preserved.
+- The `chordChangeTiming` card runs the same two-bar C → G/B exercise as the module stage.
+- A question resolves once: the two-bar change and two-strike patterns only commit after the whole
+  exercise; the first graded attempt produces at most one `ReviewLogEvent` and one FSRS mutation, and
+  corrective replay produces zero additional grading. `questionInstanceId` and
+  `claimFirstAnswerCommit` are preserved.
 - Module assessment remains FSRS-neutral (transfer mode); Daily Practice is the graded path.
 
 ## Regression preservation
@@ -136,11 +165,13 @@ Checkpoint A invariants re-verified and unchanged:
 
 ## Tests
 
-- **488 tests / 28 files passing** (`npm test`), including 13 new M3K semantic tests in
+- **495 tests / 28 files passing** (`npm test`), including 20 M3K semantic tests in
   `tests/unit/rhythmChordSemantics.test.ts`: plain chords across octaves, inversions, `Am`/`F`,
   slash `G/B` bass acceptance/rejection, `wrong_quality` diagnostics, incomplete/extra notes,
-  no hidden register, trace/labels, and the late-diagnostic window invariants
-  (soft miss ungraded, one decisive outcome, pitch survives timing failure).
+  no hidden register, labels/trace, the late-diagnostic window invariants, and the two-bar change
+  model (`changeOnBeatOne` ≠ `oneChordPerBar`, canonical C → G/B transition, success, `wrong_bass`
+  at exact timing, chord correctness surviving a missed change downbeat, reload/resume from bar 2,
+  and no intermediate completion).
 - Existing tests were not rewritten to hide regressions; the only earlier test updates were the
   canonical one-grade/roadmap updates already accepted in Checkpoint A.
 
@@ -148,17 +179,20 @@ Checkpoint A invariants re-verified and unchanged:
 
 `npm run smoke:m3k` (production preview, isolated Chrome profile, fake Web MIDI, synthetic stages 1–10):
 
-- `changeOnBeatOne`, target `C`: count-in completes, fake MIDI plays C major exactly in the target
-  window → `timingBand = on_time`, `chordCorrect = true`, stage success; **repeated 10 times** with
-  C3/C4/C5 registers and two inversions; each trace asserts the raw MIDI note numbers.
-- Wrong chord exactly on the beat: C minor → `Время: Точно`, `Аккорд: ✗ не та терция`, with
-  `Сыграно: C minor` / `Ожидалось: C` and trace `wrong_quality`.
-- Correct chord after the missed threshold: `Время: Пропущена доля`, `Аккорд: ✓`, trace
-  `timingBand = missed`, `chordCorrect = true`.
+- **Two-bar change exercise** on `changeOnBeatOne`, repeated with two voicing pairs
+  (`C3–E3–G3 → B3–D4–G4` and `C4–E4–G4 → B2–D3–G3`): count-in, bar 1 C on beat 1, release, bar 2
+  G/B exactly on the next downbeat → `Такт 1 · C: ✓`, `Такт 2 · G/B: ✓`, `Смена: Точно`; both bars
+  share one `questionInstanceId` and the raw MIDI notes are asserted per transition.
+- **Root-position G on the change bar:** `wrong_bass` with `Смена: Точно`
+  (`Такт 2 · G/B: ✗ неверный бас`).
+- **Correct G/B after the missed change threshold:** `Такт 2 · G/B: ✓` with
+  `Смена: Пропущена доля` (chord correctness survives timing failure).
 - Preserved: exclusivity, screen-piano corrective reload with 0 FSRS logs, remediation into fresh
   retry, terminal failed retry exits, completion persistence, exit into normal practice,
   0 runtime exceptions, 0 console errors.
-- Evidence: `acceptance/m3k-final/screenshots/01…05`.
+- Evidence: `acceptance/m3k-final/screenshots/01-pre-count-in.png` (Сейчас C / Далее G/B),
+  `02-play-now.png` (bar 1 target), `03-correct-change-on-time.png` (per-bar success + Точная смена),
+  `04-wrong-bass-on-time.png` (неверный бас при точной смене), `05-module-complete.png`.
 
 ## Packaging / CI workflow
 
@@ -175,7 +209,10 @@ Checkpoint A invariants re-verified and unchanged:
 ## Known limitations
 
 - **Physical MIDI tested: no.** Fake Web MIDI covers the event path (note-on/note-off/velocity-0,
-  3-note lock, release/re-arm); a real controller and real timing jitter need the manual user test.
+  3-note lock, release/re-arm, two-bar change); a real controller and real timing jitter need the
+  manual user test.
+- The screen-piano two-bar change is covered by the shared reducer/evaluator unit tests and the
+  explicit UI plan/copy; the production smoke drives the change exercise through fake MIDI only.
 - Timing thresholds were intentionally not retuned; the ±140 ms on-time window is documented as a
   possible future pedagogy observation.
 - The late-diagnostic window is a fixed 900 ms and is diagnostic only; M3K remains a 60 BPM 4/4
@@ -188,7 +225,7 @@ Checkpoint A invariants re-verified and unchanged:
 ```
 npm run typecheck                     # 0 errors
 npm run check:svelte                  # 0 errors, 0 warnings
-npm test                              # 488/488 across 28 files
+npm test                              # 495/495 across 28 files
 npm run build                         # PASS (PWA generated)
 npm run verify                        # PASS
 npm run smoke:scheduler-integrity     # PASS

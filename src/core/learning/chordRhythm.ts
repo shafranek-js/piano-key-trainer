@@ -41,6 +41,20 @@ export type ChordRhythmStep =
   | 'transferRemediation'
   | 'moduleComplete';
 
+export interface RhythmBarEvent {
+  barIndex: number;
+  chordId: HarmonyChordId;
+  chordLabel: string;
+  chordCorrect: boolean;
+  timingBand: TimingBand;
+  classificationOutcome: RhythmChordOutcome | null;
+  detectedChordLabel: string | null;
+}
+
+export const CHANGE_EXERCISE_CURRENT: HarmonyChordId = 'C';
+export const CHANGE_EXERCISE_NEXT: HarmonyChordId = 'G/B';
+export const CHANGE_EXERCISE_BARS = 2;
+
 export interface ChordRhythmModuleState {
   step: ChordRhythmStep;
   sequenceIndex: number;
@@ -52,6 +66,10 @@ export interface ChordRhythmModuleState {
   isRunning: boolean;
   /** True between the missed threshold and the late-diagnostic cutoff. */
   lateWindow: boolean;
+  /** Two-bar change exercise position: 0 = first bar (C), 1 = change bar (G/B). */
+  barIndex: number;
+  /** Completed bars of the current change exercise (bounded to two entries). */
+  barEvents: RhythmBarEvent[];
   attemptIndex: number;
   outcomes: RhythmTimingOutcome[];
   lastClassification: RhythmChordClassification | null;
@@ -73,6 +91,7 @@ export type ChordRhythmAction =
   | { type: 'recordOutcome'; outcome: RhythmTimingOutcome; questionInstanceId: string; classification?: RhythmChordClassification | null }
   | { type: 'missedOnset' }
   | { type: 'missedExpired' }
+  | { type: 'resetChangeExercise' }
   | { type: 'finishCorrective' }
   | { type: 'startRemediation' }
   | { type: 'finishRemediationItem' }
@@ -438,6 +457,28 @@ export function normalizeChordRhythmSnapshot(value: unknown): ChordRhythmModuleS
     stage,
     sequenceIndex: finiteCount(raw.sequenceIndex, 0)
   };
+  if (raw.barIndex !== undefined) {
+    snapshot.barIndex = finiteCount(raw.barIndex) >= 1 ? 1 : 0;
+  }
+  if (Array.isArray(raw.barEvents)) {
+    const events: NonNullable<ChordRhythmModuleSnapshot['barEvents']> = [];
+    for (const item of raw.barEvents) {
+      if (!item || typeof item !== 'object') continue;
+      const event = item as Record<string, unknown>;
+      if (typeof event.chordId !== 'string' || typeof event.chordLabel !== 'string') continue;
+      const barIndex = finiteCount(event.barIndex) >= 1 ? 1 : 0;
+      events.push({
+        barIndex,
+        chordId: event.chordId,
+        chordLabel: event.chordLabel,
+        chordCorrect: event.chordCorrect === true,
+        timingBand: typeof event.timingBand === 'string' ? event.timingBand : 'missed',
+        classificationOutcome: typeof event.classificationOutcome === 'string' ? event.classificationOutcome : null,
+        detectedChordLabel: typeof event.detectedChordLabel === 'string' ? event.detectedChordLabel : null
+      });
+    }
+    snapshot.barEvents = events.slice(0, CHANGE_EXERCISE_BARS);
+  }
   const rawAssessment = raw.assessment;
   if (rawAssessment && typeof rawAssessment === 'object') {
     const assessment = rawAssessment as Record<string, unknown>;
@@ -474,16 +515,36 @@ export function createChordRhythmModuleState(progress?: ProgressCollectionInput)
   if (map.get(CHORD_RHYTHM_ITEM_IDS.COMPLETE)?.state === 'retention') {
     return {
       step: 'moduleComplete', sequenceIndex: 0, selectedKeyIds: [], assessment,
-      activeBeat: -1, countInValue: null, expectedOnset: null, isRunning: false, lateWindow: false, attemptIndex: 0,
+      activeBeat: -1, countInValue: null, expectedOnset: null, isRunning: false, lateWindow: false,
+      barIndex: 0, barEvents: [], attemptIndex: 0,
       outcomes: [], lastClassification: null, feedbackText: '', feedbackTone: '', lastTimingBand: null, lastOutcome: null
     };
   }
+  const barIndex = snapshot?.barIndex ?? 0;
+  const barEvents: RhythmBarEvent[] = (snapshot?.barEvents ?? []).map(event => ({
+    barIndex: event.barIndex >= 1 ? 1 : 0,
+    chordId: changeBarChord(event.barIndex),
+    chordLabel: event.chordLabel,
+    chordCorrect: event.chordCorrect,
+    timingBand: (['on_time', 'early', 'late', 'missed'].includes(event.timingBand)
+      ? event.timingBand
+      : 'missed') as TimingBand,
+    classificationOutcome: (['correct', 'wrong_quality', 'wrong_bass', 'wrong_chord', 'incomplete_chord', 'extra_notes'].includes(String(event.classificationOutcome))
+      ? event.classificationOutcome
+      : null) as RhythmChordOutcome | null,
+    detectedChordLabel: event.detectedChordLabel
+  }));
+  const resumeChange = step === 'changeOnBeatOne' && barIndex === 1 && barEvents.some(event => event.barIndex === 0);
   return {
     step,
     sequenceIndex: Math.max(0, snapshot?.sequenceIndex ?? 0),
     selectedKeyIds: [], assessment,
-    activeBeat: -1, countInValue: null, expectedOnset: null, isRunning: false, lateWindow: false, attemptIndex: 0,
-    outcomes: [], lastClassification: null, feedbackText: '', feedbackTone: '', lastTimingBand: null, lastOutcome: null
+    activeBeat: -1, countInValue: null, expectedOnset: null, isRunning: false, lateWindow: false,
+    barIndex, barEvents, attemptIndex: 0,
+    outcomes: [], lastClassification: null,
+    feedbackText: resumeChange ? `${changeExerciseFeedback(barEvents)} · Продолжите с G/B на следующей сильной доле.` : '',
+    feedbackTone: resumeChange ? 'warn' : '',
+    lastTimingBand: null, lastOutcome: null
   };
 }
 
@@ -495,12 +556,13 @@ export function reduceChordRhythmState(
     case 'advanceStage': {
       const at = TEACHING_STEPS.indexOf(state.step);
       const next = TEACHING_STEPS[at + 1];
-      if (state.step === 'independentPlay') return { ...state, step: 'transferAssessment', assessment: createRhythmAssessment(), sequenceIndex: 0, feedbackText: '', feedbackTone: '' };
+      if (state.step === 'independentPlay') return { ...state, step: 'transferAssessment', assessment: createRhythmAssessment(), sequenceIndex: 0, barIndex: 0, barEvents: [], feedbackText: '', feedbackTone: '' };
       if (!next) return state;
-      return { ...state, step: next, sequenceIndex: 0, selectedKeyIds: [], activeBeat: -1, expectedOnset: null, isRunning: false, lateWindow: false, outcomes: [], attemptIndex: 0, lastClassification: null, feedbackText: '', feedbackTone: '', lastTimingBand: null };
+      return { ...state, step: next, sequenceIndex: 0, barIndex: 0, barEvents: [], selectedKeyIds: [], activeBeat: -1, expectedOnset: null, isRunning: false, lateWindow: false, outcomes: [], attemptIndex: 0, lastClassification: null, feedbackText: '', feedbackTone: '', lastTimingBand: null };
     }
     case 'selectBeat': return { ...state, activeBeat: action.beat };
     case 'startRun': return { ...state, isRunning: true, activeBeat: -1, countInValue: 4, expectedOnset: action.expectedOnset, lateWindow: false, attemptIndex: 0, outcomes: [], lastClassification: null, feedbackText: '', feedbackTone: '', lastTimingBand: null, lastOutcome: null };
+    case 'resetChangeExercise': return { ...state, barIndex: 0, barEvents: [], outcomes: [], isRunning: false, lateWindow: false, expectedOnset: null, selectedKeyIds: [], lastClassification: null, lastOutcome: null, feedbackText: '', feedbackTone: '' };
     case 'clockBeat': return { ...state, activeBeat: action.beat, countInValue: action.countInValue ?? null };
     case 'selectKey': {
       if (state.selectedKeyIds.includes(action.keyId)) return { ...state, selectedKeyIds: state.selectedKeyIds.filter(id => id !== action.keyId) };
@@ -514,6 +576,9 @@ export function reduceChordRhythmState(
       const classification = action.classification ?? null;
       // Any evaluated chord closes the late-diagnostic window.
       const base: ChordRhythmModuleState = { ...state, lateWindow: false, lastClassification: classification };
+      if (isTwoBarChangeExercise(state)) {
+        return reduceChangeExerciseOutcome(state, last, classification);
+      }
       const strikeCount = rhythmStrikeCount(base);
       const success = last.correct && outcomes.length >= strikeCount;
       const failed = !last.correct;
@@ -569,6 +634,9 @@ export function reduceChordRhythmState(
     }
     case 'missedExpired': {
       const outcome = classifyRhythmTiming(state.expectedOnset ?? 0, null, false);
+      if (isTwoBarChangeExercise(state)) {
+        return reduceChangeExerciseOutcome(state, outcome, null);
+      }
       if (state.step === 'transferAssessment') {
         const assessment = recordRhythmAssessmentFirstAttempt(state.assessment, {
           questionInstanceId: `missed:${state.assessment.blockKind}:${state.assessment.trialIndex}`,
@@ -605,6 +673,16 @@ export function currentRhythmTrial(state: ChordRhythmModuleState): RhythmAssessm
   return getRhythmAssessmentTrial(state.assessment.blockKind, state.assessment.trialIndex);
 }
 
+/** True for the two-bar C → G/B change exercise (module stage 4 and the daily change card). */
+export function isTwoBarChangeExercise(state: Pick<ChordRhythmModuleState, 'step' | 'dailySkill'>): boolean {
+  return state.step === 'changeOnBeatOne' || state.dailySkill === 'chordChangeTiming';
+}
+
+/** Canonical chord of a bar inside the two-bar change exercise. */
+export function changeBarChord(barIndex: number): HarmonyChordId {
+  return barIndex >= 1 ? CHANGE_EXERCISE_NEXT : CHANGE_EXERCISE_CURRENT;
+}
+
 /**
  * Single source of truth for the target chord shown to the learner and graded by
  * the evaluator. UI copy and classification must always use the same target.
@@ -613,13 +691,114 @@ export function resolveRhythmTargetChord(state: ChordRhythmModuleState): Harmony
   if (state.step === 'fullProgression' || state.step === 'independentPlay') {
     return CHORD_RHYTHM_SEQUENCE[state.sequenceIndex % CHORD_RHYTHM_SEQUENCE.length];
   }
+  if (isTwoBarChangeExercise(state)) {
+    return changeBarChord(state.barIndex);
+  }
   if (state.step === 'transferAssessment' || state.step === 'transferRemediation') {
     return currentRhythmTrial(state).chordId;
   }
-  if (state.step === 'changeOnBeatOne') {
-    return 'C';
-  }
   return 'C';
+}
+
+/** A restored exercise that already completed bar 1 resumes directly on the G/B change bar. */
+export function isResumableChangeBar2(state: Pick<ChordRhythmModuleState, 'step' | 'dailySkill' | 'barIndex' | 'barEvents'>): boolean {
+  if (!isTwoBarChangeExercise(state)) return false;
+  return state.barIndex === 1 &&
+    state.barEvents.some(event => event.barIndex === 0) &&
+    !state.barEvents.some(event => event.barIndex === 1);
+}
+
+function changeBarMark(event: RhythmBarEvent): string {
+  if (event.chordCorrect) return '✓';
+  switch (event.classificationOutcome) {
+    case 'wrong_bass': return '✗ неверный бас';
+    case 'wrong_quality': return '✗ не та терция';
+    case 'wrong_chord': return '✗ другой аккорд';
+    case 'incomplete_chord': return '✗ меньше трёх нот';
+    case 'extra_notes': return '✗ лишние ноты';
+    default: return '✗';
+  }
+}
+
+function changeExerciseFeedback(events: readonly RhythmBarEvent[]): string {
+  const bar0 = events.find(event => event.barIndex === 0);
+  const bar1 = events.find(event => event.barIndex === 1);
+  const parts: string[] = [];
+  if (bar0) parts.push(`Такт 1 · ${bar0.chordLabel}: ${changeBarMark(bar0)}`);
+  if (bar1) {
+    parts.push(`Такт 2 · ${bar1.chordLabel}: ${changeBarMark(bar1)}`);
+    parts.push(`Смена: ${timingBandLabel(bar1.timingBand)}`);
+  }
+  return parts.join(' · ');
+}
+
+function reduceChangeExerciseOutcome(
+  state: ChordRhythmModuleState,
+  last: RhythmTimingOutcome,
+  classification: RhythmChordClassification | null
+): ChordRhythmModuleState {
+  const chordId = changeBarChord(state.barIndex);
+  const event: RhythmBarEvent = {
+    barIndex: state.barIndex,
+    chordId,
+    chordLabel: HARMONY_CHORDS[chordId].symbol,
+    chordCorrect: last.chordCorrect,
+    timingBand: last.timingBand,
+    classificationOutcome: classification?.outcome ?? null,
+    detectedChordLabel: classification?.detectedChordLabel ?? null
+  };
+  const barEvents = [
+    ...state.barEvents.filter(existing => existing.barIndex !== event.barIndex),
+    event
+  ].sort((a, b) => a.barIndex - b.barIndex);
+  const base: ChordRhythmModuleState = {
+    ...state,
+    barEvents,
+    lateWindow: false,
+    lastClassification: classification,
+    lastOutcome: last,
+    lastTimingBand: last.timingBand
+  };
+  const barOk = event.chordCorrect && event.timingBand === 'on_time';
+
+  if (event.barIndex === 0) {
+    if (!barOk) {
+      return {
+        ...base,
+        isRunning: false,
+        selectedKeyIds: [],
+        expectedOnset: null,
+        outcomes: [],
+        feedbackText: `${changeExerciseFeedback(barEvents)}. Первая попытка не засчитана — начните упражнение заново.`,
+        feedbackTone: 'bad'
+      };
+    }
+    return {
+      ...base,
+      barIndex: 1,
+      isRunning: true,
+      selectedKeyIds: [],
+      expectedOnset: null,
+      outcomes: [],
+      feedbackText: `Такт 1 · C: ✓ · Далее: G/B — играйте на следующей сильной доле.`,
+      feedbackTone: 'good'
+    };
+  }
+
+  const bar0 = barEvents.find(existing => existing.barIndex === 0);
+  const success = Boolean(bar0?.chordCorrect && bar0.timingBand === 'on_time') && barOk;
+  return {
+    ...base,
+    barIndex: 1,
+    isRunning: false,
+    selectedKeyIds: [],
+    expectedOnset: null,
+    outcomes: [],
+    feedbackText: success
+      ? changeExerciseFeedback(barEvents)
+      : `${changeExerciseFeedback(barEvents)}. Первая попытка не засчитана.`,
+    feedbackTone: success ? 'good' : 'bad'
+  };
 }
 
 export function rhythmStrikeCount(state: ChordRhythmModuleState): number {

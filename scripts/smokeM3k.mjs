@@ -22,20 +22,6 @@ const RHYTHM_CHORD_KEYS = {
 };
 const WRONG_CHORD_ID = 'G';
 
-/** C major across octaves and inversions (MIDI note numbers, all inside C2–C6). */
-const C_MAJOR_VOICINGS = [
-  [48, 52, 55],
-  [60, 64, 67],
-  [72, 76, 79],
-  [52, 55, 60],
-  [55, 60, 64],
-  [48, 52, 55],
-  [60, 64, 67],
-  [52, 55, 60],
-  [72, 76, 79],
-  [55, 60, 64]
-];
-const C_MINOR_VOICING = [48, 51, 55];
 const C_MAJOR_ROOT = [60, 64, 67];
 
 const fakeMidiScript = `(() => {
@@ -362,19 +348,6 @@ async function midiOn(cdp, notes) {
   await cdp.evaluate(`window.__m3kNoteOn(${JSON.stringify(notes)})`);
 }
 
-async function startRunAndArmMidi(cdp, notes) {
-  await waitFor(cdp, `Boolean(document.querySelector('[data-testid="rhythm-start-run"]'))`, 'rhythm start action');
-  for (let attempt = 0; attempt < 5; attempt++) {
-    await realClick(cdp, '[data-testid="rhythm-start-run"]');
-    await delay(250);
-    if (await cdp.evaluate(`document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'countIn'`)) break;
-  }
-  // The hook is installed synchronously; the pending CDP promise resolves when the
-  // target window opens and the chord has been played inside it.
-  const armed = await cdp.evaluate(`window.__m3kArmMidi(${JSON.stringify(notes)})`);
-  assert(armed, `MIDI chord ${JSON.stringify(notes)} was not played inside the timing window.`);
-}
-
 async function midiOff(cdp, notes) {
   await cdp.evaluate(`window.__m3kNoteOff(${JSON.stringify(notes)})`);
 }
@@ -440,6 +413,9 @@ async function waitChordOutcome(cdp, description) {
     chord:document.querySelector('[data-testid="rhythm-chord-result"]')?.innerText || '',
     played:document.querySelector('[data-testid="rhythm-played-label"]')?.innerText || '',
     expected:document.querySelector('[data-testid="rhythm-expected-label"]')?.innerText || '',
+    feedback:document.querySelector('[data-testid="chord-rhythm-stage"] .rhythm-feedback')?.innerText || '',
+    bar:document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.changeBar ?? null,
+    attempts:(window.__m3kRecentAttempts || []).slice(-3),
     trace:window.__m3kRecentAttempts?.at(-1) ?? null
   }))()`);
 }
@@ -553,64 +529,100 @@ try {
   await cdp.send('Page.navigate', { url: previewUrl });
   await waitFor(cdp, `document.querySelectorAll('.top-nav-btn').length === 9`, 'production application');
 
-  // 1. Exact user scenario on `changeOnBeatOne`: count-in completes, physical (fake) MIDI
-  //    plays C major at beat 1, timing = on_time and chord = correct. Repeated 10x with
-  //    different octaves and inversions to expose any register-sensitive race.
+  // 1. Canonical two-bar change exercise on `changeOnBeatOne`: count-in → bar 1 C on beat 1 →
+  //    bar 2 G/B on the next downbeat, as ONE question. Fake MIDI covers multiple
+  //    octaves/inversions and the slash-bass rule.
   await seedDatabase(cdp, { cards: synthetic.cards, learningProgress: synthetic.profiles.changeOnBeatOne });
   await waitForMidi(cdp);
   await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmStep === 'changeOnBeatOne'`, 'changeOnBeatOne stage');
   await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'prepare'`, 'pre-count-in state');
+  const changePlan = await cdp.evaluate(`document.querySelector('[data-testid="rhythm-change-plan"]')?.innerText || ''`);
+  assert(changePlan.includes('Сейчас') && changePlan.includes('C') && changePlan.includes('Далее') && changePlan.includes('G/B'),
+    `Change plan must show current and next chord: ${changePlan}`);
   screenshots.push(await saveScreenshot(cdp, '01-pre-count-in.png'));
 
-  // Dedicated visual proof of the open timing window (result not asserted).
+  // Dedicated visual proof of the first-bar timing window (result not asserted).
   await startRunAndWaitWindow(cdp);
   screenshots.push(await saveScreenshot(cdp, '02-play-now.png'));
   await midiOn(cdp, C_MAJOR_ROOT);
   await waitChordOutcome(cdp, 'visual target run outcome');
   await midiOff(cdp, C_MAJOR_ROOT);
-  await delay(150);
+  await delay(200);
 
-  for (let trial = 0; trial < C_MAJOR_VOICINGS.length; trial++) {
-    const voicing = C_MAJOR_VOICINGS[trial];
-    await startRunAndArmMidi(cdp, voicing);
-    const outcome = await waitChordOutcome(cdp, `MIDI trial ${trial + 1}`);
-    assert(outcome.timing.includes('Точно'), `MIDI trial ${trial + 1}: expected on_time, got ${outcome.timing} :: ${JSON.stringify(outcome.trace)}`);
-    assert(outcome.chord.includes('✓'), `MIDI trial ${trial + 1}: expected correct chord, got ${outcome.chord}`);
-    assert(outcome.trace?.timingBand === 'on_time' && outcome.trace?.chordCorrect === true && outcome.trace?.classificationOutcome === 'correct',
-      `MIDI trial ${trial + 1}: trace mismatch ${JSON.stringify(outcome.trace)}`);
-    assert(JSON.stringify([...outcome.trace.rawMidiNotes].sort((a, b) => a - b)) === JSON.stringify([...voicing].sort((a, b) => a - b)),
-      `MIDI trial ${trial + 1}: raw MIDI notes were not classified: ${JSON.stringify(outcome.trace.rawMidiNotes)}`);
-    await midiOff(cdp, voicing);
-    if (trial === 0) {
-      screenshots.push(await saveScreenshot(cdp, '03-correct-chord-on-time.png'));
+  async function playChangeExercise(cdp, firstVoicing, secondVoicing) {
+    await waitFor(cdp, `Boolean(document.querySelector('[data-testid="rhythm-start-run"]'))`, 'change exercise start action');
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await realClick(cdp, '[data-testid="rhythm-start-run"]');
+      await delay(250);
+      if (await cdp.evaluate(`document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'countIn'`)) break;
     }
-    await delay(120);
+    const first = await cdp.evaluate(`window.__m3kArmMidi(${JSON.stringify(firstVoicing)})`);
+    assert(first, `Bar 1 chord ${JSON.stringify(firstVoicing)} was not played inside the timing window.`);
+    const firstQuestionInstanceId = await cdp.evaluate(`window.__m3kRecentAttempts?.at(-1)?.questionInstanceId ?? null`);
+    // The learner releases bar 1 before the change; the tracker must re-arm for bar 2.
+    await midiOff(cdp, firstVoicing);
+    await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.changeBar === '1'`, 'second bar armed');
+    const second = await cdp.evaluate(`window.__m3kArmMidi(${JSON.stringify(secondVoicing)})`);
+    assert(second, `Bar 2 chord ${JSON.stringify(secondVoicing)} was not played inside the timing window.`);
+    const outcome = await waitChordOutcome(cdp, 'change exercise outcome');
+    return { ...outcome, firstQuestionInstanceId };
   }
 
-  // 2. Wrong chord exactly on the beat: pitch and timing stay independent.
-  await startRunAndArmMidi(cdp, C_MINOR_VOICING);
-  const wrong = await waitChordOutcome(cdp, 'wrong C minor outcome');
-  assert(wrong.timing.includes('Точно'), `Wrong chord trial: expected on_time, got ${wrong.timing}`);
-  assert(wrong.chord.includes('✗'), `Wrong chord trial: expected incorrect chord, got ${wrong.chord}`);
-  assert(wrong.played.includes('C') && wrong.played.includes('minor'), `Wrong chord trial: played label missing C minor: ${wrong.played}`);
-  assert(wrong.expected.includes('C'), `Wrong chord trial: expected label missing C: ${wrong.expected}`);
-  assert(wrong.trace?.timingBand === 'on_time' && wrong.trace?.classificationOutcome === 'wrong_quality',
-    `Wrong chord trial: trace mismatch ${JSON.stringify(wrong.trace)}`);
-  await midiOff(cdp, C_MINOR_VOICING);
-  screenshots.push(await saveScreenshot(cdp, '04-wrong-chord-on-time.png'));
-  await delay(120);
+  const transitions = [
+    { first: [48, 52, 55], second: [59, 62, 67] },
+    { first: [60, 64, 67], second: [47, 50, 55] }
+  ];
+  for (const [index, transition] of transitions.entries()) {
+    const outcome = await playChangeExercise(cdp, transition.first, transition.second);
+    assert(outcome.feedback.includes('Такт 1 · C: ✓'), `Transition ${index + 1}: missing bar 1 success: ${outcome.feedback} :: ${JSON.stringify({ bar: outcome.bar, attempts: outcome.attempts })}`);
+    assert(outcome.feedback.includes('Такт 2 · G/B: ✓'), `Transition ${index + 1}: missing bar 2 success: ${outcome.feedback}`);
+    assert(outcome.feedback.includes('Смена: Точно'), `Transition ${index + 1}: missing exact change timing: ${outcome.feedback}`);
+    assert(outcome.trace?.targetChord === 'G/B' && outcome.trace?.chordCorrect === true && outcome.trace?.classificationOutcome === 'correct' && outcome.trace?.timingBand === 'on_time',
+      `Transition ${index + 1}: trace mismatch ${JSON.stringify(outcome.trace)}`);
+    assert(outcome.trace?.questionInstanceId === outcome.firstQuestionInstanceId && Boolean(outcome.firstQuestionInstanceId),
+      `Transition ${index + 1}: the two bars must share one question instance: ${JSON.stringify({ first: outcome.firstQuestionInstanceId, second: outcome.trace?.questionInstanceId })}`);
+    assert(JSON.stringify([...outcome.trace.rawMidiNotes].sort((a, b) => a - b)) === JSON.stringify([...transition.second].sort((a, b) => a - b)),
+      `Transition ${index + 1}: raw MIDI notes were not classified: ${JSON.stringify(outcome.trace.rawMidiNotes)}`);
+    await midiOff(cdp, transition.first);
+    await midiOff(cdp, transition.second);
+    if (index === 0) {
+      screenshots.push(await saveScreenshot(cdp, '03-correct-change-on-time.png'));
+    }
+    await delay(200);
+  }
 
-  // 3. Correct chord after the missed threshold: chordCorrect survives timing failure.
-  await startRunAndWaitWindow(cdp);
-  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'late'`, 'late diagnostic window');
-  await midiOn(cdp, C_MAJOR_ROOT);
-  const late = await waitChordOutcome(cdp, 'late correct chord outcome');
-  assert(late.timing.includes('Пропущена'), `Late trial: expected missed timing, got ${late.timing}`);
-  assert(late.chord.includes('✓'), `Late trial: expected correct chord, got ${late.chord}`);
-  assert(late.trace?.timingBand === 'missed' && late.trace?.chordCorrect === true,
-    `Late trial: trace mismatch ${JSON.stringify(late.trace)}`);
-  await midiOff(cdp, C_MAJOR_ROOT);
-  await delay(120);
+  // 2. Root-position G on the change bar: wrong_bass at exact change timing.
+  const wrongBass = await playChangeExercise(cdp, [48, 52, 55], [55, 59, 62]);
+  assert(wrongBass.trace?.classificationOutcome === 'wrong_bass' && wrongBass.trace?.timingBand === 'on_time',
+    `Root-position G must fail with wrong_bass at exact timing: ${JSON.stringify(wrongBass.trace)}`);
+  assert(wrongBass.feedback.includes('Такт 2 · G/B: ✗ неверный бас'), `Missing wrong-bass feedback: ${wrongBass.feedback}`);
+  assert(wrongBass.feedback.includes('Смена: Точно'), `Wrong bass must not distort change timing: ${wrongBass.feedback}`);
+  await midiOff(cdp, [48, 52, 55]);
+  await midiOff(cdp, [55, 59, 62]);
+  screenshots.push(await saveScreenshot(cdp, '04-wrong-bass-on-time.png'));
+  await delay(200);
+
+  // 3. Correct G/B after the missed change threshold: chord correctness survives timing failure.
+  await waitFor(cdp, `Boolean(document.querySelector('[data-testid="rhythm-start-run"]'))`, 'change retry action');
+  for (let attempt = 0; attempt < 5; attempt++) {
+    await realClick(cdp, '[data-testid="rhythm-start-run"]');
+    await delay(250);
+    if (await cdp.evaluate(`document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'countIn'`)) break;
+  }
+  const lateFirst = await cdp.evaluate(`window.__m3kArmMidi(${JSON.stringify([48, 52, 55])})`);
+  assert(lateFirst, 'Bar 1 C was not played inside the timing window.');
+  await midiOff(cdp, [48, 52, 55]);
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.changeBar === '1'`, 'second bar armed for late test');
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'late'`, 'late change diagnostic window');
+  await midiOn(cdp, [59, 62, 67]);
+  const lateChange = await waitChordOutcome(cdp, 'late change outcome');
+  assert(lateChange.trace?.timingBand === 'missed' && lateChange.trace?.chordCorrect === true,
+    `Late change must keep chord correctness: ${JSON.stringify(lateChange.trace)}`);
+  assert(lateChange.feedback.includes('Такт 2 · G/B: ✓'), `Late change lost chord success: ${lateChange.feedback}`);
+  assert(lateChange.feedback.includes('Смена: Пропущена доля'), `Late change must report missed timing: ${lateChange.feedback}`);
+  await midiOff(cdp, [48, 52, 55]);
+  await midiOff(cdp, [59, 62, 67]);
+  await delay(200);
 
   // 4. Advanced-module exclusivity and screen-piano corrective reload (stabilization preservation).
   await startRoadmapModule(cdp, 'intervals', '[data-testid="interval-stage"]');

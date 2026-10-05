@@ -1,15 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CHORD_RHYTHM_ITEM_IDS,
+  changeBarChord,
   classifyRhythmChord,
   classifyRhythmTiming,
   createChordRhythmModuleState,
   createRhythmAssessment,
+  isResumableChangeBar2,
   isRhythmTimingWindowOpen,
+  isTwoBarChangeExercise,
   reduceChordRhythmState,
+  resolveRhythmTargetChord,
   rhythmRunPhase,
   type ChordRhythmModuleState,
   type RhythmChordInputNote
 } from '../../src/core/learning/chordRhythm';
+import { createInitialLearningProgress } from '../../src/core/learning/progress';
+import type { LearningProgressRecord } from '../../src/core/learning/types';
 
 const notes = (...keyIds: string[]): RhythmChordInputNote[] => keyIds.map(keyId => ({ keyId }));
 const midiNotes = (...midi: number[]): RhythmChordInputNote[] => midi.map(value => ({ midi: value }));
@@ -182,5 +189,167 @@ describe('M3K late-diagnostic window — pitch survives timing failure', () => {
     expect(state.lateWindow).toBe(false);
     expect(state.lastClassification).toBeNull();
     expect(state.assessment).toEqual(createRhythmAssessment());
+    expect(state.barIndex).toBe(0);
+    expect(state.barEvents).toEqual([]);
+  });
+});
+
+describe('M3K two-bar change exercise — C → G/B over two consecutive bars', () => {
+  const ON_TIME = classifyRhythmTiming(1_000, 1_010, true);
+
+  function changeState(): ChordRhythmModuleState {
+    return { ...createChordRhythmModuleState(), step: 'changeOnBeatOne' };
+  }
+
+  function afterFirstBarC(state: ChordRhythmModuleState): ChordRhythmModuleState {
+    let next = reduceChordRhythmState(state, { type: 'startRun', expectedOnset: 1_000 });
+    next = reduceChordRhythmState(next, { type: 'clockBeat', beat: 0, countInValue: null });
+    return reduceChordRhythmState(next, {
+      type: 'recordOutcome',
+      outcome: ON_TIME,
+      classification: classifyRhythmChord('C', notes('C4', 'E4', 'G4')),
+      questionInstanceId: 'q-change'
+    });
+  }
+
+  it('changeOnBeatOne is not equivalent to oneChordPerBar', () => {
+    const change = changeState();
+    const oneBar = { ...createChordRhythmModuleState(), step: 'oneChordPerBar' as const };
+    expect(isTwoBarChangeExercise(change)).toBe(true);
+    expect(isTwoBarChangeExercise(oneBar)).toBe(false);
+    expect(resolveRhythmTargetChord({ ...change, barIndex: 0 })).toBe('C');
+    expect(resolveRhythmTargetChord({ ...change, barIndex: 1 })).toBe('G/B');
+    expect(resolveRhythmTargetChord(oneBar)).toBe('C');
+    expect(changeBarChord(0)).toBe('C');
+    expect(changeBarChord(1)).toBe('G/B');
+    expect(change.barEvents).toEqual([]);
+  });
+
+  it('completes C → G/B as one exercise with distinct bar feedback', () => {
+    let state = afterFirstBarC(changeState());
+    expect(state.barIndex).toBe(1);
+    expect(state.isRunning).toBe(true);
+    expect(state.feedbackText).toContain('Такт 1 · C: ✓');
+    expect(state.feedbackText).toContain('Далее: G/B');
+
+    state = reduceChordRhythmState(state, {
+      type: 'recordOutcome',
+      outcome: ON_TIME,
+      classification: classifyRhythmChord('G/B', notes('B3', 'D4', 'G4')),
+      questionInstanceId: 'q-change'
+    });
+    expect(state.isRunning).toBe(false);
+    expect(state.barEvents).toHaveLength(2);
+    expect(state.feedbackText).toContain('Такт 1 · C: ✓');
+    expect(state.feedbackText).toContain('Такт 2 · G/B: ✓');
+    expect(state.feedbackText).toContain('Смена: Точно');
+    expect(state.feedbackTone).toBe('good');
+    // A finished exercise is not a bar-2 resume; a new run starts from C again.
+    expect(isResumableChangeBar2(state)).toBe(false);
+  });
+
+  it('rejects root-position G on the change bar with wrong_bass while timing stays exact', () => {
+    let state = afterFirstBarC(changeState());
+    const rootPosition = classifyRhythmChord('G/B', notes('G3', 'B3', 'D4'));
+    expect(rootPosition.outcome).toBe('wrong_bass');
+    state = reduceChordRhythmState(state, {
+      type: 'recordOutcome',
+      outcome: classifyRhythmTiming(1_000, 1_010, rootPosition.chordCorrect),
+      classification: rootPosition,
+      questionInstanceId: 'q-change'
+    });
+    expect(state.isRunning).toBe(false);
+    expect(state.feedbackText).toContain('Такт 2 · G/B: ✗ неверный бас');
+    expect(state.feedbackText).toContain('Смена: Точно');
+    expect(state.feedbackTone).toBe('bad');
+  });
+
+  it('keeps chord correctness when the change downbeat is missed', () => {
+    let state = afterFirstBarC(changeState());
+    const lateCorrect = classifyRhythmTiming(1_000, 1_700, true);
+    expect(lateCorrect.chordCorrect).toBe(true);
+    expect(lateCorrect.timingBand).toBe('missed');
+    state = reduceChordRhythmState(state, {
+      type: 'recordOutcome',
+      outcome: lateCorrect,
+      classification: classifyRhythmChord('G/B', notes('B3', 'D4', 'G4')),
+      questionInstanceId: 'q-change'
+    });
+    expect(state.isRunning).toBe(false);
+    expect(state.feedbackText).toContain('Такт 2 · G/B: ✓');
+    expect(state.feedbackText).toContain('Смена: Пропущена доля');
+    expect(state.feedbackTone).toBe('bad');
+  });
+
+  it('fails the whole exercise when the first bar chord is wrong', () => {
+    let state = reduceChordRhythmState(changeState(), { type: 'startRun', expectedOnset: 1_000 });
+    state = reduceChordRhythmState(state, { type: 'clockBeat', beat: 0, countInValue: null });
+    state = reduceChordRhythmState(state, {
+      type: 'recordOutcome',
+      outcome: classifyRhythmTiming(1_000, 1_010, false),
+      classification: classifyRhythmChord('C', notes('G3', 'B3', 'D4')),
+      questionInstanceId: 'q-change'
+    });
+    expect(state.barIndex).toBe(0);
+    expect(state.isRunning).toBe(false);
+    expect(state.feedbackText).toContain('Такт 1 · C: ✗');
+    expect(state.feedbackText).toContain('начните упражнение заново');
+  });
+
+  it('fails the exercise when the change bar expires without input', () => {
+    let state = afterFirstBarC(changeState());
+    state = reduceChordRhythmState(state, { type: 'clockBeat', beat: 0, countInValue: null });
+    state = reduceChordRhythmState(state, { type: 'missedOnset' });
+    expect(state.lateWindow).toBe(true);
+    state = reduceChordRhythmState(state, { type: 'missedExpired' });
+    expect(state.isRunning).toBe(false);
+    expect(state.feedbackText).toContain('Такт 2 · G/B: ✗');
+    expect(state.feedbackText).toContain('Смена: Пропущена доля');
+  });
+
+  it('persists and resumes the exercise from the change bar', () => {
+    const completed = afterFirstBarC(changeState());
+    const record: LearningProgressRecord = {
+      ...createInitialLearningProgress(CHORD_RHYTHM_ITEM_IDS.SESSION, 1_000),
+      modelCompleted: true,
+      chordRhythmSnapshot: {
+        stage: 'changeOnBeatOne',
+        sequenceIndex: 0,
+        barIndex: completed.barIndex,
+        barEvents: completed.barEvents.map(event => ({ ...event })),
+        assessment: {
+          blockKind: 'initial',
+          phase: 'active',
+          trialIndex: 0,
+          trialsCompleted: 0,
+          correctFirstAttempts: 0,
+          failedTrialIndexes: [],
+          remediationTrialIndexes: [],
+          remediationIndex: 0,
+          remediationUsed: 0,
+          pendingCorrective: false,
+          scoredQuestionIds: []
+        }
+      }
+    };
+    const restored = createChordRhythmModuleState([record]);
+    expect(restored.barIndex).toBe(1);
+    expect(restored.barEvents).toHaveLength(1);
+    expect(isResumableChangeBar2(restored)).toBe(true);
+    expect(restored.feedbackText).toContain('Такт 1 · C: ✓');
+
+    let resumed = reduceChordRhythmState(restored, { type: 'startRun', expectedOnset: 2_000 });
+    resumed = reduceChordRhythmState(resumed, { type: 'clockBeat', beat: 0, countInValue: null });
+    const second = classifyRhythmTiming(2_000, 2_010, true);
+    resumed = reduceChordRhythmState(resumed, {
+      type: 'recordOutcome',
+      outcome: second,
+      classification: classifyRhythmChord('G/B', notes('B2', 'D3', 'G3')),
+      questionInstanceId: 'q-change'
+    });
+    expect(resumed.isRunning).toBe(false);
+    expect(resumed.feedbackText).toContain('Такт 1 · C: ✓');
+    expect(resumed.feedbackText).toContain('Такт 2 · G/B: ✓');
+    expect(resumed.feedbackText).toContain('Смена: Точно');
   });
 });

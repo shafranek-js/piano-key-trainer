@@ -1,9 +1,12 @@
 <script lang="ts">
   import type { ChordRhythmModuleState, ChordRhythmStep, ChordRhythmSkill } from '../../core/learning/chordRhythm';
   import {
+    CHANGE_EXERCISE_NEXT,
+    changeBarChord,
     currentRhythmTrial,
     getRhythmAssessmentLength,
     isRhythmTimingWindowOpen,
+    isTwoBarChangeExercise,
     resolveRhythmTargetChord,
     rhythmChordOutcomeLabel,
     rhythmRunPhase,
@@ -64,7 +67,7 @@
   const isAssessment = $derived(state.step === 'transferAssessment' || state.step === 'transferRemediation');
   const trial = $derived(currentRhythmTrial(state));
   const targetChordId = $derived.by((): HarmonyChordId => {
-    if (dailySkill) return dailyChordId;
+    if (dailySkill && dailySkill !== 'chordChangeTiming') return dailyChordId;
     return resolveRhythmTargetChord(state);
   });
   const targetChord = $derived(HARMONY_CHORDS[targetChordId]);
@@ -78,9 +81,10 @@
   const phase = $derived(rhythmRunPhase(state));
   const timingWindowOpen = $derived(isRhythmTimingWindowOpen(state));
   const classification = $derived(state.lastClassification);
+  const changeExercise = $derived(isTwoBarChangeExercise(state));
 </script>
 
-<section class="chord-rhythm-stage" data-testid="chord-rhythm-stage" data-rhythm-step={state.step} data-rhythm-phase={phase} data-timing-window={timingWindowOpen ? 'open' : 'closed'}>
+<section class="chord-rhythm-stage" data-testid="chord-rhythm-stage" data-rhythm-step={state.step} data-rhythm-phase={phase} data-timing-window={timingWindowOpen ? 'open' : 'closed'} data-change-bar={state.barIndex}>
   <div class="rhythm-stage-card">
     <div class="rhythm-eyebrow">{dailySkill ? 'ЕЖЕДНЕВНАЯ ПРАКТИКА · РИТМ АККОРДОВ' : 'ДОПОЛНИТЕЛЬНЫЙ МОДУЛЬ · РИТМ АККОРДОВ'}</div>
     <div class="rhythm-stage-progress" aria-label="Прогресс этапа"><span style={`width:${progressPct}%`}></span></div>
@@ -88,7 +92,7 @@
     <h2>{headings.title}</h2>
 
     {#if dailySkill}
-      <p class="rhythm-copy">{dailySkill === 'chordPulse' ? 'Сыграйте три ноты аккорда точно на первую долю такта.' : dailySkill === 'chordChangeTiming' ? 'Подготовьте аккорд заранее и сыграйте его на первую долю.' : 'Сыграйте один аккорд на долях 1 и 3.'} Задано: <strong>{targetChordId}</strong>.</p>
+      <p class="rhythm-copy">{dailySkill === 'chordPulse' ? 'Сыграйте три ноты аккорда точно на первую долю такта.' : dailySkill === 'chordChangeTiming' ? 'Два такта: сначала C, затем смените на G/B точно на следующую сильную долю.' : 'Сыграйте один аккорд на долях 1 и 3.'} Задано: <strong>{targetChordId}</strong>.</p>
       {#if dailyCorrective}<p class="rhythm-copy secondary">Первая попытка уже сохранена. Исправьте ответ, чтобы продолжить.</p>{/if}
     {:else if state.step === 'pulseOrientation'}
       <p class="rhythm-copy">Размер <strong>4/4</strong>. Считайте ровно: <strong>1 · 2 · 3 · 4</strong>. Первая доля — сильная: на ней начинается новый такт.</p>
@@ -130,7 +134,12 @@
       {:else if state.step === 'oneChordPerBar'}
         <p class="rhythm-copy">Подготовьте три клавиши аккорда <strong>C</strong>. Запустите отсчёт и сыграйте аккорд на первую долю такта.</p>
       {:else if state.step === 'changeOnBeatOne'}
-        <p class="rhythm-copy">Аккорд меняется только на следующую сильную долю — <strong>раз</strong>. Приготовьте <strong>{targetChordId}</strong> до начала такта, запустите отсчёт и играйте на «раз».</p>
+        <p class="rhythm-copy">
+          {state.barIndex === 0
+            ? 'Такт 1 из 2: сохраните пульс и сыграйте C на первую долю.'
+            : 'Такт 2 из 2: смените аккорд и сыграйте G/B точно на следующую сильную долю.'}
+        </p>
+        <p class="rhythm-copy secondary">Цель: сохранить пульс и поменять аккорд точно на следующую сильную долю.</p>
       {:else if state.step === 'fullProgression'}
         <p class="rhythm-copy">Играйте по одному аккорду на такт. Новый аккорд вступает на первую долю: <strong>{targetChordId}</strong>. Перед каждым тактом запускайте отсчёт.</p>
       {:else if state.step === 'twoStrikes'}
@@ -151,7 +160,18 @@
         </div>
       {/if}
 
-      <div class="rhythm-target-row"><span>Текущий аккорд</span><strong>{targetChord.symbol}</strong><span class="rhythm-bpm">4/4 · 60 BPM</span></div>
+      {#if changeExercise}
+        <div class="rhythm-change-plan" data-testid="rhythm-change-plan">
+          Сейчас: <strong>{changeBarChord(state.barIndex)}</strong>
+          {#if state.barIndex === 0}· Далее: <strong>{CHANGE_EXERCISE_NEXT}</strong>{:else}· <strong class="change-now">СМЕНА → {CHANGE_EXERCISE_NEXT}</strong>{/if}
+        </div>
+      {/if}
+
+      <div class="rhythm-target-row">
+        {#if changeExercise}<span>Такт {Math.min(state.barIndex + 1, 2)} из 2</span>{:else}<span>Текущий аккорд</span>{/if}
+        <strong>{targetChord.symbol}</strong>
+        <span class="rhythm-bpm">4/4 · 60 BPM</span>
+      </div>
       <div class="rhythm-beats" data-testid="rhythm-beat-indicator" aria-label="Доли такта">
         {#each [0, 1, 2, 3] as beat}
           <span class:active={state.activeBeat === beat} class:strong={beat === 0}>{beat + 1}</span>
@@ -236,6 +256,9 @@
   .rhythm-primary { margin-top: 18px; }
   .rhythm-target-row { display: flex; justify-content: center; align-items: center; gap: 14px; margin: 14px 0 8px; color: #a9b7cc; }
   .rhythm-target-row strong { color: #fff; font-size: 1.12rem; }
+  .rhythm-change-plan { margin: 14px auto 0; color: #c3d0e2; font-size: .95rem; }
+  .rhythm-change-plan strong { color: #fff; }
+  .rhythm-change-plan .change-now { color: #ffd76e; letter-spacing: .04em; }
   .rhythm-bpm { border: 1px solid #35465f; border-radius: 99px; padding: 3px 9px; font-size: .8rem; }
   .rhythm-progression { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 16px auto; font-size: 1.12rem; font-weight: 750; }
   .rhythm-progression span:not(.arrow) { padding: 8px 12px; border: 1px solid #35445b; border-radius: 11px; background: #101b2d; }

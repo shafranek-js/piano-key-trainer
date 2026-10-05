@@ -148,6 +148,8 @@ import { getCurriculumPhases } from './core/curriculum/curriculum';
     createChordRhythmModuleState,
     createRhythmAssessment,
     currentRhythmTrial,
+    isResumableChangeBar2,
+    isTwoBarChangeExercise,
     reduceChordRhythmState,
     resetAdvancedModuleStates,
     resolveRhythmTargetChord,
@@ -3316,6 +3318,16 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     return {
       stage: state.step,
       sequenceIndex: state.sequenceIndex,
+      barIndex: state.barIndex,
+      barEvents: state.barEvents.map(event => ({
+        barIndex: event.barIndex,
+        chordId: event.chordId,
+        chordLabel: event.chordLabel,
+        chordCorrect: event.chordCorrect,
+        timingBand: event.timingBand,
+        classificationOutcome: event.classificationOutcome,
+        detectedChordLabel: event.detectedChordLabel
+      })),
       assessment: {
         blockKind: state.assessment.blockKind,
         phase: state.assessment.phase,
@@ -3570,17 +3582,31 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     }
     const isPulseOnly = state.step === 'countingPulse';
     const countInBeats = isPulseOnly ? 0 : 4;
+    // Two-bar change exercise: bar 1 (C) and bar 2 (G/B) inside one run. A restored
+    // exercise that already completed bar 1 resumes with a single G/B bar.
+    const changeExercise = isTwoBarChangeExercise(state);
+    let changeResumeBar2 = changeExercise && isResumableChangeBar2(state);
+    if (changeExercise && !changeResumeBar2) {
+      const reset = reduceChordRhythmState(state, { type: 'resetChangeExercise' });
+      if (moduleMode) chordRhythmState = reset;
+      else dailyRhythmViewState = reset;
+    }
+    const activeState = moduleMode ? chordRhythmState! : dailyRhythmViewState!;
+    changeResumeBar2 = isTwoBarChangeExercise(activeState) && isResumableChangeBar2(activeState);
+    const totalBeats = changeExercise ? (changeResumeBar2 ? 4 : 8) : 4;
     const beatTargets = isPulseOnly
       ? []
-      : state.step === 'twoStrikes' || ((state.step === 'transferAssessment' || state.step === 'transferRemediation') && currentRhythmTrial(state).beatsPerChord === 2) || (!moduleMode && rhythmDailySkill(currentCard) === 'chordRhythmPattern')
-        ? [0, 2]
-        : [0];
+      : changeExercise
+        ? (changeResumeBar2 ? [0] : [0, 4])
+        : state.step === 'twoStrikes' || ((state.step === 'transferAssessment' || state.step === 'transferRemediation') && currentRhythmTrial(state).beatsPerChord === 2) || (!moduleMode && rhythmDailySkill(currentCard) === 'chordRhythmPattern')
+          ? [0, 2]
+          : [0];
     rhythmCountInStartedAt = performance.now();
     rhythmVisualTargetShownAt = null;
     const expectedOnsets = rhythmClock.startSequence({
       bpm: CHORD_RHYTHM_BPM,
       countInBeats,
-      beats: 4,
+      beats: totalBeats,
       onBeat: beat => {
         const active = moduleMode ? chordRhythmState : dailyRhythmViewState;
         if (!active) return;
@@ -3698,7 +3724,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
 
     const actualOnset = midiTimestamp ?? performance.now();
     if (actualOnset < rhythmCountInEndsAt) return;
-    const chordId = moduleMode ? rhythmTargetChord(state) : dailyRhythmChordId;
+    const chordId = moduleMode || isTwoBarChangeExercise(state) ? rhythmTargetChord(state) : dailyRhythmChordId;
     const inputNotes = keyIds.map((keyId, index) => ({
       keyId,
       midi: rawMidiNotes?.[index] ?? rhythmMidiByKeyId.get(keyId) ?? undefined
@@ -3759,13 +3785,15 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     if (moduleMode) {
       chordRhythmState = next;
       if (!next.isRunning || !outcome.correct) rhythmClock.stop();
-      if (!next.isRunning) void persistChordRhythmState(next);
+      // Persist completion and the bar-1 → bar-2 transition of the change exercise.
+      if (!next.isRunning || (isTwoBarChangeExercise(next) && next.barIndex === 1)) void persistChordRhythmState(next);
     } else {
       dailyRhythmViewState = next;
       if (!next.isRunning) {
-        // One question instance resolves once: two-strike patterns only grade after both strikes.
+        // One question instance resolves once: two-strike patterns only grade after both strikes,
+        // and the two-bar change exercise grades after the second bar.
         commitDailyRhythmOutcome(outcome, inputMethod);
-      } else if (outcome.correct) {
+      } else if (outcome.correct && !isTwoBarChangeExercise(next)) {
         dailyRhythmFeedback = 'Верно. Теперь сыграйте аккорд на доле 3.';
         dailyRhythmFeedbackTone = 'warn';
       }

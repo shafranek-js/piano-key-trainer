@@ -90,9 +90,22 @@ export interface ChordRhythmAssessmentSnapshot {
   scoredQuestionIds: string[];
 }
 
+export interface ChordRhythmBarEventSnapshot {
+  barIndex: number;
+  chordId: string;
+  chordLabel: string;
+  chordCorrect: boolean;
+  timingBand: string;
+  classificationOutcome: string | null;
+  detectedChordLabel: string | null;
+}
+
 export interface ChordRhythmModuleSnapshot {
   stage: string;
   sequenceIndex?: number;
+  /** Two-bar change exercise: 0 = first bar (current chord), 1 = change bar (next chord). */
+  barIndex?: number;
+  barEvents?: ChordRhythmBarEventSnapshot[];
   assessment?: ChordRhythmAssessmentSnapshot;
 }
 

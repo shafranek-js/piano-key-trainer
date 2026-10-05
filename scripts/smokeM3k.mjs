@@ -11,7 +11,7 @@ const projectDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.
 const previewEntry = path.join(projectDir, 'node_modules', 'vite', 'bin', 'vite.js');
 const chromePath = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 const appRoute = '/piano-key-trainer/';
-const screenshotDir = path.join(projectDir, 'acceptance', 'm3k-final', 'screenshots');
+const screenshotDir = path.join(projectDir, 'acceptance', 'm3k-rev1', 'screenshots');
 
 const RHYTHM_CHORD_KEYS = {
   C: ['C4', 'E4', 'G4'],
@@ -46,6 +46,20 @@ const fakeMidiScript = `(() => {
       window.__m3kNoteOn(notes);
       resolve(true);
     };
+  });
+  window.__m3kPlayAt = (notes, deltaMs) => new Promise(resolve => {
+    const started = performance.now();
+    const guard = setInterval(() => {
+      const target = window.__m3kTimingTarget;
+      if (target && performance.now() >= target.onset + deltaMs) {
+        clearInterval(guard);
+        window.__m3kNoteOn(notes);
+        resolve(true);
+      } else if (performance.now() - started > 15000) {
+        clearInterval(guard);
+        resolve(false);
+      }
+    }, 4);
   });
 })();`;
 
@@ -176,6 +190,7 @@ async function createSyntheticProfile() {
       now,
       profiles: {
         changeOnBeatOne: sessionSnapshot({ stage: 'changeOnBeatOne', sequenceIndex: 0, assessment: assessment() }),
+        oneChordPerBar: sessionSnapshot({ stage: 'oneChordPerBar', sequenceIndex: 0, assessment: assessment() }),
         liveAssessment: sessionSnapshot({ stage: 'transferAssessment', sequenceIndex: 0, assessment: assessment() }),
         failingAssessment: sessionSnapshot({
           stage: 'transferAssessment',
@@ -352,6 +367,14 @@ async function midiOff(cdp, notes) {
   await cdp.evaluate(`window.__m3kNoteOff(${JSON.stringify(notes)})`);
 }
 
+async function gestureStart(cdp, notes) {
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'prepare'`, 'prepare state for MIDI gesture');
+  await midiOn(cdp, notes);
+  await waitFor(cdp, `document.querySelector('[data-testid="rhythm-timing-state"]')?.innerText.includes('Отпустите')`, 'release hint after start gesture');
+  await midiOff(cdp, notes);
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'countIn'`, 'count-in after full gesture release');
+}
+
 async function saveScreenshot(cdp, fileName) {
   const result = await cdp.send('Page.captureScreenshot', { format: 'png', fromSurface: true, captureBeyondViewport: false });
   return { fileName, bytes: Buffer.from(result.data, 'base64') };
@@ -396,16 +419,6 @@ async function realClick(cdp, selector) {
   await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', clickCount: 1 });
 }
 
-async function startRunAndWaitWindow(cdp) {
-  await waitFor(cdp, `Boolean(document.querySelector('[data-testid="rhythm-start-run"]'))`, 'rhythm start action');
-  for (let attempt = 0; attempt < 5; attempt++) {
-    await realClick(cdp, '[data-testid="rhythm-start-run"]');
-    await delay(250);
-    if (await cdp.evaluate(`document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'countIn'`)) break;
-  }
-  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.timingWindow === 'open'`, 'timing window open');
-}
-
 async function waitChordOutcome(cdp, description) {
   await waitFor(cdp, `Boolean(document.querySelector('[data-testid="rhythm-timing-result"]')) && document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.timingWindow === 'closed'`, description);
   return cdp.evaluate(`(() => ({
@@ -420,23 +433,7 @@ async function waitChordOutcome(cdp, description) {
   }))()`);
 }
 
-async function clickPianoKeys(cdp, keyIds) {
-  for (const keyId of keyIds) {
-    const point = await cdp.evaluate(`(() => {
-      const key = document.querySelector('.keyboard button[data-id="${keyId}"]');
-      if (!key) return null;
-      const rect = key.getBoundingClientRect();
-      return { x:rect.left + rect.width / 2, y:rect.top + rect.height / 2 };
-    })()`);
-    assert(point, `On-screen piano key ${keyId} is missing.`);
-    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x, y: point.y });
-    await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: point.x, y: point.y, button: 'left', clickCount: 1 });
-    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', clickCount: 1 });
-  }
-}
-
-async function runRhythmTrial(cdp, chordId) {
-  const keys = RHYTHM_CHORD_KEYS[chordId];
+async function runRhythmTrial(cdp, chordId) {  const keys = RHYTHM_CHORD_KEYS[chordId];
   await cdp.evaluate(`(() => { for (const id of ${JSON.stringify(keys)}) document.querySelector('.keyboard button[data-id="' + id + '"]')?.click(); return true; })()`);
   await waitFor(cdp, `document.querySelector('[data-testid="rhythm-selected-count"]')?.innerText.includes('3 из 3')`, 'three rhythm keys selected');
   await waitFor(cdp, `Boolean(document.querySelector('[data-testid="rhythm-start-run"]'))`, 'rhythm start action');
@@ -502,7 +499,7 @@ try {
     cwd: projectDir, stdio: 'ignore', windowsHide: true
   });
   let previewReady = false;
-  for (let attempt = 0; attempt < 120; attempt++) {
+  for (let attempt = 0; attempt < 400; attempt++) {
     try {
       const response = await fetch(previewUrl);
       if (response.ok) { previewReady = true; break; }
@@ -529,100 +526,106 @@ try {
   await cdp.send('Page.navigate', { url: previewUrl });
   await waitFor(cdp, `document.querySelectorAll('.top-nav-btn').length === 9`, 'production application');
 
-  // 1. Canonical two-bar change exercise on `changeOnBeatOne`: count-in → bar 1 C on beat 1 →
-  //    bar 2 G/B on the next downbeat, as ONE question. Fake MIDI covers multiple
-  //    octaves/inversions and the slash-bass rule.
+  // ===== Rev1: hands-free MIDI start + beginner timing acceptance =====
+
+  // 1. MIDI start gesture on changeOnBeatOne: any key starts, countdown waits for full release,
+  //    and the gesture is never graded. The whole C → G/B change runs without a mouse click.
   await seedDatabase(cdp, { cards: synthetic.cards, learningProgress: synthetic.profiles.changeOnBeatOne });
   await waitForMidi(cdp);
   await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmStep === 'changeOnBeatOne'`, 'changeOnBeatOne stage');
   await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'prepare'`, 'pre-count-in state');
-  const changePlan = await cdp.evaluate(`document.querySelector('[data-testid="rhythm-change-plan"]')?.innerText || ''`);
-  assert(changePlan.includes('Сейчас') && changePlan.includes('C') && changePlan.includes('Далее') && changePlan.includes('G/B'),
-    `Change plan must show current and next chord: ${changePlan}`);
-  screenshots.push(await saveScreenshot(cdp, '01-pre-count-in.png'));
+  const prepareHint = await cdp.evaluate(`document.querySelector('[data-testid="rhythm-timing-state"]')?.innerText || ''`);
+  assert(prepareHint.includes('MIDI'), `MIDI start hint is missing: ${prepareHint}`);
+  screenshots.push(await saveScreenshot(cdp, '01-midi-start-ready.png'));
 
-  // Dedicated visual proof of the first-bar timing window (result not asserted).
-  await startRunAndWaitWindow(cdp);
-  screenshots.push(await saveScreenshot(cdp, '02-play-now.png'));
-  await midiOn(cdp, C_MAJOR_ROOT);
-  await waitChordOutcome(cdp, 'visual target run outcome');
-  await midiOff(cdp, C_MAJOR_ROOT);
-  await delay(200);
-
-  async function playChangeExercise(cdp, firstVoicing, secondVoicing) {
-    await waitFor(cdp, `Boolean(document.querySelector('[data-testid="rhythm-start-run"]'))`, 'change exercise start action');
-    for (let attempt = 0; attempt < 5; attempt++) {
-      await realClick(cdp, '[data-testid="rhythm-start-run"]');
-      await delay(250);
-      if (await cdp.evaluate(`document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'countIn'`)) break;
-    }
-    const first = await cdp.evaluate(`window.__m3kArmMidi(${JSON.stringify(firstVoicing)})`);
-    assert(first, `Bar 1 chord ${JSON.stringify(firstVoicing)} was not played inside the timing window.`);
-    const firstQuestionInstanceId = await cdp.evaluate(`window.__m3kRecentAttempts?.at(-1)?.questionInstanceId ?? null`);
-    // The learner releases bar 1 before the change; the tracker must re-arm for bar 2.
-    await midiOff(cdp, firstVoicing);
-    await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.changeBar === '1'`, 'second bar armed');
-    const second = await cdp.evaluate(`window.__m3kArmMidi(${JSON.stringify(secondVoicing)})`);
-    assert(second, `Bar 2 chord ${JSON.stringify(secondVoicing)} was not played inside the timing window.`);
-    const outcome = await waitChordOutcome(cdp, 'change exercise outcome');
-    return { ...outcome, firstQuestionInstanceId };
-  }
-
-  const transitions = [
-    { first: [48, 52, 55], second: [59, 62, 67] },
-    { first: [60, 64, 67], second: [47, 50, 55] }
-  ];
-  for (const [index, transition] of transitions.entries()) {
-    const outcome = await playChangeExercise(cdp, transition.first, transition.second);
-    assert(outcome.feedback.includes('Такт 1 · C: ✓'), `Transition ${index + 1}: missing bar 1 success: ${outcome.feedback} :: ${JSON.stringify({ bar: outcome.bar, attempts: outcome.attempts })}`);
-    assert(outcome.feedback.includes('Такт 2 · G/B: ✓'), `Transition ${index + 1}: missing bar 2 success: ${outcome.feedback}`);
-    assert(outcome.feedback.includes('Смена: Точно'), `Transition ${index + 1}: missing exact change timing: ${outcome.feedback}`);
-    assert(outcome.trace?.targetChord === 'G/B' && outcome.trace?.chordCorrect === true && outcome.trace?.classificationOutcome === 'correct' && outcome.trace?.timingBand === 'on_time',
-      `Transition ${index + 1}: trace mismatch ${JSON.stringify(outcome.trace)}`);
-    assert(outcome.trace?.questionInstanceId === outcome.firstQuestionInstanceId && Boolean(outcome.firstQuestionInstanceId),
-      `Transition ${index + 1}: the two bars must share one question instance: ${JSON.stringify({ first: outcome.firstQuestionInstanceId, second: outcome.trace?.questionInstanceId })}`);
-    assert(JSON.stringify([...outcome.trace.rawMidiNotes].sort((a, b) => a - b)) === JSON.stringify([...transition.second].sort((a, b) => a - b)),
-      `Transition ${index + 1}: raw MIDI notes were not classified: ${JSON.stringify(outcome.trace.rawMidiNotes)}`);
-    await midiOff(cdp, transition.first);
-    await midiOff(cdp, transition.second);
-    if (index === 0) {
-      screenshots.push(await saveScreenshot(cdp, '03-correct-change-on-time.png'));
-    }
-    await delay(200);
-  }
-
-  // 2. Root-position G on the change bar: wrong_bass at exact change timing.
-  const wrongBass = await playChangeExercise(cdp, [48, 52, 55], [55, 59, 62]);
-  assert(wrongBass.trace?.classificationOutcome === 'wrong_bass' && wrongBass.trace?.timingBand === 'on_time',
-    `Root-position G must fail with wrong_bass at exact timing: ${JSON.stringify(wrongBass.trace)}`);
-  assert(wrongBass.feedback.includes('Такт 2 · G/B: ✗ неверный бас'), `Missing wrong-bass feedback: ${wrongBass.feedback}`);
-  assert(wrongBass.feedback.includes('Смена: Точно'), `Wrong bass must not distort change timing: ${wrongBass.feedback}`);
+  const tracesBeforeGesture = await cdp.evaluate('window.__m3kAttemptCount ?? 0');
+  await midiOn(cdp, [48]);
+  await waitFor(cdp, `document.querySelector('[data-testid="rhythm-timing-state"]')?.innerText.includes('Отпустите')`, 'release hint after start gesture');
+  await delay(250);
+  assert(await cdp.evaluate(`document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'prepare'`), 'Countdown must not start before full release.');
+  assert((await cdp.evaluate('window.__m3kAttemptCount ?? 0')) === tracesBeforeGesture, 'Start gesture must not be evaluated musically.');
+  await midiOff(cdp, [48]);
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'countIn'`, 'count-in after full release');
+  const gestureFirst = await cdp.evaluate(`window.__m3kPlayAt(${JSON.stringify([48, 52, 55])}, 0)`);
+  assert(gestureFirst, 'Bar 1 C was not played inside the window.');
   await midiOff(cdp, [48, 52, 55]);
-  await midiOff(cdp, [55, 59, 62]);
-  screenshots.push(await saveScreenshot(cdp, '04-wrong-bass-on-time.png'));
-  await delay(200);
-
-  // 3. Correct G/B after the missed change threshold: chord correctness survives timing failure.
-  await waitFor(cdp, `Boolean(document.querySelector('[data-testid="rhythm-start-run"]'))`, 'change retry action');
-  for (let attempt = 0; attempt < 5; attempt++) {
-    await realClick(cdp, '[data-testid="rhythm-start-run"]');
-    await delay(250);
-    if (await cdp.evaluate(`document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'countIn'`)) break;
-  }
-  const lateFirst = await cdp.evaluate(`window.__m3kArmMidi(${JSON.stringify([48, 52, 55])})`);
-  assert(lateFirst, 'Bar 1 C was not played inside the timing window.');
-  await midiOff(cdp, [48, 52, 55]);
-  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.changeBar === '1'`, 'second bar armed for late test');
-  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'late'`, 'late change diagnostic window');
-  await midiOn(cdp, [59, 62, 67]);
-  const lateChange = await waitChordOutcome(cdp, 'late change outcome');
-  assert(lateChange.trace?.timingBand === 'missed' && lateChange.trace?.chordCorrect === true,
-    `Late change must keep chord correctness: ${JSON.stringify(lateChange.trace)}`);
-  assert(lateChange.feedback.includes('Такт 2 · G/B: ✓'), `Late change lost chord success: ${lateChange.feedback}`);
-  assert(lateChange.feedback.includes('Смена: Пропущена доля'), `Late change must report missed timing: ${lateChange.feedback}`);
-  await midiOff(cdp, [48, 52, 55]);
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.changeBar === '1'`, 'second bar armed after gesture start');
+  const gestureSecond = await cdp.evaluate(`window.__m3kPlayAt(${JSON.stringify([59, 62, 67])}, 0)`);
+  assert(gestureSecond, 'Bar 2 G/B was not played inside the window.');
+  const gestureChange = await waitChordOutcome(cdp, 'gesture change outcome');
+  assert(gestureChange.feedback.includes('Такт 1 · C: ✓') && gestureChange.feedback.includes('Такт 2 · G/B: ✓') && gestureChange.feedback.includes('Смена: ✓ засчитана'),
+    `Gesture-driven change exercise failed: ${gestureChange.feedback}`);
+  assert(gestureChange.trace?.startMethod === 'midi_gesture' && gestureChange.trace?.startGestureFirstNote === 48,
+    `Start gesture diagnostics missing: ${JSON.stringify(gestureChange.trace)}`);
+  assert(gestureChange.trace?.timingBand === 'on_time' && gestureChange.trace?.timingAccepted === true,
+    `Gesture change must be accepted on time: ${JSON.stringify(gestureChange.trace)}`);
   await midiOff(cdp, [59, 62, 67]);
+  await delay(150);
+
+  // 2. Exactly one countdown per gesture; MIDI during the count-in does not restart it.
+  await gestureStart(cdp, [50]);
+  await midiOn(cdp, [62]);
   await delay(200);
+  await midiOff(cdp, [62]);
+  assert(await cdp.evaluate(`document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'countIn'`), 'MIDI during count-in must not restart the countdown.');
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'prepare'`, 'prepare after expired gesture run', 120);
+
+  // 3. Arbitrary start notes (F#4, A2, D5) behave identically; no special C note.
+  for (const note of [66, 45, 74]) {
+    await gestureStart(cdp, [note]);
+    assert(await cdp.evaluate(`document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'countIn'`), `Start gesture with note ${note} did not begin a countdown.`);
+    await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'prepare'`, `prepare after note ${note} run`, 120);
+  }
+
+  // 4. A chord as start gesture: registered only as transport, countdown waits for full release.
+  const tracesBeforeChordGesture = await cdp.evaluate('window.__m3kAttemptCount ?? 0');
+  await midiOn(cdp, C_MAJOR_ROOT);
+  await waitFor(cdp, `document.querySelector('[data-testid="rhythm-timing-state"]')?.innerText.includes('Отпустите')`, 'release hint after chord gesture');
+  await delay(250);
+  assert(await cdp.evaluate(`document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'prepare'`), 'Chord gesture must wait for full release.');
+  await midiOff(cdp, C_MAJOR_ROOT);
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'countIn'`, 'count-in after chord gesture release');
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'prepare'`, 'prepare after chord gesture run', 120);
+  assert((await cdp.evaluate('window.__m3kAttemptCount ?? 0')) === tracesBeforeChordGesture, 'Chord start gesture created a musical evaluation.');
+
+  // 5. Ten gesture starts → release → countdown → successful answer (race/double-start guard).
+  await seedDatabase(cdp, { cards: synthetic.cards, learningProgress: synthetic.profiles.oneChordPerBar });
+  await waitForMidi(cdp);
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmStep === 'oneChordPerBar'`, 'oneChordPerBar stage');
+  const gestureNotes = [48, 50, 52, 53, 55, 57, 59, 60, 62, 64];
+  for (let index = 0; index < gestureNotes.length; index++) {
+    const tracesBefore = await cdp.evaluate('window.__m3kAttemptCount ?? 0');
+    await gestureStart(cdp, [gestureNotes[index]]);
+    const played = await cdp.evaluate(`window.__m3kArmMidi(${JSON.stringify(C_MAJOR_ROOT)})`);
+    assert(played, `Gesture run ${index + 1}: chord was not played in the window.`);
+    const outcome = await waitChordOutcome(cdp, `gesture run ${index + 1}`);
+    assert(outcome.trace?.chordCorrect === true && outcome.trace?.timingAccepted === true, `Gesture run ${index + 1} failed: ${JSON.stringify(outcome.trace)}`);
+    assert((await cdp.evaluate('window.__m3kAttemptCount ?? 0')) === tracesBefore + 1, `Gesture run ${index + 1}: exactly one evaluation per gesture expected.`);
+    await midiOff(cdp, C_MAJOR_ROOT);
+    await delay(120);
+  }
+
+  // 6. Beginner timing acceptance: 0 → Точ, -250 → принято (рано), +250 → принято (поздно), +350 → отказ.
+  const timingCases = [
+    { delta: 0, band: 'on_time', label: 'Точно' },
+    { delta: -250, band: 'early', label: 'Немного рано — засчитано', screenshot: '02-accepted-early.png' },
+    { delta: 250, band: 'late', label: 'Немного поздно — засчитано', screenshot: '03-accepted-late.png' },
+    { delta: 350, band: 'missed', label: 'Слишком поздно', failed: true }
+  ];
+  for (const timingCase of timingCases) {
+    await gestureStart(cdp, [48]);
+    const tracesBefore = await cdp.evaluate('window.__m3kAttemptCount ?? 0');
+    const played = await cdp.evaluate(`window.__m3kPlayAt(${JSON.stringify(C_MAJOR_ROOT)}, ${timingCase.delta})`);
+    assert(played, `Timing case ${timingCase.delta} ms: chord was not played.`);
+    await waitFor(cdp, `(window.__m3kAttemptCount ?? 0) > ${tracesBefore}`, `evaluation for ${timingCase.delta} ms`);
+    const outcome = await waitChordOutcome(cdp, `timing ${timingCase.delta} ms`);
+    assert(outcome.trace?.timingBand === timingCase.band && outcome.trace?.timingAccepted === !timingCase.failed,
+      `Timing case ${timingCase.delta} ms: ${JSON.stringify(outcome.trace)}`);
+    assert(outcome.feedback.includes(timingCase.label), `Timing case ${timingCase.delta} ms: feedback missing "${timingCase.label}": ${outcome.feedback}`);
+    if (timingCase.screenshot) screenshots.push(await saveScreenshot(cdp, timingCase.screenshot));
+    await midiOff(cdp, C_MAJOR_ROOT);
+    await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'prepare'`, `prepare after ${timingCase.delta} ms case`, 120);
+  }
 
   // 4. Advanced-module exclusivity and screen-piano corrective reload (stabilization preservation).
   await startRoadmapModule(cdp, 'intervals', '[data-testid="interval-stage"]');
@@ -678,7 +681,6 @@ try {
   await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmStep === 'moduleComplete'`, 'module completion');
   const completionRecords = (await readStore(cdp, 'learningProgress')).filter(record => record.id.startsWith('advanced-chord-rhythm:'));
   assert(completionRecords.some(record => record.id === 'advanced-chord-rhythm:complete' && record.state === 'retention'), `Module completion was not persisted: ${JSON.stringify(completionRecords.map(record => [record.id, record.state]))}`);
-  screenshots.push(await saveScreenshot(cdp, '05-module-complete.png'));
   await cdp.evaluate(`document.querySelector('[data-testid="rhythm-continue-practice"]')?.click()`);
   await waitFor(cdp, `!document.querySelector('[data-testid="m3k-module-stage"]')`, 'Chord Rhythm module exit');
   await waitFor(cdp, `document.querySelector('[data-page="practice"].active') !== null`, 'practice page after exit');
@@ -693,7 +695,7 @@ try {
   for (const shot of screenshots) {
     await writeFile(path.join(screenshotDir, shot.fileName), shot.bytes);
   }
-  console.info(`M3K final smoke passed with ${screenshots.length} screenshots.`);
+  console.info(`M3K Rev1 smoke passed with ${screenshots.length} screenshots.`);
 } finally {
   try { socket?.close(); } catch {}
   try { chrome?.kill(); } catch {}

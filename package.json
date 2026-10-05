@@ -22,6 +22,7 @@
     "package:m3j": "node scripts/buildM3jArchive.mjs",
     "package:audit-stabilization-a": "node scripts/buildAuditStabilizationArchive.mjs",
     "package:m3k-final": "node scripts/buildM3kFinalArchive.mjs",
+    "package:m3k-rev1": "node scripts/buildM3kRev1Archive.mjs",
     "verify": "npm run typecheck && npm run check:svelte && npm test && npm run build"
   },
   "dependencies": {

@@ -17,6 +17,7 @@
   let {
     state,
     midiConnected = false,
+    midiStartPending = false,
     dailySkill = null,
     dailyChordId = 'C',
     dailyFeedback = '',
@@ -33,6 +34,7 @@
   }: {
     state: ChordRhythmModuleState;
     midiConnected?: boolean;
+    midiStartPending?: boolean;
     dailySkill?: ChordRhythmSkill | null;
     dailyChordId?: HarmonyChordId;
     dailyFeedback?: string;
@@ -178,14 +180,18 @@
         {/each}
       </div>
       <div class="rhythm-count-label" data-testid="rhythm-timing-state">
-        {#if phase === 'countIn'}
+        {#if midiStartPending}
+          Отпустите клавиши, чтобы начать отсчёт…
+        {:else if phase === 'countIn'}
           Приготовьтесь: <strong>{state.countInValue}</strong> · 3 · 2 · 1
         {:else if phase === 'armed'}
           <strong class="rhythm-play-now" data-testid="rhythm-play-now">ИГРАЙТЕ СЕЙЧАС</strong>
         {:else if phase === 'late'}
-          Пропущена доля — время не изменится, но можно сыграть аккорд для диагностики
+          Слишком поздно — время не изменится, но можно сыграть аккорд для диагностики
         {:else if phase === 'retry'}
           Исправьте аккорд в новом отсчёте
+        {:else if midiConnected}
+          Нажмите любую клавишу на MIDI, чтобы начать отсчёт
         {:else}
           Начните с отсчёта
         {/if}
@@ -194,7 +200,7 @@
       {#if state.step !== 'countingPulse'}
         <div class="rhythm-input-help">
           {#if midiConnected}
-            MIDI подключён: играйте аккорд <strong>{targetChordId}</strong> точно на целевой доле — кнопка «Сыграть аккорд» не нужна.
+            MIDI подключён: нажмите любую клавишу для старта, отпустите её, а затем играйте аккорд <strong>{targetChordId}</strong> точно в целевое окно — кнопка «Сыграть аккорд» не нужна. Можно и нажать «Начать отсчёт».
           {:else}
             На экранной клавиатуре: выберите 3 клавиши заранее, запустите отсчёт и нажмите «Сыграть аккорд» на целевой доле.
           {/if}

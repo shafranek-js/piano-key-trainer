@@ -137,9 +137,8 @@ import { getCurriculumPhases } from './core/curriculum/curriculum';
     harmonyCardNotes,
     CHORD_RHYTHM_BPM,
     CHORD_RHYTHM_ITEM_IDS,
+    CHORD_RHYTHM_ACCEPT_WINDOW_MS,
     CHORD_RHYTHM_LATE_WINDOW_MS,
-    CHORD_RHYTHM_MISSED_AFTER_MS,
-    CHORD_RHYTHM_ON_TIME_WINDOW_MS,
     CHORD_RHYTHM_SEQUENCE,
     chordRhythmCardNotes,
     canStartRhythmRemediation,
@@ -485,6 +484,10 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     at: number;
     questionInstanceId: string | null;
     inputMethod: 'screen' | 'midi';
+    startMethod: 'button' | 'midi_gesture' | null;
+    startGestureFirstNote: number | null;
+    startGestureStartedAt: number | null;
+    startGestureReleasedAt: number | null;
     rawMidiNotes: number[];
     normalizedKeyIds: string[];
     pitchClasses: string[];
@@ -496,6 +499,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     actualOnset: number | null;
     timingDeltaMs: number | null;
     timingBand: string;
+    timingAccepted: boolean;
     classificationOutcome: string;
     chordCorrect: boolean;
     detectedChordLabel: string | null;
@@ -516,6 +520,8 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   let chordRhythmActionQueue: Promise<void> = Promise.resolve();
   let rhythmClock = new MetronomeClock();
   let rhythmDeadlineTimer: number | null = null;
+  let rhythmOpenTimer: number | null = null;
+  let rhythmArmTimer: number | null = null;
   let rhythmLateCutoffTimer: number | null = null;
   let rhythmTargetOnsets: number[] = [];
   let rhythmNextTargetIndex = 0;
@@ -525,6 +531,12 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   let rhythmVisualTargetShownAt: number | null = null;
   let rhythmOutcomePending = false;
   let rhythmRunGeneration = 0;
+  let rhythmMidiStartPending = $state(false);
+  const rhythmMidiHeldKeys = new Set<string>();
+  let rhythmStartMethod: 'button' | 'midi_gesture' | null = null;
+  let rhythmStartGestureFirstNote: number | null = null;
+  let rhythmStartGestureStartedAt: number | null = null;
+  let rhythmStartGestureReleasedAt: number | null = null;
   const rhythmMidiByKeyId = new Map<string, number>();
   let m3kRecentAttempts: RhythmAttemptTrace[] = [];
   const isChordRhythmActive = $derived(chordRhythmState !== null);
@@ -3530,7 +3542,9 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   function pushRhythmAttemptTrace(trace: RhythmAttemptTrace) {
     m3kRecentAttempts = [...m3kRecentAttempts, trace].slice(-5);
     if (typeof window !== 'undefined') {
-      (window as unknown as { __m3kRecentAttempts: RhythmAttemptTrace[] }).__m3kRecentAttempts = m3kRecentAttempts;
+      const debugWindow = window as unknown as { __m3kRecentAttempts: RhythmAttemptTrace[]; __m3kAttemptCount?: number };
+      debugWindow.__m3kRecentAttempts = m3kRecentAttempts;
+      debugWindow.__m3kAttemptCount = (debugWindow.__m3kAttemptCount ?? 0) + 1;
     }
   }
 
@@ -3544,8 +3558,17 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     rhythmRunGeneration += 1;
     if (rhythmDeadlineTimer != null) window.clearTimeout(rhythmDeadlineTimer);
     rhythmDeadlineTimer = null;
+    if (rhythmOpenTimer != null) window.clearTimeout(rhythmOpenTimer);
+    rhythmOpenTimer = null;
+    if (rhythmArmTimer != null) window.clearTimeout(rhythmArmTimer);
+    rhythmArmTimer = null;
     if (rhythmLateCutoffTimer != null) window.clearTimeout(rhythmLateCutoffTimer);
     rhythmLateCutoffTimer = null;
+    rhythmMidiStartPending = false;
+    rhythmMidiHeldKeys.clear();
+    if (typeof window !== 'undefined') {
+      (window as unknown as { __m3kTimingTarget?: unknown }).__m3kTimingTarget = null;
+    }
     rhythmClock.stop();
     rhythmOutcomePending = false;
     midiChordTracker.reset();
@@ -3566,7 +3589,16 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     const moduleMode = chordRhythmState !== null;
     const state = moduleMode ? chordRhythmState : dailyRhythmViewState;
     if (!state || (state.step === 'transferResult' || state.step === 'moduleComplete')) return;
+    rhythmMidiStartPending = false;
+    rhythmMidiHeldKeys.clear();
+    if (typeof window !== 'undefined') {
+      (window as unknown as { __m3kTimingTarget?: unknown }).__m3kTimingTarget = null;
+    }
     if (rhythmDeadlineTimer != null) window.clearTimeout(rhythmDeadlineTimer);
+    if (rhythmOpenTimer != null) window.clearTimeout(rhythmOpenTimer);
+    rhythmOpenTimer = null;
+    if (rhythmArmTimer != null) window.clearTimeout(rhythmArmTimer);
+    rhythmArmTimer = null;
     if (rhythmLateCutoffTimer != null) window.clearTimeout(rhythmLateCutoffTimer);
     rhythmLateCutoffTimer = null;
     rhythmClock.stop();
@@ -3610,38 +3642,10 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       onBeat: beat => {
         const active = moduleMode ? chordRhythmState : dailyRhythmViewState;
         if (!active) return;
-        const shownBeat = beat.countIn ? beat.beat : beat.beat;
         const countInValue = beat.countIn ? Math.max(1, 4 - beat.index) : null;
-        const next = reduceChordRhythmState(active, { type: 'clockBeat', beat: shownBeat, countInValue });
+        const next = reduceChordRhythmState(active, { type: 'clockBeat', beat: beat.beat, countInValue });
         if (moduleMode) chordRhythmState = next;
         else dailyRhythmViewState = next;
-        const targetOffset = beat.index - countInBeats;
-        const nextTargetOffset = beatTargets[rhythmNextTargetIndex];
-        if (targetOffset === nextTargetOffset) {
-          const onset = expectedOnsets[beat.index];
-          rhythmVisualTargetShownAt = performance.now();
-          if (moduleMode) chordRhythmState = { ...chordRhythmState!, expectedOnset: onset, countInValue: null };
-          else dailyRhythmViewState = { ...dailyRhythmViewState!, expectedOnset: onset, countInValue: null };
-          chordRhythmDiagnostics = {
-            ...chordRhythmDiagnostics,
-            expectedOnset: onset,
-            actualOnset: null,
-            timingDeltaMs: null,
-            timingBand: null,
-            chordCorrect: null,
-            classificationOutcome: null,
-            detectedChordLabel: null,
-            timedTrialCancelledReason: null
-          };
-          if (rhythmDeadlineTimer != null) window.clearTimeout(rhythmDeadlineTimer);
-          rhythmDeadlineTimer = window.setTimeout(() => {
-            handleRhythmMissedOnset(moduleMode);
-          }, Math.max(0, onset + CHORD_RHYTHM_MISSED_AFTER_MS - performance.now()));
-          if (typeof window !== 'undefined') {
-            const hook = (window as unknown as { __m3kOnTimingWindowOpen?: (at: number) => void }).__m3kOnTimingWindowOpen;
-            hook?.(performance.now());
-          }
-        }
         if (beat.index === expectedOnsets.length - 1 && isPulseOnly) {
           if (moduleMode && chordRhythmState) chordRhythmState = { ...chordRhythmState, isRunning: false, activeBeat: 3, countInValue: null };
           else if (dailyRhythmViewState) dailyRhythmViewState = { ...dailyRhythmViewState, isRunning: false, activeBeat: 3, countInValue: null };
@@ -3660,6 +3664,67 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     rhythmOutcomePending = false;
     if (moduleMode && chordRhythmState) chordRhythmState = reduceChordRhythmState(chordRhythmState, { type: 'startRun', expectedOnset: expected });
     else if (dailyRhythmViewState) dailyRhythmViewState = reduceChordRhythmState(dailyRhythmViewState, { type: 'startRun', expectedOnset: expected });
+    // Grading arms after the count-in; the visible ±300 ms window opens slightly before the beat.
+    if (rhythmTargetOnsets.length) {
+      const armDelay = Math.max(0, rhythmCountInEndsAt - performance.now());
+      rhythmArmTimer = window.setTimeout(() => {
+        armRhythmTarget(moduleMode, 0, generation);
+      }, armDelay);
+    }
+  }
+
+  function armRhythmTarget(moduleMode: boolean, targetIndex: number, generation: number) {
+    const onset = rhythmTargetOnsets[targetIndex];
+    const active = moduleMode ? chordRhythmState : dailyRhythmViewState;
+    if (!Number.isFinite(onset) || !active?.isRunning) return;
+    // Arms grading immediately (early answers are graded as too_early/early),
+    // while the visible acceptance window opens at onset - 300 ms.
+    if (moduleMode) chordRhythmState = { ...chordRhythmState!, expectedOnset: onset, countInValue: null };
+    else dailyRhythmViewState = { ...dailyRhythmViewState!, expectedOnset: onset, countInValue: null };
+    if (typeof window !== 'undefined') {
+      // Invalidate the previous target so diagnostics/smoke helpers never read stale onsets.
+      (window as unknown as { __m3kTimingTarget?: unknown }).__m3kTimingTarget = null;
+    }
+    chordRhythmDiagnostics = {
+      ...chordRhythmDiagnostics,
+      expectedOnset: onset,
+      actualOnset: null,
+      timingDeltaMs: null,
+      timingBand: null,
+      chordCorrect: null,
+      classificationOutcome: null,
+      detectedChordLabel: null,
+      timedTrialCancelledReason: null
+    };
+    const windowStart = onset - CHORD_RHYTHM_ACCEPT_WINDOW_MS;
+    const windowEnd = onset + CHORD_RHYTHM_ACCEPT_WINDOW_MS;
+    if (rhythmOpenTimer != null) window.clearTimeout(rhythmOpenTimer);
+    rhythmOpenTimer = window.setTimeout(() => {
+      if (generation !== rhythmRunGeneration) return;
+      if (moduleMode) {
+        if (chordRhythmState?.isRunning) chordRhythmState = { ...chordRhythmState, timingWindowOpen: true };
+      } else if (dailyRhythmViewState?.isRunning) {
+        dailyRhythmViewState = { ...dailyRhythmViewState, timingWindowOpen: true };
+      }
+      rhythmVisualTargetShownAt = performance.now();
+      if (typeof window !== 'undefined') {
+        (window as unknown as { __m3kTimingTarget?: unknown }).__m3kTimingTarget = { onset, windowStart, windowEnd };
+        const hook = (window as unknown as { __m3kOnTimingWindowOpen?: (at: number) => void }).__m3kOnTimingWindowOpen;
+        hook?.(performance.now());
+      }
+    }, Math.max(0, windowStart - performance.now()));
+    if (rhythmDeadlineTimer != null) window.clearTimeout(rhythmDeadlineTimer);
+    rhythmDeadlineTimer = window.setTimeout(() => {
+      handleRhythmMissedOnset(moduleMode);
+    }, Math.max(0, windowEnd - performance.now()));
+  }
+
+  function handleStartRhythmRun() {
+    rhythmStartMethod = 'button';
+    rhythmStartGestureFirstNote = null;
+    rhythmStartGestureStartedAt = performance.now();
+    rhythmStartGestureReleasedAt = null;
+    void startChordRhythmRun();
   }
 
   function handleRhythmMissedOnset(moduleMode: boolean) {
@@ -3747,6 +3812,10 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       at: Date.now(),
       questionInstanceId: rhythmQuestionInstanceId,
       inputMethod,
+      startMethod: rhythmStartMethod,
+      startGestureFirstNote: rhythmStartGestureFirstNote,
+      startGestureStartedAt: rhythmStartGestureStartedAt,
+      startGestureReleasedAt: rhythmStartGestureReleasedAt,
       rawMidiNotes: rawMidiNotes ? [...rawMidiNotes] : (inputMethod === 'midi' ? resolveRhythmMidiNotes(keyIds) : []),
       normalizedKeyIds: [...keyIds],
       pitchClasses: classification.playedPitchClasses,
@@ -3758,14 +3827,15 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       actualOnset: outcome.actualOnset,
       timingDeltaMs: outcome.timingDeltaMs,
       timingBand: outcome.timingBand,
+      timingAccepted: outcome.timingAccepted,
       classificationOutcome: classification.outcome,
       chordCorrect: classification.chordCorrect,
       detectedChordLabel: classification.detectedChordLabel,
       countInStartedAt: rhythmCountInStartedAt,
       countInFinishedAt: rhythmCountInEndsAt,
       visualTargetShownAt: rhythmVisualTargetShownAt,
-      timingWindowStart: outcome.expectedOnset - CHORD_RHYTHM_ON_TIME_WINDOW_MS,
-      timingWindowEnd: outcome.expectedOnset + CHORD_RHYTHM_MISSED_AFTER_MS
+      timingWindowStart: outcome.expectedOnset - CHORD_RHYTHM_ACCEPT_WINDOW_MS,
+      timingWindowEnd: outcome.expectedOnset + CHORD_RHYTHM_ACCEPT_WINDOW_MS
     });
     if (typeof window !== 'undefined') {
       (window as unknown as { __m3kLastClassification: RhythmChordClassification | null }).__m3kLastClassification = classification;
@@ -3773,6 +3843,8 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
 
     if (rhythmDeadlineTimer != null) window.clearTimeout(rhythmDeadlineTimer);
     rhythmDeadlineTimer = null;
+    if (rhythmOpenTimer != null) window.clearTimeout(rhythmOpenTimer);
+    rhythmOpenTimer = null;
     if (rhythmLateCutoffTimer != null) window.clearTimeout(rhythmLateCutoffTimer);
     rhythmLateCutoffTimer = null;
     rhythmNextTargetIndex += 1;
@@ -3799,11 +3871,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       }
     }
     if (next.isRunning && rhythmNextTargetIndex < rhythmTargetOnsets.length) {
-      const expectedOnset = rhythmTargetOnsets[rhythmNextTargetIndex];
-      if (moduleMode && chordRhythmState) chordRhythmState = { ...chordRhythmState, expectedOnset };
-      else if (dailyRhythmViewState) dailyRhythmViewState = { ...dailyRhythmViewState, expectedOnset };
-      chordRhythmDiagnostics = { ...chordRhythmDiagnostics, expectedOnset };
-      rhythmDeadlineTimer = window.setTimeout(() => handleRhythmMissedOnset(moduleMode), Math.max(0, expectedOnset + CHORD_RHYTHM_MISSED_AFTER_MS - performance.now()));
+      armRhythmTarget(moduleMode, rhythmNextTargetIndex, rhythmRunGeneration);
     }
   }
 
@@ -5676,6 +5744,26 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       midiActiveKeyIds = [...midiActiveKeyIds, ev.keyId];
       audioEngine.playPianoMidi(ev.midi, ev.velocity, ev.voiceKey);
 
+      // Hands-free M3K start: any MIDI key in the waiting state is a transport gesture.
+      // The countdown starts only after every gesture key is released, and the gesture
+      // is never evaluated musically.
+      if (activePage === 'practice' && practiceActivity === 'standard' && (isChordRhythmActive || isDailyRhythmActive)) {
+        const rhythmState = chordRhythmState ?? dailyRhythmViewState;
+        if (rhythmState && !rhythmState.isRunning) {
+          rhythmMidiByKeyId.set(ev.keyId, ev.midi);
+          rhythmMidiHeldKeys.add(ev.keyId);
+          if (!rhythmMidiStartPending) {
+            rhythmMidiStartPending = true;
+            rhythmStartMethod = 'midi_gesture';
+            rhythmStartGestureFirstNote = ev.midi;
+            rhythmStartGestureStartedAt = performance.now();
+            rhythmStartGestureReleasedAt = null;
+            setRhythmFeedback(chordRhythmState !== null, 'Отпустите клавиши, чтобы начать отсчёт…', 'warn');
+          }
+          return;
+        }
+      }
+
       if (activePage === 'practice' && !isLocked) {
         if (practiceActivity === 'repertoire') {
           handleRepertoireInput(ev.keyId, { input: 'midi', velocity: ev.velocity, voiceKey: ev.voiceKey });
@@ -5794,6 +5882,12 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       audioEngine.releaseVoice(ev.voiceKey, 0.12);
       midiChordTracker.handleNoteOff(ev.keyId);
       midiChordHeldKeyIds = midiChordTracker.getActiveNotes();
+      if (rhythmMidiStartPending && rhythmMidiHeldKeys.delete(ev.keyId) && rhythmMidiHeldKeys.size === 0) {
+        // Full release reached: start exactly one countdown for this gesture.
+        rhythmMidiStartPending = false;
+        rhythmStartGestureReleasedAt = performance.now();
+        void startChordRhythmRun();
+      }
     });
     if (midi.isSupported()) midi.connect();
 
@@ -6290,8 +6384,9 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
               <ChordRhythmStage
                 state={chordRhythmState}
                 midiConnected={midiReady}
+                midiStartPending={rhythmMidiStartPending}
                 onAdvance={handleAdvanceChordRhythmStage}
-                onStartRun={() => void startChordRhythmRun()}
+                onStartRun={handleStartRhythmRun}
                 onSubmit={() => submitRhythmChord(chordRhythmState?.selectedKeyIds ?? [], 'screen')}
                 onRetry={() => {
                   if (chordRhythmState?.step === 'transferRemediation' && chordRhythmState.feedbackTone === 'good') finishChordRhythmRemediationItem();
@@ -6308,6 +6403,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
               <ChordRhythmStage
                 state={dailyRhythmViewState}
                 midiConnected={midiReady}
+                midiStartPending={rhythmMidiStartPending}
                 dailySkill={rhythmDailySkill(currentCard)}
                 dailyChordId={dailyRhythmChordId}
                 dailyFeedback={dailyRhythmFeedback}
@@ -6315,7 +6411,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
                 dailyCorrective={dailyRhythmCorrective}
                 dailyCompleted={dailyRhythmCompleted}
                 onAdvance={advanceDailyRhythmQuestion}
-                onStartRun={() => void startChordRhythmRun()}
+                onStartRun={handleStartRhythmRun}
                 onSubmit={() => submitRhythmChord(dailyRhythmViewState?.selectedKeyIds ?? [], 'screen')}
                 onRetry={() => void startChordRhythmRun()}
                 onRemediation={() => void startChordRhythmRun()}

@@ -174,6 +174,8 @@ describe('M3K late-diagnostic window — pitch survives timing failure', () => {
     state = reduceChordRhythmState(state, { type: 'clockBeat', beat: 0, countInValue: null });
     state = { ...state, expectedOnset: 1_000 };
     expect(rhythmRunPhase(state)).toBe('armed');
+    expect(isRhythmTimingWindowOpen(state)).toBe(false);
+    state = reduceChordRhythmState(state, { type: 'setTimingWindow', open: true });
     expect(isRhythmTimingWindowOpen(state)).toBe(true);
 
     state = reduceChordRhythmState(state, { type: 'missedOnset' });
@@ -242,7 +244,7 @@ describe('M3K two-bar change exercise — C → G/B over two consecutive bars', 
     expect(state.barEvents).toHaveLength(2);
     expect(state.feedbackText).toContain('Такт 1 · C: ✓');
     expect(state.feedbackText).toContain('Такт 2 · G/B: ✓');
-    expect(state.feedbackText).toContain('Смена: Точно');
+    expect(state.feedbackText).toContain('Смена: ✓ засчитана');
     expect(state.feedbackTone).toBe('good');
     // A finished exercise is not a bar-2 resume; a new run starts from C again.
     expect(isResumableChangeBar2(state)).toBe(false);
@@ -260,7 +262,7 @@ describe('M3K two-bar change exercise — C → G/B over two consecutive bars', 
     });
     expect(state.isRunning).toBe(false);
     expect(state.feedbackText).toContain('Такт 2 · G/B: ✗ неверный бас');
-    expect(state.feedbackText).toContain('Смена: Точно');
+    expect(state.feedbackText).toContain('Смена: ✓ засчитана');
     expect(state.feedbackTone).toBe('bad');
   });
 
@@ -277,7 +279,7 @@ describe('M3K two-bar change exercise — C → G/B over two consecutive bars', 
     });
     expect(state.isRunning).toBe(false);
     expect(state.feedbackText).toContain('Такт 2 · G/B: ✓');
-    expect(state.feedbackText).toContain('Смена: Пропущена доля');
+    expect(state.feedbackText).toContain('Смена: ✗ Слишком поздно');
     expect(state.feedbackTone).toBe('bad');
   });
 
@@ -304,7 +306,7 @@ describe('M3K two-bar change exercise — C → G/B over two consecutive bars', 
     state = reduceChordRhythmState(state, { type: 'missedExpired' });
     expect(state.isRunning).toBe(false);
     expect(state.feedbackText).toContain('Такт 2 · G/B: ✗');
-    expect(state.feedbackText).toContain('Смена: Пропущена доля');
+    expect(state.feedbackText).toContain('Смена: ✗ Слишком поздно');
   });
 
   it('persists and resumes the exercise from the change bar', () => {
@@ -350,6 +352,110 @@ describe('M3K two-bar change exercise — C → G/B over two consecutive bars', 
     expect(resumed.isRunning).toBe(false);
     expect(resumed.feedbackText).toContain('Такт 1 · C: ✓');
     expect(resumed.feedbackText).toContain('Такт 2 · G/B: ✓');
-    expect(resumed.feedbackText).toContain('Смена: Точно');
+    expect(resumed.feedbackText).toContain('Смена: ✓ засчитана');
+  });
+});
+
+describe('M3K beginner timing policy — ±140 ms precise / ±300 ms accepted', () => {
+  const expected = 10_000;
+  const band = (delta: number) => classifyRhythmTiming(expected, expected + delta, true);
+
+  it('classifies every required boundary deterministically', () => {
+    const tooEarly = band(-301);
+    expect(tooEarly.timingBand).toBe('too_early');
+    expect(tooEarly.timingAccepted).toBe(false);
+    expect(tooEarly.correct).toBe(false);
+
+    for (const delta of [-300, -141]) {
+      const outcome = band(delta);
+      expect(outcome.timingBand).toBe('early');
+      expect(outcome.timingAccepted).toBe(true);
+      expect(outcome.correct).toBe(true);
+    }
+    for (const delta of [-140, 0, 140]) {
+      const outcome = band(delta);
+      expect(outcome.timingBand).toBe('on_time');
+      expect(outcome.timingAccepted).toBe(true);
+    }
+    for (const delta of [141, 300]) {
+      const outcome = band(delta);
+      expect(outcome.timingBand).toBe('late');
+      expect(outcome.timingAccepted).toBe(true);
+      expect(outcome.correct).toBe(true);
+    }
+    const tooLate = band(301);
+    expect(tooLate.timingBand).toBe('missed');
+    expect(tooLate.timingAccepted).toBe(false);
+    expect(tooLate.correct).toBe(false);
+
+    const missing = classifyRhythmTiming(expected, null, true);
+    expect(missing.timingBand).toBe('missed');
+    expect(missing.timingAccepted).toBe(false);
+    expect(missing.chordCorrect).toBe(true);
+  });
+
+  it('keeps chord and timing independent across the matrix', () => {
+    const exact = classifyRhythmTiming(expected, expected, true);
+    expect(exact.correct).toBe(true);
+
+    const earlyAccepted = classifyRhythmTiming(expected, expected - 250, true);
+    expect(earlyAccepted.timingBand).toBe('early');
+    expect(earlyAccepted.correct).toBe(true);
+
+    const lateAccepted = classifyRhythmTiming(expected, expected + 250, true);
+    expect(lateAccepted.timingBand).toBe('late');
+    expect(lateAccepted.correct).toBe(true);
+
+    const tooEarly = classifyRhythmTiming(expected, expected - 350, true);
+    expect(tooEarly.timingBand).toBe('too_early');
+    expect(tooEarly.correct).toBe(false);
+    expect(tooEarly.chordCorrect).toBe(true);
+
+    const tooLate = classifyRhythmTiming(expected, expected + 350, true);
+    expect(tooLate.timingBand).toBe('missed');
+    expect(tooLate.correct).toBe(false);
+    expect(tooLate.chordCorrect).toBe(true);
+
+    const wrongExact = classifyRhythmTiming(expected, expected, false);
+    expect(wrongExact.timingBand).toBe('on_time');
+    expect(wrongExact.timingAccepted).toBe(true);
+    expect(wrongExact.correct).toBe(false);
+    expect(wrongExact.chordCorrect).toBe(false);
+
+    const wrongLate = classifyRhythmTiming(expected, expected + 250, false);
+    expect(wrongLate.timingBand).toBe('late');
+    expect(wrongLate.correct).toBe(false);
+    expect(wrongLate.chordCorrect).toBe(false);
+  });
+
+  it('counts accepted early/late bars as success in the two-bar change exercise', () => {
+    let state: ChordRhythmModuleState = { ...createChordRhythmModuleState(), step: 'changeOnBeatOne' };
+    state = reduceChordRhythmState(state, { type: 'startRun', expectedOnset: 1_000 });
+    state = reduceChordRhythmState(state, { type: 'clockBeat', beat: 0, countInValue: null });
+    const earlyC = classifyRhythmTiming(1_000, 750, true);
+    expect(earlyC.timingBand).toBe('early');
+    state = reduceChordRhythmState(state, {
+      type: 'recordOutcome',
+      outcome: earlyC,
+      classification: classifyRhythmChord('C', notes('C3', 'E3', 'G3')),
+      questionInstanceId: 'q-timing'
+    });
+    expect(state.barIndex).toBe(1);
+    expect(state.isRunning).toBe(true);
+
+    state = reduceChordRhythmState(state, { type: 'clockBeat', beat: 0, countInValue: null });
+    const lateG = classifyRhythmTiming(2_000, 2_250, true);
+    expect(lateG.timingBand).toBe('late');
+    state = reduceChordRhythmState(state, {
+      type: 'recordOutcome',
+      outcome: lateG,
+      classification: classifyRhythmChord('G/B', notes('B3', 'D4', 'G4')),
+      questionInstanceId: 'q-timing'
+    });
+    expect(state.isRunning).toBe(false);
+    expect(state.feedbackText).toContain('Такт 1 · C: ✓ · Немного рано — засчитано');
+    expect(state.feedbackText).toContain('Такт 2 · G/B: ✓ · Немного поздно — засчитано');
+    expect(state.feedbackText).toContain('Смена: ✓ засчитана');
+    expect(state.feedbackTone).toBe('good');
   });
 });

@@ -610,12 +610,13 @@ try {
     await delay(120);
   }
 
-  // 6. PLAY NOW cue is synchronized with the real ±300 ms acceptance window.
-  // 6a. After count-in, before the window: cue hidden; a note now is too_early and the cue never appears.
+  // 6. PLAY NOW is decoupled from the ±300 ms acceptance window: acceptance opens early
+  // (grading), the visual cue appears exactly at the canonical target onset.
+  // 6a. Before the grace window: acceptance closed, cue hidden, an immediate note is too_early.
   await gestureStart(cdp, [50]);
-  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'armed' && document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.timingWindow === 'closed'`, 'armed before the window');
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'armed' && document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.timingWindow === 'closed'`, 'armed before the grace window');
   assert(await cdp.evaluate(`document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.playNow === 'hidden'`),
-    'PLAY NOW must be hidden before the acceptance window opens.');
+    'PLAY NOW must be hidden before the grace window opens.');
   const preWindow = await cdp.evaluate(`({ remaining: (window.__m3kTimingTarget?.onset ?? 0) - performance.now() })`);
   assert(preWindow.remaining > 300, `Pre-window check must run more than 300 ms before the target: ${JSON.stringify(preWindow)}`);
   const preWindowTraces = await cdp.evaluate('window.__m3kAttemptCount ?? 0');
@@ -627,34 +628,65 @@ try {
     `Immediate pre-window note must be too_early: ${JSON.stringify(earlyOutcome.trace)}`);
   assert(earlyOutcome.timingAcceptedAttr === 'failed' && earlyOutcome.timingHasBad === true,
     `Pre-window timing must render as failed: ${JSON.stringify({ attr: earlyOutcome.timingAcceptedAttr, bad: earlyOutcome.timingHasBad })}`);
-  assert(earlyOutcome.playNow === 'hidden', 'PLAY NOW became visible before the acceptance window.');
+  assert(earlyOutcome.playNow === 'hidden', 'PLAY NOW became visible before the grace window.');
   await midiOff(cdp, C_MAJOR_ROOT);
   await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'prepare'`, 'prepare after pre-window check', 120);
 
-  // 6b. At the window boundary the cue appears exactly with timingWindowOpen and a chord is accepted.
+  // 6b. Grace window: acceptance open but no cue; an early chord is still accepted and unprompted.
   await gestureStart(cdp, [50]);
-  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.playNow === 'visible'`, 'PLAY NOW visible at window open');
-  assert(await cdp.evaluate(`document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.timingWindow === 'open'`),
-    'PLAY NOW must be visible exactly when the timing window is open.');
-  const cueBoundary = await cdp.evaluate(`({
-    openAt: window.__m3kTimingWindowOpenAt ?? null,
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.timingWindow === 'open'`, 'acceptance window open');
+  const graceState = await cdp.evaluate(`(() => ({
+    remaining: (window.__m3kTimingTarget?.onset ?? 0) - performance.now(),
+    playNow: document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.playNow ?? null,
+    label: document.querySelector('[data-testid="rhythm-timing-state"]')?.innerText || '',
+    acceptOpenAt: window.__m3kTimingWindowOpenAt ?? null,
     onset: window.__m3kTimingTarget?.onset ?? null
-  })`);
-  assert(typeof cueBoundary.openAt === 'number' && typeof cueBoundary.onset === 'number',
-    `Cue boundary diagnostics missing: ${JSON.stringify(cueBoundary)}`);
-  assert(Math.abs(cueBoundary.openAt - (cueBoundary.onset - 300)) < 80,
-    `PLAY NOW must open at target - 300 ms: ${JSON.stringify(cueBoundary)}`);
+  }))()`);
+  assert(graceState.remaining > 0, `Grace-window check must run before the target: ${JSON.stringify(graceState)}`);
+  assert(graceState.playNow === 'hidden', `PLAY NOW must stay hidden during the grace window: ${JSON.stringify(graceState)}`);
+  assert(graceState.label.includes('Приготовьтесь'), `Grace window must show «Приготовьтесь…»: ${JSON.stringify(graceState)}`);
+  assert(typeof graceState.acceptOpenAt === 'number' && Math.abs(graceState.acceptOpenAt - (graceState.onset - 300)) < 80,
+    `Acceptance window must open at target - 300 ms: ${JSON.stringify(graceState)}`);
+  const graceTraces = await cdp.evaluate('window.__m3kAttemptCount ?? 0');
+  const gracePlayed = await cdp.evaluate(`window.__m3kPlayAt(${JSON.stringify(C_MAJOR_ROOT)}, -250)`);
+  assert(gracePlayed, 'Grace-window chord was not played.');
+  await waitFor(cdp, `(window.__m3kAttemptCount ?? 0) > ${graceTraces}`, 'grace-window evaluation');
+  const graceOutcome = await waitChordOutcome(cdp, 'grace-window early outcome');
+  assert(graceOutcome.trace?.timingBand === 'early' && graceOutcome.trace?.timingAccepted === true,
+    `Early chord in the grace window must be accepted: ${JSON.stringify(graceOutcome.trace)}`);
+  assert(graceOutcome.timingAcceptedAttr === 'accepted' && graceOutcome.timingHasBad === false,
+    `Accepted early timing must not render as failed: ${JSON.stringify({ attr: graceOutcome.timingAcceptedAttr, bad: graceOutcome.timingHasBad })}`);
+  await midiOff(cdp, C_MAJOR_ROOT);
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'prepare'`, 'prepare after grace-window check', 120);
+
+  // 6c. Canonical target onset: cue becomes visible together with the active beat and is bounded.
+  await gestureStart(cdp, [50]);
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.playNow === 'visible'`, 'PLAY NOW visible at target onset');
+  const cueState = await cdp.evaluate(`(() => ({
+    onset: window.__m3kTimingTarget?.onset ?? null,
+    shownAt: window.__m3kPlayNowShownAt ?? null,
+    activeBeat: document.querySelector('[data-testid="rhythm-beat-indicator"] .active')?.innerText.trim() ?? null,
+    acceptanceOpen: document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.timingWindow ?? null,
+    label: document.querySelector('[data-testid="rhythm-timing-state"]')?.innerText || ''
+  }))()`);
+  assert(typeof cueState.onset === 'number' && typeof cueState.shownAt === 'number',
+    `Cue diagnostics missing: ${JSON.stringify(cueState)}`);
+  assert(Math.abs(cueState.shownAt - cueState.onset) < 80,
+    `PLAY NOW must switch at the canonical target onset: ${JSON.stringify(cueState)}`);
+  assert(cueState.activeBeat === '1', `Active beat circle must show beat 1 with the cue: ${JSON.stringify(cueState)}`);
+  assert(cueState.acceptanceOpen === 'open', `Acceptance window must still be open at the target: ${JSON.stringify(cueState)}`);
+  assert(cueState.label.includes('ИГРАЙТЕ СЕЙЧАС'), `Target onset must show ИГРАЙТЕ СЕЙЧАС: ${JSON.stringify(cueState)}`);
   const cueTraces = await cdp.evaluate('window.__m3kAttemptCount ?? 0');
   const cuePlayed = await cdp.evaluate(`window.__m3kPlayAt(${JSON.stringify(C_MAJOR_ROOT)}, 0)`);
-  assert(cuePlayed, 'Boundary chord was not played.');
-  await waitFor(cdp, `(window.__m3kAttemptCount ?? 0) > ${cueTraces}`, 'boundary evaluation');
-  const boundaryOutcome = await waitChordOutcome(cdp, 'boundary outcome');
+  assert(cuePlayed, 'Target-onset chord was not played.');
+  await waitFor(cdp, `(window.__m3kAttemptCount ?? 0) > ${cueTraces}`, 'target-onset evaluation');
+  const boundaryOutcome = await waitChordOutcome(cdp, 'target-onset outcome');
   assert(boundaryOutcome.trace?.timingBand === 'on_time' && boundaryOutcome.trace?.timingAccepted === true,
-    `Chord at the open boundary must be accepted on time: ${JSON.stringify(boundaryOutcome.trace)}`);
+    `Chord at the target onset must be accepted on time: ${JSON.stringify(boundaryOutcome.trace)}`);
   assert(boundaryOutcome.timingAcceptedAttr === 'accepted' && boundaryOutcome.timingHasBad === false,
     `Accepted timing must not render as failed: ${JSON.stringify({ attr: boundaryOutcome.timingAcceptedAttr, bad: boundaryOutcome.timingHasBad })}`);
   await midiOff(cdp, C_MAJOR_ROOT);
-  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'prepare'`, 'prepare after boundary check', 120);
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmPhase === 'prepare'`, 'prepare after target-onset check', 120);
 
   // 7. Beginner timing acceptance: 0 → Точ, -250 → принято (рано), +250 → принято (поздно), +350 → отказ.
   const timingCases = [
@@ -698,7 +730,28 @@ try {
   await waitFor(cdp, `(window.__m3kAttemptCount ?? 0) > ${strikesBefore}`, 'strike 1 evaluation');
   await waitFor(cdp, `document.querySelector('[data-testid="rhythm-strike-progress"]')?.innerText.includes('Удар 2 из 2')`, 'second strike progress');
   const strikeQuestionId = await cdp.evaluate('window.__m3kRecentAttempts?.at(-1)?.questionInstanceId ?? null');
-  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.playNow === 'visible'`, 'strike 2 window', 120);
+  // Beat 2 is the current musical position: the strike-2 cue must not be visible yet.
+  await delay(300);
+  const beatTwoState = await cdp.evaluate(`(() => ({
+    playNow: document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.playNow ?? null,
+    label: document.querySelector('[data-testid="rhythm-timing-state"]')?.innerText || '',
+    progress: document.querySelector('[data-testid="rhythm-strike-progress"]')?.innerText || '',
+    activeBeat: document.querySelector('[data-testid="rhythm-beat-indicator"] .active')?.innerText.trim() ?? null
+  }))()`);
+  assert(beatTwoState.playNow === 'hidden', `Strike-2 cue must stay hidden during beat 2: ${JSON.stringify(beatTwoState)}`);
+  assert(!beatTwoState.label.includes('ИГРАЙТЕ СЕЙЧАС'), `Strike-2 PLAY NOW must not appear during beat 2: ${JSON.stringify(beatTwoState)}`);
+  assert(beatTwoState.progress.includes('Удар 2 из 2'), `Strike progress must announce beat 3: ${JSON.stringify(beatTwoState)}`);
+  await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.playNow === 'visible'`, 'strike 2 cue at beat 3', 120);
+  const strikeTwoCue = await cdp.evaluate(`(() => ({
+    label: document.querySelector('[data-testid="rhythm-timing-state"]')?.innerText || '',
+    activeBeat: document.querySelector('[data-testid="rhythm-beat-indicator"] .active')?.innerText.trim() ?? null,
+    onset: window.__m3kTimingTarget?.onset ?? null,
+    shownAt: window.__m3kPlayNowShownAt ?? null
+  }))()`);
+  assert(strikeTwoCue.label.includes('Удар 2 из 2 · ИГРАЙТЕ СЕЙЧАС'), `Beat 3 must show «Удар 2 из 2 · ИГРАЙТЕ СЕЙЧАС»: ${JSON.stringify(strikeTwoCue)}`);
+  assert(strikeTwoCue.activeBeat === '3', `Beat 3 must be the active beat with the strike-2 cue: ${JSON.stringify(strikeTwoCue)}`);
+  assert(typeof strikeTwoCue.onset === 'number' && typeof strikeTwoCue.shownAt === 'number' && Math.abs(strikeTwoCue.shownAt - strikeTwoCue.onset) < 80,
+    `Strike-2 cue must switch at the beat-3 onset: ${JSON.stringify(strikeTwoCue)}`);
   const strikeTwo = await cdp.evaluate(`window.__m3kPlayAt(${JSON.stringify(C_MAJOR_ROOT)}, 0)`);
   assert(strikeTwo, 'Strike 2 was not played.');
   await midiOff(cdp, C_MAJOR_ROOT);

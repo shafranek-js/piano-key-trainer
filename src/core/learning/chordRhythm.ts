@@ -17,6 +17,8 @@ export const CHORD_RHYTHM_ON_TIME_WINDOW_MS = 140;
 export const CHORD_RHYTHM_ACCEPT_WINDOW_MS = 300;
 /** Grace window after the acceptance edge where a late chord is still diagnosed (never re-graded). */
 export const CHORD_RHYTHM_LATE_WINDOW_MS = 900;
+/** Bounded visible duration of the «ИГРАЙТЕ СЕЙЧАС» cue, starting at the canonical target onset. */
+export const CHORD_RHYTHM_PLAY_NOW_CUE_MS = 500;
 
 export const CHORD_RHYTHM_ITEM_IDS = {
   PULSE: 'advanced-chord-rhythm:pulse',
@@ -68,8 +70,10 @@ export interface ChordRhythmModuleState {
   isRunning: boolean;
   /** True between the missed threshold and the late-diagnostic cutoff. */
   lateWindow: boolean;
-  /** True while the visible target beat is inside the beginner acceptance window. */
-  timingWindowOpen: boolean;
+  /** Grading acceptance window (±300 ms): an early answer here is accepted but not prompted. */
+  timingAcceptanceWindowOpen: boolean;
+  /** Visual «ИГРАЙТЕ СЕЙЧАС» cue: bounded period starting exactly at the canonical target onset. */
+  playNowCueActive: boolean;
   /** Two-bar change exercise position: 0 = first bar (C), 1 = change bar (G/B). */
   barIndex: number;
   /** Completed bars of the current change exercise (bounded to two entries). */
@@ -90,7 +94,8 @@ export type ChordRhythmAction =
   | { type: 'selectBeat'; beat: number }
   | { type: 'startRun'; expectedOnset: number }
   | { type: 'clockBeat'; beat: number; countInValue?: number | null }
-  | { type: 'setTimingWindow'; open: boolean }
+  | { type: 'setTimingAcceptanceWindow'; open: boolean }
+  | { type: 'setPlayNowCue'; active: boolean }
   | { type: 'selectKey'; keyId: string }
   | { type: 'clearSelection' }
   | { type: 'recordOutcome'; outcome: RhythmTimingOutcome; questionInstanceId: string; classification?: RhythmChordClassification | null }
@@ -535,7 +540,7 @@ export function createChordRhythmModuleState(progress?: ProgressCollectionInput)
   if (map.get(CHORD_RHYTHM_ITEM_IDS.COMPLETE)?.state === 'retention') {
     return {
       step: 'moduleComplete', sequenceIndex: 0, selectedKeyIds: [], assessment,
-      activeBeat: -1, countInValue: null, expectedOnset: null, isRunning: false, lateWindow: false, timingWindowOpen: false,
+      activeBeat: -1, countInValue: null, expectedOnset: null, isRunning: false, lateWindow: false, timingAcceptanceWindowOpen: false, playNowCueActive: false,
       barIndex: 0, barEvents: [], attemptIndex: 0,
       outcomes: [], lastClassification: null, feedbackText: '', feedbackTone: '', lastTimingBand: null, lastOutcome: null
     };
@@ -560,7 +565,7 @@ export function createChordRhythmModuleState(progress?: ProgressCollectionInput)
     step,
     sequenceIndex: Math.max(0, snapshot?.sequenceIndex ?? 0),
     selectedKeyIds: [], assessment,
-    activeBeat: -1, countInValue: null, expectedOnset: null, isRunning: false, lateWindow: false, timingWindowOpen: false,
+    activeBeat: -1, countInValue: null, expectedOnset: null, isRunning: false, lateWindow: false, timingAcceptanceWindowOpen: false, playNowCueActive: false,
     barIndex, barEvents, attemptIndex: 0,
     outcomes: [], lastClassification: null,
     feedbackText: resumeChange ? `${changeExerciseFeedback(barEvents)} · Продолжите с G/B на следующей сильной доле.` : '',
@@ -579,11 +584,11 @@ export function reduceChordRhythmState(
       const next = TEACHING_STEPS[at + 1];
       if (state.step === 'independentPlay') return { ...state, step: 'transferAssessment', assessment: createRhythmAssessment(), sequenceIndex: 0, barIndex: 0, barEvents: [], feedbackText: '', feedbackTone: '' };
       if (!next) return state;
-      return { ...state, step: next, sequenceIndex: 0, barIndex: 0, barEvents: [], selectedKeyIds: [], activeBeat: -1, expectedOnset: null, isRunning: false, lateWindow: false, timingWindowOpen: false, outcomes: [], attemptIndex: 0, lastClassification: null, feedbackText: '', feedbackTone: '', lastTimingBand: null };
+      return { ...state, step: next, sequenceIndex: 0, barIndex: 0, barEvents: [], selectedKeyIds: [], activeBeat: -1, expectedOnset: null, isRunning: false, lateWindow: false, timingAcceptanceWindowOpen: false, playNowCueActive: false, outcomes: [], attemptIndex: 0, lastClassification: null, feedbackText: '', feedbackTone: '', lastTimingBand: null };
     }
     case 'selectBeat': return { ...state, activeBeat: action.beat };
-    case 'startRun': return { ...state, isRunning: true, activeBeat: -1, countInValue: 4, expectedOnset: action.expectedOnset, lateWindow: false, timingWindowOpen: false, attemptIndex: 0, outcomes: [], lastClassification: null, feedbackText: '', feedbackTone: '', lastTimingBand: null, lastOutcome: null };
-    case 'resetChangeExercise': return { ...state, barIndex: 0, barEvents: [], outcomes: [], isRunning: false, lateWindow: false, timingWindowOpen: false, expectedOnset: null, selectedKeyIds: [], lastClassification: null, lastOutcome: null, feedbackText: '', feedbackTone: '' };
+    case 'startRun': return { ...state, isRunning: true, activeBeat: -1, countInValue: 4, expectedOnset: action.expectedOnset, lateWindow: false, timingAcceptanceWindowOpen: false, playNowCueActive: false, attemptIndex: 0, outcomes: [], lastClassification: null, feedbackText: '', feedbackTone: '', lastTimingBand: null, lastOutcome: null };
+    case 'resetChangeExercise': return { ...state, barIndex: 0, barEvents: [], outcomes: [], isRunning: false, lateWindow: false, timingAcceptanceWindowOpen: false, playNowCueActive: false, expectedOnset: null, selectedKeyIds: [], lastClassification: null, lastOutcome: null, feedbackText: '', feedbackTone: '' };
     case 'clockBeat': return { ...state, activeBeat: action.beat, countInValue: action.countInValue ?? null };
     case 'selectKey': {
       if (state.selectedKeyIds.includes(action.keyId)) return { ...state, selectedKeyIds: state.selectedKeyIds.filter(id => id !== action.keyId) };
@@ -596,7 +601,7 @@ export function reduceChordRhythmState(
       const last = action.outcome;
       const classification = action.classification ?? null;
       // Any evaluated chord closes the late-diagnostic window.
-      const base: ChordRhythmModuleState = { ...state, lateWindow: false, timingWindowOpen: false, lastClassification: classification };
+      const base: ChordRhythmModuleState = { ...state, lateWindow: false, timingAcceptanceWindowOpen: false, playNowCueActive: false, lastClassification: classification };
       if (isTwoBarChangeExercise(state)) {
         return reduceChangeExerciseOutcome(state, last, classification);
       }
@@ -641,7 +646,8 @@ export function reduceChordRhythmState(
         lastOutcome: last
       };
     }
-    case 'setTimingWindow': return { ...state, timingWindowOpen: action.open };
+    case 'setTimingAcceptanceWindow': return { ...state, timingAcceptanceWindowOpen: action.open };
+    case 'setPlayNowCue': return { ...state, playNowCueActive: action.active };
     case 'missedOnset': {
       // Soft miss: the acceptance window is over, but a late chord is still diagnosed
       // (never re-graded) until the cutoff timer fires or the learner plays.
@@ -649,7 +655,8 @@ export function reduceChordRhythmState(
       return {
         ...state,
         lateWindow: true,
-        timingWindowOpen: false,
+        timingAcceptanceWindowOpen: false,
+        playNowCueActive: false,
         outcomes: [...state.outcomes, outcome],
         isRunning: true,
         selectedKeyIds: [],
@@ -669,27 +676,27 @@ export function reduceChordRhythmState(
           questionInstanceId: `missed:${state.assessment.blockKind}:${state.assessment.trialIndex}`,
           correct: false
         });
-        return { ...state, assessment, lateWindow: false, timingWindowOpen: false, isRunning: false, feedbackText: rhythmFeedback(outcome), feedbackTone: 'bad', lastTimingBand: 'missed', lastOutcome: outcome };
+        return { ...state, assessment, lateWindow: false, timingAcceptanceWindowOpen: false, playNowCueActive: false, isRunning: false, feedbackText: rhythmFeedback(outcome), feedbackTone: 'bad', lastTimingBand: 'missed', lastOutcome: outcome };
       }
-      return { ...state, lateWindow: false, timingWindowOpen: false, isRunning: false, feedbackText: rhythmFeedback(outcome), feedbackTone: 'bad', lastTimingBand: 'missed', lastOutcome: outcome };
+      return { ...state, lateWindow: false, timingAcceptanceWindowOpen: false, playNowCueActive: false, isRunning: false, feedbackText: rhythmFeedback(outcome), feedbackTone: 'bad', lastTimingBand: 'missed', lastOutcome: outcome };
     }
     case 'finishCorrective': {
       const assessment = finishRhythmCorrectiveRun(state.assessment);
       const isDone = assessment.phase !== 'active';
-      return { ...state, assessment, step: isDone ? 'transferResult' : state.step, outcomes: [], attemptIndex: 0, isRunning: false, selectedKeyIds: [], feedbackText: '', feedbackTone: '', expectedOnset: null, lateWindow: false, timingWindowOpen: false };
+      return { ...state, assessment, step: isDone ? 'transferResult' : state.step, outcomes: [], attemptIndex: 0, isRunning: false, selectedKeyIds: [], feedbackText: '', feedbackTone: '', expectedOnset: null, lateWindow: false, timingAcceptanceWindowOpen: false, playNowCueActive: false };
     }
     case 'startRemediation': {
       const assessment = startRhythmRemediation(state.assessment);
       if (assessment.phase === 'failed') return { ...state, assessment, step: 'transferResult', feedbackText: 'Проверка пока не пройдена. Повторите учебные этапы и попробуйте позже.', feedbackTone: 'warn' };
-      return { ...state, step: 'transferRemediation', assessment, outcomes: [], isRunning: false, selectedKeyIds: [], lateWindow: false, timingWindowOpen: false, feedbackText: '', feedbackTone: '' };
+      return { ...state, step: 'transferRemediation', assessment, outcomes: [], isRunning: false, selectedKeyIds: [], lateWindow: false, timingAcceptanceWindowOpen: false, playNowCueActive: false, feedbackText: '', feedbackTone: '' };
     }
     case 'finishRemediationItem': {
       const assessment = finishRhythmRemediation(state.assessment);
       const done = assessment.blockKind === 'retry' && assessment.phase === 'active';
-      return { ...state, assessment, step: done ? 'transferAssessment' : state.step, outcomes: [], isRunning: false, selectedKeyIds: [], lateWindow: false, timingWindowOpen: false, feedbackText: '', feedbackTone: '' };
+      return { ...state, assessment, step: done ? 'transferAssessment' : state.step, outcomes: [], isRunning: false, selectedKeyIds: [], lateWindow: false, timingAcceptanceWindowOpen: false, playNowCueActive: false, feedbackText: '', feedbackTone: '' };
     }
-    case 'completeModule': return { ...state, step: 'moduleComplete', isRunning: false, lateWindow: false, timingWindowOpen: false, feedbackText: 'Модуль завершён. Навыки ритма добавлены в ежедневную практику.', feedbackTone: 'good' };
-    case 'cancel': return { ...state, isRunning: false, lateWindow: false, timingWindowOpen: false, activeBeat: -1, countInValue: null, expectedOnset: null, selectedKeyIds: [], feedbackText: `Упражнение приостановлено: ${action.reason}. Ошибка не засчитана. Начните заново с отсчётом 4 · 3 · 2 · 1.`, feedbackTone: 'warn' };
+    case 'completeModule': return { ...state, step: 'moduleComplete', isRunning: false, lateWindow: false, timingAcceptanceWindowOpen: false, playNowCueActive: false, feedbackText: 'Модуль завершён. Навыки ритма добавлены в ежедневную практику.', feedbackTone: 'good' };
+    case 'cancel': return { ...state, isRunning: false, lateWindow: false, timingAcceptanceWindowOpen: false, playNowCueActive: false, activeBeat: -1, countInValue: null, expectedOnset: null, selectedKeyIds: [], feedbackText: `Упражнение приостановлено: ${action.reason}. Ошибка не засчитана. Начните заново с отсчётом 4 · 3 · 2 · 1.`, feedbackTone: 'warn' };
   }
 }
 
@@ -783,7 +790,8 @@ function reduceChangeExerciseOutcome(
     ...state,
     barEvents,
     lateWindow: false,
-    timingWindowOpen: false,
+    timingAcceptanceWindowOpen: false,
+    playNowCueActive: false,
     lastClassification: classification,
     lastOutcome: last,
     lastTimingBand: last.timingBand
@@ -849,9 +857,38 @@ export function rhythmRunPhase(state: ChordRhythmModuleState): RhythmRunPhase {
   return 'prepare';
 }
 
-/** The grading window is open exactly when the visible target beat is active. */
-export function isRhythmTimingWindowOpen(state: ChordRhythmModuleState): boolean {
-  return state.isRunning && state.timingWindowOpen && !state.lateWindow;
+/** Grading acceptance window is open (early answers here are accepted, not prompted). */
+export function isRhythmTimingAcceptanceWindowOpen(state: ChordRhythmModuleState): boolean {
+  return state.isRunning && state.timingAcceptanceWindowOpen && !state.lateWindow;
+}
+
+/** Visual PLAY NOW cue state; bounded and starting exactly at the canonical target onset. */
+export function isRhythmPlayNowCueActive(state: ChordRhythmModuleState): boolean {
+  return state.isRunning && state.playNowCueActive && !state.lateWindow;
+}
+
+export interface RhythmGuidance {
+  timingAcceptanceWindowOpen: boolean;
+  playNowCueActive: boolean;
+}
+
+/**
+ * Independent guidance concepts for a canonical target onset:
+ * - the acceptance window is an error tolerance (±300 ms) used by grading;
+ * - the PLAY NOW cue is a short bounded visual prompt that starts at the target itself.
+ * They are intentionally NOT derived from each other.
+ */
+export function resolveRhythmGuidance(
+  targetOnset: number,
+  at: number,
+  options: { acceptWindowMs?: number; playNowCueMs?: number } = {}
+): RhythmGuidance {
+  const acceptWindowMs = options.acceptWindowMs ?? CHORD_RHYTHM_ACCEPT_WINDOW_MS;
+  const playNowCueMs = options.playNowCueMs ?? CHORD_RHYTHM_PLAY_NOW_CUE_MS;
+  return {
+    timingAcceptanceWindowOpen: isWithinRhythmAcceptanceWindow(targetOnset, at, acceptWindowMs),
+    playNowCueActive: at >= targetOnset && at <= targetOnset + playNowCueMs
+  };
 }
 
 /**

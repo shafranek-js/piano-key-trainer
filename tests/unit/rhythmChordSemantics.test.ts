@@ -7,10 +7,11 @@ import {
   createChordRhythmModuleState,
   createRhythmAssessment,
   isResumableChangeBar2,
-  isRhythmTimingWindowOpen,
+  isRhythmTimingAcceptanceWindowOpen,
   isTwoBarChangeExercise,
   isWithinRhythmAcceptanceWindow,
   reduceChordRhythmState,
+  resolveRhythmGuidance,
   resolveRhythmTargetChord,
   rhythmRunPhase,
   type ChordRhythmModuleState,
@@ -167,7 +168,7 @@ describe('M3K late-diagnostic window — pitch survives timing failure', () => {
   it('exposes an explicit timing state machine', () => {
     let state = freshAssessmentState();
     expect(rhythmRunPhase(state)).toBe('prepare');
-    expect(isRhythmTimingWindowOpen(state)).toBe(false);
+    expect(isRhythmTimingAcceptanceWindowOpen(state)).toBe(false);
 
     state = reduceChordRhythmState(state, { type: 'startRun', expectedOnset: 1_000 });
     expect(rhythmRunPhase(state)).toBe('countIn');
@@ -175,13 +176,13 @@ describe('M3K late-diagnostic window — pitch survives timing failure', () => {
     state = reduceChordRhythmState(state, { type: 'clockBeat', beat: 0, countInValue: null });
     state = { ...state, expectedOnset: 1_000 };
     expect(rhythmRunPhase(state)).toBe('armed');
-    expect(isRhythmTimingWindowOpen(state)).toBe(false);
-    state = reduceChordRhythmState(state, { type: 'setTimingWindow', open: true });
-    expect(isRhythmTimingWindowOpen(state)).toBe(true);
+    expect(isRhythmTimingAcceptanceWindowOpen(state)).toBe(false);
+    state = reduceChordRhythmState(state, { type: 'setTimingAcceptanceWindow', open: true });
+    expect(isRhythmTimingAcceptanceWindowOpen(state)).toBe(true);
 
     state = reduceChordRhythmState(state, { type: 'missedOnset' });
     expect(rhythmRunPhase(state)).toBe('late');
-    expect(isRhythmTimingWindowOpen(state)).toBe(false);
+    expect(isRhythmTimingAcceptanceWindowOpen(state)).toBe(false);
 
     state = reduceChordRhythmState(state, { type: 'missedExpired' });
     expect(rhythmRunPhase(state)).toBe('retry');
@@ -497,6 +498,39 @@ describe('M3K beginner timing policy — ±140 ms precise / ±300 ms accepted', 
     expect(classifyRhythmTiming(onset, onset - 301, true).timingAccepted).toBe(false);
     expect(classifyRhythmTiming(onset, onset + 300, true).timingAccepted).toBe(true);
     expect(classifyRhythmTiming(onset, onset + 301, true).timingAccepted).toBe(false);
+  });
+
+  it('decouples the acceptance window from the PLAY NOW cue', () => {
+    const onset = 10_000;
+
+    // Grace period: accepted, but no visual prompt.
+    expect(resolveRhythmGuidance(onset, onset - 300)).toEqual({ timingAcceptanceWindowOpen: true, playNowCueActive: false });
+    expect(resolveRhythmGuidance(onset, onset - 1)).toEqual({ timingAcceptanceWindowOpen: true, playNowCueActive: false });
+    expect(resolveRhythmGuidance(onset, onset - 250)).toEqual({ timingAcceptanceWindowOpen: true, playNowCueActive: false });
+
+    // Canonical target onset: cue switches on.
+    expect(resolveRhythmGuidance(onset, onset)).toEqual({ timingAcceptanceWindowOpen: true, playNowCueActive: true });
+
+    // Bounded cue shortly after the target, still inside the accepted late window.
+    expect(resolveRhythmGuidance(onset, onset + 250)).toEqual({ timingAcceptanceWindowOpen: true, playNowCueActive: true });
+    expect(resolveRhythmGuidance(onset, onset + 500)).toEqual({ timingAcceptanceWindowOpen: false, playNowCueActive: true });
+    expect(resolveRhythmGuidance(onset, onset + 501)).toEqual({ timingAcceptanceWindowOpen: false, playNowCueActive: false });
+
+    // Late diagnostic zone: neither acceptance nor cue.
+    expect(resolveRhythmGuidance(onset, onset + 600)).toEqual({ timingAcceptanceWindowOpen: false, playNowCueActive: false });
+  });
+
+  it('keeps acceptance and cue state independent in the reducer', () => {
+    let state: ChordRhythmModuleState = { ...createChordRhythmModuleState(), step: 'oneChordPerBar' };
+    state = reduceChordRhythmState(state, { type: 'startRun', expectedOnset: 1_000 });
+    state = reduceChordRhythmState(state, { type: 'setTimingAcceptanceWindow', open: true });
+    expect(state.timingAcceptanceWindowOpen).toBe(true);
+    expect(state.playNowCueActive).toBe(false);
+    expect(isRhythmTimingAcceptanceWindowOpen(state)).toBe(true);
+
+    state = reduceChordRhythmState(state, { type: 'setPlayNowCue', active: true });
+    expect(state.playNowCueActive).toBe(true);
+    expect(state.timingAcceptanceWindowOpen).toBe(true);
   });
 
   it('keeps chord and timing independent across the matrix', () => {

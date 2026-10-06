@@ -5,7 +5,8 @@
     changeBarChord,
     currentRhythmTrial,
     getRhythmAssessmentLength,
-    isRhythmTimingWindowOpen,
+    isRhythmPlayNowCueActive,
+    isRhythmTimingAcceptanceWindowOpen,
     isTwoBarChangeExercise,
     resolveRhythmTargetChord,
     rhythmChordOutcomeLabel,
@@ -83,16 +84,17 @@
     ? Math.round(state.assessment.trialsCompleted / assessmentLength * 100)
     : Math.round((['pulseOrientation', 'countingPulse', 'oneChordPerBar', 'changeOnBeatOne', 'fullProgression', 'twoStrikes', 'independentPlay'].indexOf(state.step) + 1) / 7 * 100));
   const phase = $derived(rhythmRunPhase(state));
-  const timingWindowOpen = $derived(isRhythmTimingWindowOpen(state));
+  const acceptanceWindowOpen = $derived(isRhythmTimingAcceptanceWindowOpen(state));
   const classification = $derived(state.lastClassification);
   const changeExercise = $derived(isTwoBarChangeExercise(state));
   const twoStrikes = $derived(state.step === 'twoStrikes');
   const firstStrikeAccepted = $derived(twoStrikes && state.outcomes.length === 1 && state.isRunning);
   const strikeNumber = $derived(twoStrikes ? (state.outcomes.length >= 1 ? 2 : 1) : null);
   const releaseRequired = $derived(Boolean(firstStrikeAccepted && midiHeldKeyCount > 0));
+  const playNowCue = $derived(isRhythmPlayNowCueActive(state) && !releaseRequired);
 </script>
 
-<section class="chord-rhythm-stage" data-testid="chord-rhythm-stage" data-rhythm-step={state.step} data-rhythm-phase={phase} data-timing-window={timingWindowOpen ? 'open' : 'closed'} data-play-now={timingWindowOpen && !releaseRequired ? 'visible' : 'hidden'} data-release-required={releaseRequired ? 'true' : 'false'} data-change-bar={state.barIndex}>
+<section class="chord-rhythm-stage" data-testid="chord-rhythm-stage" data-rhythm-step={state.step} data-rhythm-phase={phase} data-timing-window={acceptanceWindowOpen ? 'open' : 'closed'} data-play-now={playNowCue ? 'visible' : 'hidden'} data-release-required={releaseRequired ? 'true' : 'false'} data-change-bar={state.barIndex}>
   <div class="rhythm-stage-card">
     <div class="rhythm-eyebrow">{dailySkill ? 'ЕЖЕДНЕВНАЯ ПРАКТИКА · РИТМ АККОРДОВ' : 'ДОПОЛНИТЕЛЬНЫЙ МОДУЛЬ · РИТМ АККОРДОВ'}</div>
     <div class="rhythm-stage-progress" aria-label="Прогресс этапа"><span style={`width:${progressPct}%`}></span></div>
@@ -209,8 +211,10 @@
           Приготовьтесь: <strong>{state.countInValue}</strong> · 3 · 2 · 1
         {:else if releaseRequired}
           <strong class="rhythm-release-hint" data-testid="rhythm-release-hint">Отпустите клавиши перед вторым ударом</strong>
-        {:else if timingWindowOpen}
+        {:else if playNowCue}
           <strong class="rhythm-play-now" data-testid="rhythm-play-now">{twoStrikes ? `Удар ${strikeNumber} из 2 · ` : ''}ИГРАЙТЕ СЕЙЧАС</strong>
+        {:else if acceptanceWindowOpen}
+          Приготовьтесь…
         {:else if phase === 'armed'}
           Приготовьтесь…
         {:else if firstStrikeAccepted}

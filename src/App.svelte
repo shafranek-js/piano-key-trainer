@@ -139,6 +139,7 @@ import { getCurriculumPhases } from './core/curriculum/curriculum';
     CHORD_RHYTHM_ITEM_IDS,
     CHORD_RHYTHM_ACCEPT_WINDOW_MS,
     CHORD_RHYTHM_LATE_WINDOW_MS,
+    CHORD_RHYTHM_PLAY_NOW_CUE_MS,
     CHORD_RHYTHM_SEQUENCE,
     chordRhythmCardNotes,
     canStartRhythmRemediation,
@@ -522,6 +523,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   let rhythmDeadlineTimer: number | null = null;
   let rhythmOpenTimer: number | null = null;
   let rhythmArmTimer: number | null = null;
+  let rhythmPlayNowTimer: number | null = null;
   let rhythmLateCutoffTimer: number | null = null;
   let rhythmTargetOnsets: number[] = [];
   let rhythmNextTargetIndex = 0;
@@ -3562,6 +3564,8 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     rhythmOpenTimer = null;
     if (rhythmArmTimer != null) window.clearTimeout(rhythmArmTimer);
     rhythmArmTimer = null;
+    if (rhythmPlayNowTimer != null) window.clearTimeout(rhythmPlayNowTimer);
+    rhythmPlayNowTimer = null;
     if (rhythmLateCutoffTimer != null) window.clearTimeout(rhythmLateCutoffTimer);
     rhythmLateCutoffTimer = null;
     rhythmMidiStartPending = false;
@@ -3599,6 +3603,8 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     rhythmOpenTimer = null;
     if (rhythmArmTimer != null) window.clearTimeout(rhythmArmTimer);
     rhythmArmTimer = null;
+    if (rhythmPlayNowTimer != null) window.clearTimeout(rhythmPlayNowTimer);
+    rhythmPlayNowTimer = null;
     if (rhythmLateCutoffTimer != null) window.clearTimeout(rhythmLateCutoffTimer);
     rhythmLateCutoffTimer = null;
     rhythmClock.stop();
@@ -3646,6 +3652,27 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
         const next = reduceChordRhythmState(active, { type: 'clockBeat', beat: beat.beat, countInValue });
         if (moduleMode) chordRhythmState = next;
         else dailyRhythmViewState = next;
+        // PLAY NOW cue switches at the canonical target onset (same tick as the active beat circle).
+        const targetOffset = beat.index - countInBeats;
+        if (targetOffset === beatTargets[rhythmNextTargetIndex]) {
+          const runningState = moduleMode ? chordRhythmState : dailyRhythmViewState;
+          if (runningState?.isRunning) {
+            if (moduleMode && chordRhythmState) chordRhythmState = reduceChordRhythmState(chordRhythmState, { type: 'setPlayNowCue', active: true });
+            else if (dailyRhythmViewState) dailyRhythmViewState = reduceChordRhythmState(dailyRhythmViewState, { type: 'setPlayNowCue', active: true });
+            if (typeof window !== 'undefined') {
+              (window as unknown as { __m3kPlayNowShownAt?: number }).__m3kPlayNowShownAt = performance.now();
+            }
+            if (rhythmPlayNowTimer != null) window.clearTimeout(rhythmPlayNowTimer);
+            rhythmPlayNowTimer = window.setTimeout(() => {
+              if (generation !== rhythmRunGeneration) return;
+              if (moduleMode) {
+                if (chordRhythmState?.isRunning) chordRhythmState = reduceChordRhythmState(chordRhythmState, { type: 'setPlayNowCue', active: false });
+              } else if (dailyRhythmViewState?.isRunning) {
+                dailyRhythmViewState = reduceChordRhythmState(dailyRhythmViewState, { type: 'setPlayNowCue', active: false });
+              }
+            }, CHORD_RHYTHM_PLAY_NOW_CUE_MS);
+          }
+        }
         if (beat.index === expectedOnsets.length - 1 && isPulseOnly) {
           if (moduleMode && chordRhythmState) chordRhythmState = { ...chordRhythmState, isRunning: false, activeBeat: 3, countInValue: null };
           else if (dailyRhythmViewState) dailyRhythmViewState = { ...dailyRhythmViewState, isRunning: false, activeBeat: 3, countInValue: null };
@@ -3703,9 +3730,9 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     rhythmOpenTimer = window.setTimeout(() => {
       if (generation !== rhythmRunGeneration) return;
       if (moduleMode) {
-        if (chordRhythmState?.isRunning) chordRhythmState = { ...chordRhythmState, timingWindowOpen: true };
+        if (chordRhythmState?.isRunning) chordRhythmState = reduceChordRhythmState(chordRhythmState, { type: 'setTimingAcceptanceWindow', open: true });
       } else if (dailyRhythmViewState?.isRunning) {
-        dailyRhythmViewState = { ...dailyRhythmViewState, timingWindowOpen: true };
+        dailyRhythmViewState = reduceChordRhythmState(dailyRhythmViewState, { type: 'setTimingAcceptanceWindow', open: true });
       }
       rhythmVisualTargetShownAt = performance.now();
       if (typeof window !== 'undefined') {
@@ -3849,6 +3876,8 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     rhythmDeadlineTimer = null;
     if (rhythmOpenTimer != null) window.clearTimeout(rhythmOpenTimer);
     rhythmOpenTimer = null;
+    if (rhythmPlayNowTimer != null) window.clearTimeout(rhythmPlayNowTimer);
+    rhythmPlayNowTimer = null;
     if (rhythmLateCutoffTimer != null) window.clearTimeout(rhythmLateCutoffTimer);
     rhythmLateCutoffTimer = null;
     rhythmNextTargetIndex += 1;

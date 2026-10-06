@@ -2,11 +2,16 @@ import { describe, expect, it } from 'vitest';
 import {
   COLD_TEST_SKILLS,
   COLD_TEST_TARGET_TRIALS,
+  activateColdTestItem,
+  coldTestActiveItemNumber,
   coldTestItemNumber,
   coldTestTotalTrials,
+  createColdTestNavigation,
   isColdTestComplete,
-  resolveColdTestCompletion
+  resolveColdTestCompletion,
+  resolveColdTestItemCompletion
 } from '../../src/core/learning/coldTest';
+import type { ColdTestNavigation } from '../../src/core/learning/coldTest';
 import { buildColdQueue } from '../../src/core/scheduler/queue';
 import { evaluateDailyChordAttempt } from '../../src/core/learning/triads';
 import { evaluateDailyInversionAttempt } from '../../src/core/learning/chordInversions';
@@ -137,7 +142,7 @@ describe('Cold Test progression — negative and boundary cases', () => {
 });
 
 describe('Cold Test counter semantics', () => {
-  it('uses the current-item semantics for the visible x/20 labels', () => {
+  it('maps the active item index to the visible x/20 label', () => {
     expect(coldTestItemNumber(0, 20)).toBe(1);
     expect(coldTestItemNumber(7, 20)).toBe(8);
     expect(coldTestItemNumber(19, 20)).toBe(20);
@@ -214,5 +219,158 @@ describe('Cold Test specialized evaluators preserve completion flags', () => {
     expect(result.isCorrect).toBe(true);
     expect(result.updatedState.isCompleted).toBe(true);
     expect(result.updatedState.isLocked).toBe(true);
+  });
+});
+
+describe('Cold Test navigation — displayed active item vs completion pointer', () => {
+  function createSimulation(queueLength = 20) {
+    let navigation = createColdTestNavigation();
+    let lastKey: string | null = null;
+    return {
+      get navigation(): ColdTestNavigation {
+        return navigation;
+      },
+      get display() {
+        return coldTestActiveItemNumber(navigation, queueLength);
+      },
+      activate() {
+        navigation = activateColdTestItem(navigation, queueLength);
+      },
+      complete(itemKey: string, expectedClaimed = true) {
+        const result = resolveColdTestItemCompletion(navigation, {
+          queueLength,
+          completedItemKey: lastKey,
+          itemKey
+        });
+        expect(result.claimed).toBe(expectedClaimed);
+        if (result.claimed) lastKey = itemKey;
+        navigation = result.navigation;
+        return result;
+      },
+      advanceThrough(count: number) {
+        for (let item = 0; item < count; item++) {
+          this.activate();
+          this.complete(`q-${item + 1}`);
+        }
+      }
+    };
+  }
+
+  it('item 1 boundary: activates as 1/20 and stays 1/20 while its feedback is shown', () => {
+    const sim = createSimulation();
+    sim.activate();
+    expect(sim.navigation.completedIndex).toBe(0);
+    expect(sim.navigation.activeItemIndex).toBe(0);
+    expect(sim.display).toBe(1);
+
+    sim.complete('q-1');
+    expect(sim.navigation.completedIndex).toBe(1);
+    expect(sim.navigation.activeItemIndex).toBe(0);
+    expect(sim.display).toBe(1);
+
+    sim.activate();
+    expect(sim.display).toBe(2);
+    expect(sim.navigation.completedIndex).toBe(1);
+  });
+
+  it('item 8 reproduces the required sequence: 8/20 → feedback stays 8/20 → next 9/20', () => {
+    const sim = createSimulation();
+    sim.advanceThrough(7);
+    expect(sim.navigation.completedIndex).toBe(7);
+
+    sim.activate();
+    expect(sim.display).toBe(8);
+    expect(sim.navigation.activeItemIndex).toBe(7);
+
+    sim.complete('q-8');
+    expect(sim.navigation.completedIndex).toBe(8);
+    expect(sim.navigation.activeItemIndex).toBe(7);
+    expect(sim.display).toBe(8);
+
+    sim.activate();
+    expect(sim.navigation.activeItemIndex).toBe(8);
+    expect(sim.display).toBe(9);
+    expect(sim.navigation.completedIndex).toBe(8);
+  });
+
+  it('wrong and correct completions advance the pointer identically; the display never moves', () => {
+    const correct = createSimulation();
+    correct.advanceThrough(7);
+    correct.activate();
+    correct.complete('q-8');
+    expect(correct.display).toBe(8);
+    expect(correct.navigation.completedIndex).toBe(8);
+
+    const wrong = createSimulation();
+    wrong.advanceThrough(7);
+    wrong.activate();
+    wrong.complete('wrong-q-8');
+    expect(wrong.display).toBe(8);
+    expect(wrong.navigation.completedIndex).toBe(8);
+  });
+
+  it('duplicate completion callbacks cannot advance the pointer or the displayed item', () => {
+    const sim = createSimulation();
+    sim.advanceThrough(7);
+    sim.activate();
+    sim.complete('q-8');
+    const snapshot = { ...sim.navigation };
+    for (let attempt = 0; attempt < 5; attempt++) {
+      sim.complete('q-8', false);
+      expect(sim.navigation.completedIndex).toBe(snapshot.completedIndex);
+      expect(sim.navigation.activeItemIndex).toBe(snapshot.activeItemIndex);
+      expect(sim.display).toBe(8);
+    }
+  });
+
+  it('repeated activation (manual + auto next race) never changes the completed pointer', () => {
+    const sim = createSimulation();
+    sim.advanceThrough(7);
+    sim.activate();
+    sim.complete('q-8');
+    sim.activate();
+    sim.activate();
+    sim.activate();
+    expect(sim.navigation.completedIndex).toBe(8);
+    expect(sim.navigation.activeItemIndex).toBe(8);
+    expect(sim.display).toBe(9);
+  });
+
+  it('item 19: feedback keeps 19/20, activation moves the display to 20/20', () => {
+    const sim = createSimulation();
+    sim.advanceThrough(18);
+    sim.activate();
+    expect(sim.display).toBe(19);
+
+    sim.complete('q-19');
+    expect(sim.navigation.completedIndex).toBe(19);
+    expect(sim.display).toBe(19);
+
+    sim.activate();
+    expect(sim.display).toBe(20);
+    expect(sim.navigation.completedIndex).toBe(19);
+  });
+
+  it('item 20: completes at 20/20, never 21/20, and clamps any further activation', () => {
+    const sim = createSimulation();
+    sim.advanceThrough(19);
+    sim.activate();
+    expect(sim.display).toBe(20);
+
+    sim.complete('q-20');
+    expect(sim.navigation.completedIndex).toBe(20);
+    expect(sim.navigation.activeItemIndex).toBe(19);
+    expect(sim.display).toBe(20);
+    expect(isColdTestComplete(sim.navigation.completedIndex, 20)).toBe(true);
+
+    sim.activate();
+    expect(sim.display).toBe(20);
+    expect(sim.navigation.activeItemIndex).toBe(19);
+  });
+
+  it('before the first activation the display is 0, not a pre-advanced item', () => {
+    const sim = createSimulation();
+    expect(sim.navigation.activeItemIndex).toBeNull();
+    expect(sim.display).toBe(0);
   });
 });

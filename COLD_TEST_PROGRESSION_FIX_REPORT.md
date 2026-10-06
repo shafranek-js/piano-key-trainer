@@ -9,6 +9,10 @@ accepted module semantics are unchanged.
 **Physical MIDI tested: NO — Fake Web MIDI tested: YES** (the Cold Test smoke uses screen input and
 keyboard clicks; fake-MIDI coverage is inherited from the M3K/M3J smokes).
 
+**Follow-up (P1 acceptance fix):** the displayed question number lifecycle was corrected in
+`COLD_TEST_DISPLAY_FIX_REPORT.md`; the final delivery archive is
+`piano-key-trainer-cold-test-display-fix.zip`.
+
 ---
 
 ## Baseline
@@ -72,12 +76,16 @@ supported families end-to-end by seeding eight families in canonical cycle order
 
 ## Counter Semantics
 
-- Header (SessionStrip) and task eyebrow both show **the current item**: `Cold Test · (completed +
-  1)/20`, clamped to 20. The progress bar shows completed/20, and the session detail reads
-  `выполнено X из 20 · точность …`.
-- After completing item 8 the queue index is 8 and both labels read 9/20; the progress detail reads
-  `выполнено 8 из 20`. The Cold Test remains exactly 20 items — completing the 20th finishes the
-  session and never renders a 21st question.
+- Header (SessionStrip) and task eyebrow both show **the question currently on screen**:
+  `Cold Test · (active + 1)/20`, clamped to 20. The progress bar and the session detail
+  (`выполнено X из 20 · точность …`) show the completed count.
+- The completion pointer advances immediately on completion, but the displayed number changes only
+  when the next question is actually activated. While item 8 feedback is visible the labels stay
+  8/20 with `выполнено 8 из 20`; after «Следующее →» the labels become 9/20. This display contract
+  was corrected in `COLD_TEST_DISPLAY_FIX_REPORT.md` (the first revision of this checkpoint had the
+  displayed number follow the completion pointer, advancing one question early during feedback).
+- The Cold Test remains exactly 20 items — completing the 20th finishes the session and never
+  renders a 21st question.
 
 ## Idempotency and End of Test
 
@@ -127,21 +135,25 @@ supported families end-to-end by seeding eight families in canonical cycle order
 seed families, `autoAdvanceDelaySeconds = 0`, screen input only):
 
 - starts the Cold Test from the session summary «Cold Test · 20» action;
-- for **each** of the 20 items asserts `header === task label === Cold Test · N/20` and that the next
-  button is absent until completion;
+- for **each** of the 20 items asserts `header === task label === Cold Test · N/20` at activation
+  (with `выполнено N−1 из 20`) and that the next button is absent until completion; after completion
+  the same N/20 stays visible with `выполнено N из 20` until the next question is activated;
 - **item 8 reproduction:** `triadBuild` at the canonical `F#3` root (the seed's `reps = 3` selects
   the same deterministic rotation as the report). Asserts the prompt names F#3, detail says
   `выполнено 7 из 20`, screenshot 01; builds F#3 + A#3 + C#4, presses «Проверить аккорд», then
-  asserts correct feedback «Верно! F#3 мажор.», both counters at 9/20, detail `выполнено 8 из 20`,
-  the trace entry `itemIndex 7 → nextIndex 8, claimed`, screenshot 02; clicking «Следующее →» shows
-  item 9 with a different question, screenshot 03;
+  asserts correct feedback «Верно! F#3 мажор.», the displayed number still 8/20 with
+  `выполнено 8 из 20`, unchanged question identity, `Следующее →` without a countdown, and the trace
+  entry `completedIndex 8, activeItemIndex 7, nextIndex 8, claimed`, screenshot 02; clicking
+  «Следующее →» changes the question identity and shows item 9/20 with `выполнено 8 из 20`,
+  screenshot 03;
 - items 1–20 complete exactly once; completing item 20 opens the session-complete stage, persists a
   `coldTests` record with `n = 20`, and never renders a 21st item;
-- 0 runtime exceptions, 0 console errors; the three screenshots are written only under
-  `acceptance/cold-test-progression/screenshots/`.
+- 0 runtime exceptions, 0 console errors. The corrected screenshots live under
+  `acceptance/cold-test-display-fix/screenshots/` (`COLD_TEST_DISPLAY_FIX_REPORT.md`); the
+  `acceptance/cold-test-progression/` files are the superseded first-revision evidence.
 
-Screenshots: `01-cold-test-specialized-item.png`, `02-correct-specialized-feedback.png`,
-`03-next-cold-test-item.png`.
+Screenshots (display fix): `01-item-8-before-answer.png`,
+`02-item-8-feedback-still-8-of-20.png`, `03-item-9-after-next.png`.
 
 ## Regression
 

@@ -147,6 +147,8 @@ import { getCurriculumPhases } from './core/curriculum/curriculum';
     classifyRhythmTiming,
     coldTestItemNumber,
     coldTestTotalTrials,
+    coldTestActiveItemNumber,
+    activateColdTestItem,
     isColdTestComplete,
     resolveColdTestCompletion,
     createChordRhythmModuleState,
@@ -618,24 +620,30 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
 
   // Cold Test Queue
   let coldQueue = $state<string[]>([]);
+  // Progression pointer / number of completed items (persistence, queue selection, progress).
   let coldIndex = $state(0);
+  // Index of the question actually rendered; changes only when activateTask() activates a Cold item.
+  let activeColdItemIndex = $state<number | null>(null);
   let coldCompletedItemKey = $state<string | null>(null);
   interface ColdTraceEntry {
     at: number;
     coldSessionId: string;
     queueLength: number;
-    itemIndex: number;
-    itemNumber: number;
+    completedIndex: number;
+    activeItemIndex: number | null;
+    activeItemNumber: number;
+    nextIndex: number;
     cardId: string | null;
     taskType: string | null;
     questionInstanceId: string | null;
     completionClaimed: boolean;
     completionReason: string;
-    nextIndex: number;
   }
   let coldTrace: ColdTraceEntry[] = [];
   const coldItemNumber = $derived(
-    sessionPreset === 'cold' ? coldTestItemNumber(coldIndex, coldQueue.length) : 0
+    sessionPreset === 'cold'
+      ? coldTestActiveItemNumber({ completedIndex: coldIndex, activeItemIndex: activeColdItemIndex }, coldQueue.length)
+      : 0
   );
 
   // Active Standard Practice Round State
@@ -1254,14 +1262,17 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     if (preset === 'cold') {
       coldQueue = buildColdQueue(cards, 20);
       coldIndex = 0;
+      activeColdItemIndex = null;
       coldCompletedItemKey = null;
       coldTrace = [];
       if (typeof window !== 'undefined') {
         (window as unknown as { __coldTrace?: ColdTraceEntry[] }).__coldTrace = [];
+        (window as unknown as { __coldActiveQuestionId?: string | null }).__coldActiveQuestionId = null;
       }
     } else {
       coldQueue = [];
       coldIndex = 0;
+      activeColdItemIndex = null;
       coldCompletedItemKey = null;
     }
 
@@ -1646,6 +1657,17 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     currentKind = params.kind;
     currentCard = params.card;
     currentQuestionInstanceId = activatePracticeQuestion(currentSessionId);
+    if (params.kind === 'cold') {
+      // Displayed Cold Test number follows the question actually being rendered.
+      const navigation = activateColdTestItem(
+        { completedIndex: coldIndex, activeItemIndex: activeColdItemIndex },
+        coldQueue.length
+      );
+      activeColdItemIndex = navigation.activeItemIndex;
+      if (typeof window !== 'undefined') {
+        (window as unknown as { __coldActiveQuestionId?: string | null }).__coldActiveQuestionId = currentQuestionInstanceId;
+      }
+    }
     const activatedRhythmSkill = rhythmDailySkill(params.card);
     if (activatedRhythmSkill) {
       dailyRhythmViewState = {
@@ -2162,19 +2184,28 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     return snapshots;
   }
 
-  function pushColdTrace(entry: { itemIndex: number; claimed: boolean; reason: string; nextIndex: number }) {
+  function pushColdTrace(entry: {
+    completedIndex: number;
+    activeItemIndex: number | null;
+    nextIndex: number;
+    claimed: boolean;
+    reason: string;
+  }) {
     const traceEntry: ColdTraceEntry = {
       at: Date.now(),
       coldSessionId: currentSessionId,
       queueLength: coldQueue.length,
-      itemIndex: entry.itemIndex,
-      itemNumber: coldTestItemNumber(entry.itemIndex, coldQueue.length),
+      completedIndex: entry.completedIndex,
+      activeItemIndex: entry.activeItemIndex,
+      activeItemNumber: entry.activeItemIndex == null
+        ? 0
+        : coldTestItemNumber(entry.activeItemIndex, coldQueue.length),
+      nextIndex: entry.nextIndex,
       cardId: currentCard?.id ?? null,
       taskType: currentCard?.skill ?? null,
       questionInstanceId: currentQuestionInstanceId,
       completionClaimed: entry.claimed,
-      completionReason: entry.reason,
-      nextIndex: entry.nextIndex
+      completionReason: entry.reason
     };
     coldTrace = [...coldTrace, traceEntry].slice(-40);
     if (typeof window !== 'undefined') {
@@ -2185,7 +2216,8 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   /**
    * Central Cold Test completion contract: every task family resolves its terminal
    * outcome through this function exactly once per question identity. It advances the
-   * queue index exactly once, marks the task completed/locked, and never overflows.
+   * queue pointer exactly once, marks the task completed/locked, and never overflows.
+   * The displayed active item number is NOT touched here — it follows the rendered question.
    */
   function completeColdTestItem(reason: 'answered' | 'timeout' = 'answered'): boolean {
     const result = resolveColdTestCompletion({
@@ -2194,7 +2226,13 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       completedItemKey: coldCompletedItemKey,
       itemKey: currentQuestionInstanceId
     });
-    pushColdTrace({ itemIndex: coldIndex, claimed: result.claimed, reason, nextIndex: result.nextIndex });
+    pushColdTrace({
+      completedIndex: result.claimed ? result.nextIndex : coldIndex,
+      activeItemIndex: activeColdItemIndex,
+      nextIndex: result.nextIndex,
+      claimed: result.claimed,
+      reason
+    });
     if (!result.claimed) return false;
     coldIndex = result.nextIndex;
     coldCompletedItemKey = result.progress.completedItemKey;

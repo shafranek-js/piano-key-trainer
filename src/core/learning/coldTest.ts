@@ -57,6 +57,84 @@ export function coldTestItemNumber(index: number, queueLength: number, targetTri
   return Math.min(index + 1, coldTestTotalTrials(queueLength, targetTrials));
 }
 
+/**
+ * Cold Test navigation state separates two concepts:
+ * - `completedIndex` — progression pointer / number of completed items (drives persistence,
+ *   queue selection, progress bar and «выполнено X из 20»);
+ * - `activeItemIndex` — index of the question actually rendered on screen. It changes ONLY when
+ *   a Cold Test question is activated, never when a question is completed, so the visible
+ *   `Cold Test · N/20` label always describes the question the user is looking at (including
+ *   while its feedback is still on screen).
+ */
+export interface ColdTestNavigation {
+  completedIndex: number;
+  activeItemIndex: number | null;
+}
+
+export function createColdTestNavigation(): ColdTestNavigation {
+  return { completedIndex: 0, activeItemIndex: null };
+}
+
+/** Called exactly when a Cold Test question becomes the rendered task. */
+export function activateColdTestItem(
+  navigation: ColdTestNavigation,
+  queueLength: number,
+  targetTrials = COLD_TEST_TARGET_TRIALS
+): ColdTestNavigation {
+  const total = coldTestTotalTrials(queueLength, targetTrials);
+  return {
+    ...navigation,
+    activeItemIndex: Math.max(0, Math.min(navigation.completedIndex, total - 1))
+  };
+}
+
+/** 1-based number of the rendered question; 0 before the first activation. */
+export function coldTestActiveItemNumber(
+  navigation: ColdTestNavigation,
+  queueLength: number,
+  targetTrials = COLD_TEST_TARGET_TRIALS
+): number {
+  if (navigation.activeItemIndex == null) return 0;
+  return coldTestItemNumber(navigation.activeItemIndex, queueLength, targetTrials);
+}
+
+export interface ColdTestItemCompletionInput {
+  queueLength: number;
+  completedItemKey: string | null;
+  itemKey: string | null;
+  targetTrials?: number;
+}
+
+export interface ColdTestItemCompletionResult {
+  claimed: boolean;
+  navigation: ColdTestNavigation;
+  nextIndex: number;
+}
+
+/**
+ * Completion advances the progression pointer only; the displayed active item is untouched
+ * until the next question is actually activated.
+ */
+export function resolveColdTestItemCompletion(
+  navigation: ColdTestNavigation,
+  input: ColdTestItemCompletionInput
+): ColdTestItemCompletionResult {
+  const result = resolveColdTestCompletion({
+    queueLength: input.queueLength,
+    index: navigation.completedIndex,
+    completedItemKey: input.completedItemKey,
+    itemKey: input.itemKey,
+    targetTrials: input.targetTrials
+  });
+  return {
+    claimed: result.claimed,
+    navigation: result.claimed
+      ? { ...navigation, completedIndex: result.nextIndex }
+      : navigation,
+    nextIndex: result.nextIndex
+  };
+}
+
 export function isColdTestComplete(index: number, queueLength: number, targetTrials = COLD_TEST_TARGET_TRIALS): boolean {
   return index >= coldTestTotalTrials(queueLength, targetTrials);
 }

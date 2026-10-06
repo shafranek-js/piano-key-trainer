@@ -19,6 +19,8 @@
     "package:m3i-final": "node scripts/buildM3iFinalArchive.mjs",
     "smoke:m3j": "node scripts/smokeM3j.mjs",
     "smoke:m3k": "node scripts/smokeM3k.mjs",
+    "smoke:cold-test": "node scripts/smokeColdTest.mjs",
+    "package:cold-test-fix": "node scripts/buildColdTestProgressionArchive.mjs",
     "package:m3j": "node scripts/buildM3jArchive.mjs",
     "package:audit-stabilization-a": "node scripts/buildAuditStabilizationArchive.mjs",
     "package:m3k-final": "node scripts/buildM3kFinalArchive.mjs",

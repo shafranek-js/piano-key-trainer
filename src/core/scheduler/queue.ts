@@ -1,5 +1,6 @@
 import type { Card, NoteName, PitchClass, Skill } from '../fsrs/types';
 import { ALL_NOTES, LEARN_ORDER } from '../fsrs/constants';
+import { COLD_TEST_SKILLS } from '../learning/coldTest';
 import { retrievability } from '../fsrs/fsrs6';
 import { isFsrsCardDue } from '../fsrs/cardClassification';
 
@@ -172,29 +173,7 @@ export function buildColdQueue(
     chordRhythmPattern: shuffleCopy(pool.filter(c => c.skill === 'chordRhythmPattern'))
   };
 
-  const skills: Skill[] = (
-    [
-      'find',
-      'identify',
-      'patternIdentify',
-      'notationToKey',
-      'soundToKey',
-      'notationBassToKey',
-      'intervalBuild',
-      'intervalIdentify',
-      'triadBuild',
-      'triadIdentify',
-      'triadInversionBuild',
-      'triadInversionIdentify',
-      'chordSymbolRead',
-      'harmonyFunctionIdentify',
-      'harmonyNextChord',
-      'harmonyProgressionPlay',
-      'chordPulse',
-      'chordChangeTiming',
-      'chordRhythmPattern'
-    ] as Skill[]
-  ).filter(s => bySkill[s].length > 0);
+  const skills: Skill[] = COLD_TEST_SKILLS.filter(s => bySkill[s].length > 0);
 
   const queue: string[] = [];
   const used = new Map<string, number>();

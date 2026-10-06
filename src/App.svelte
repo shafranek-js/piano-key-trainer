@@ -145,6 +145,10 @@ import { getCurriculumPhases } from './core/curriculum/curriculum';
     canStartRhythmRemediation,
     classifyRhythmChord,
     classifyRhythmTiming,
+    coldTestItemNumber,
+    coldTestTotalTrials,
+    isColdTestComplete,
+    resolveColdTestCompletion,
     createChordRhythmModuleState,
     createRhythmAssessment,
     currentRhythmTrial,
@@ -615,6 +619,24 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   // Cold Test Queue
   let coldQueue = $state<string[]>([]);
   let coldIndex = $state(0);
+  let coldCompletedItemKey = $state<string | null>(null);
+  interface ColdTraceEntry {
+    at: number;
+    coldSessionId: string;
+    queueLength: number;
+    itemIndex: number;
+    itemNumber: number;
+    cardId: string | null;
+    taskType: string | null;
+    questionInstanceId: string | null;
+    completionClaimed: boolean;
+    completionReason: string;
+    nextIndex: number;
+  }
+  let coldTrace: ColdTraceEntry[] = [];
+  const coldItemNumber = $derived(
+    sessionPreset === 'cold' ? coldTestItemNumber(coldIndex, coldQueue.length) : 0
+  );
 
   // Active Standard Practice Round State
   let currentCard = $state<Card | null>(null);
@@ -834,7 +856,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   // Session Strip calculations
   const sessionStatusLabel = $derived.by(() => {
     if (sessionPreset === 'cold') {
-      return `Cold Test · ${Math.min(coldIndex, 20)}/20`;
+      return `Cold Test · ${coldItemNumber}/${coldTestTotalTrials(coldQueue.length)}`;
     }
     if (sessionPreset === 'due') {
       return `Все повторы · due ${dueCount}`;
@@ -858,6 +880,9 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   const sessionDetailLabel = $derived.by(() => {
     const acc = sessionTrials ? `${Math.round((sessionScore / sessionTrials) * 100)}%` : '—';
     const med = quantile(sessionResponseTimes, 0.5);
+    if (sessionPreset === 'cold') {
+      return `выполнено ${Math.min(coldIndex, coldTestTotalTrials(coldQueue.length))} из ${coldTestTotalTrials(coldQueue.length)} · точность ${acc}${med != null ? ` · медиана ${formatResponseMs(med)}` : ''}`;
+    }
     return `${sessionTrials} заданий · точность ${acc}${med != null ? ` · медиана ${formatResponseMs(med)}` : ''}`;
   });
 
@@ -1229,9 +1254,15 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     if (preset === 'cold') {
       coldQueue = buildColdQueue(cards, 20);
       coldIndex = 0;
+      coldCompletedItemKey = null;
+      coldTrace = [];
+      if (typeof window !== 'undefined') {
+        (window as unknown as { __coldTrace?: ColdTraceEntry[] }).__coldTrace = [];
+      }
     } else {
       coldQueue = [];
       coldIndex = 0;
+      coldCompletedItemKey = null;
     }
 
     if (sessionClockInterval != null) clearInterval(sessionClockInterval);
@@ -1753,7 +1784,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
 
     // Check if Cold Test is active
     if (sessionPreset === 'cold') {
-      if (coldIndex >= 20 || coldIndex >= coldQueue.length) {
+      if (isColdTestComplete(coldIndex, coldQueue.length)) {
         finishLearningSession('cold_complete');
         return;
       }
@@ -2131,6 +2162,47 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     return snapshots;
   }
 
+  function pushColdTrace(entry: { itemIndex: number; claimed: boolean; reason: string; nextIndex: number }) {
+    const traceEntry: ColdTraceEntry = {
+      at: Date.now(),
+      coldSessionId: currentSessionId,
+      queueLength: coldQueue.length,
+      itemIndex: entry.itemIndex,
+      itemNumber: coldTestItemNumber(entry.itemIndex, coldQueue.length),
+      cardId: currentCard?.id ?? null,
+      taskType: currentCard?.skill ?? null,
+      questionInstanceId: currentQuestionInstanceId,
+      completionClaimed: entry.claimed,
+      completionReason: entry.reason,
+      nextIndex: entry.nextIndex
+    };
+    coldTrace = [...coldTrace, traceEntry].slice(-40);
+    if (typeof window !== 'undefined') {
+      (window as unknown as { __coldTrace: ColdTraceEntry[] }).__coldTrace = coldTrace;
+    }
+  }
+
+  /**
+   * Central Cold Test completion contract: every task family resolves its terminal
+   * outcome through this function exactly once per question identity. It advances the
+   * queue index exactly once, marks the task completed/locked, and never overflows.
+   */
+  function completeColdTestItem(reason: 'answered' | 'timeout' = 'answered'): boolean {
+    const result = resolveColdTestCompletion({
+      queueLength: coldQueue.length,
+      index: coldIndex,
+      completedItemKey: coldCompletedItemKey,
+      itemKey: currentQuestionInstanceId
+    });
+    pushColdTrace({ itemIndex: coldIndex, claimed: result.claimed, reason, nextIndex: result.nextIndex });
+    if (!result.claimed) return false;
+    coldIndex = result.nextIndex;
+    coldCompletedItemKey = result.progress.completedItemKey;
+    isCompleted = true;
+    isLocked = true;
+    return true;
+  }
+
   // Answer Submit for Standard Practice & Cold Test
   async function handleAnswerSubmit(
     answerNote: NoteName,
@@ -2170,7 +2242,6 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       const responseMs = Math.round(performance.now() - shownPerfMs);
       sessionTrials++;
       sessionResponseTimes.push(responseMs);
-      coldIndex++;
 
       if (isCorrect) {
         sessionScore++;
@@ -2200,6 +2271,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
         void recordCardReview(cardRef, logEvent, cardMutated);
       }
 
+      completeColdTestItem('answered');
       scheduleAutoAdvance();
       return;
     }
@@ -3951,6 +4023,14 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
         dailyRhythmFeedback = `Первая попытка засчитана как ошибка. Аккорд: ${outcome.chordCorrect ? 'верный' : 'неверный'} · время: ${outcome.timingBand === 'on_time' ? 'точно' : outcome.timingBand === 'early' ? 'рано' : outcome.timingBand === 'late' ? 'поздно' : 'пропущена доля'}. Исправьте ответ, чтобы продолжить.`;
       }
       if (result.logEvent) void recordCardReview(currentCard, result.logEvent, result.cardMutated);
+      if (currentKind === 'cold') {
+        isCompleted = true;
+        isLocked = true;
+        dailyRhythmCompleted = true;
+        completeColdTestItem('answered');
+        scheduleAutoAdvance();
+        return;
+      }
     } else if (outcome.correct) {
       dailyRhythmFeedback = 'Исправлено. Первая ошибка останется в расписании повторений.';
       dailyRhythmFeedbackTone = 'warn';
@@ -4023,6 +4103,9 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       dailyHarmonyFeedbackTone = 'warn';
     }
     if (attempt.logEvent) void recordCardReview(cardRef, attempt.logEvent, attempt.cardMutated);
+    if (currentKind === 'cold') {
+      completeColdTestItem('answered');
+    }
   }
 
   function handleDailyHarmonySubmitChord(keys: readonly string[], inputMethod: TrialInputMethod = 'screen') {
@@ -4044,6 +4127,30 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       if (classification.outcome !== 'incomplete_chord') selectedKeyIds = [];
       wrongKeyIds = [...keys];
       setTimeout(() => { wrongKeyIds = wrongKeyIds.filter(id => !keys.includes(id)); }, 650);
+      if (currentKind === 'cold' && classification.outcome !== 'incomplete_chord') {
+        // Cold Test has a single attempt: a wrong chord fails this item immediately.
+        if (!firstResponseRecorded && !claimFirstAnswerCommit(currentSessionId, currentQuestionInstanceId)) return;
+        const responseMs = Math.round(performance.now() - shownPerfMs);
+        sessionTrials++;
+        sessionResponseTimes.push(responseMs);
+        sessionStreak = 0;
+        sessionLapses++;
+        const attempt = runQuestionAttempt({
+          card: currentCard,
+          kind: 'cold',
+          isCorrect: false,
+          answer: null,
+          answerKeyId: null,
+          responseMs,
+          inputMethod
+        });
+        dailyHarmonyFirstOutcomeRecorded = true;
+        isCompleted = true;
+        isLocked = true;
+        if (attempt.logEvent) void recordCardReview(currentCard, attempt.logEvent, attempt.cardMutated);
+        completeColdTestItem('answered');
+        scheduleAutoAdvance();
+      }
       return;
     }
     selectedKeyIds = [];
@@ -4102,6 +4209,13 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       dailyHarmonyHadWrong = true;
     }
     if (attempt.logEvent) void recordCardReview(currentCard, attempt.logEvent, attempt.cardMutated);
+    if (currentKind === 'cold') {
+      isCompleted = true;
+      isLocked = true;
+      completeColdTestItem('answered');
+      scheduleAutoAdvance();
+      return;
+    }
     if (correct) {
       isCompleted = true;
       scheduleAutoAdvance();
@@ -4156,6 +4270,8 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       firstResponseRecorded = evaluation.updatedState.firstResponseRecorded;
       attempts = evaluation.updatedState.attempts;
       hintUsed = evaluation.updatedState.hintUsed;
+      isCompleted = evaluation.updatedState.isCompleted;
+      isLocked = evaluation.updatedState.isLocked;
       feedbackText = evaluation.feedbackText;
       feedbackClass = evaluation.feedbackClass;
 
@@ -4182,7 +4298,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       if (evaluation.isCorrect) {
         correctKeyIds = [...sorted];
         playTriadAudio(sorted);
-        if (evaluation.shouldAdvance) {
+        if (evaluation.shouldAdvance && currentKind !== 'cold') {
           scheduleAutoAdvance();
         }
         setTimeout(() => {
@@ -4194,6 +4310,10 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
         setTimeout(() => {
           wrongKeyIds = [];
         }, 650);
+      }
+      if (currentKind === 'cold') {
+        completeColdTestItem('answered');
+        scheduleAutoAdvance();
       }
       return;
     }
@@ -4223,6 +4343,8 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     firstResponseRecorded = evaluation.updatedState.firstResponseRecorded;
     attempts = evaluation.updatedState.attempts;
     hintUsed = evaluation.updatedState.hintUsed;
+    isCompleted = evaluation.updatedState.isCompleted;
+    isLocked = evaluation.updatedState.isLocked;
     feedbackText = evaluation.feedbackText;
     feedbackClass = evaluation.feedbackClass;
 
@@ -4249,7 +4371,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     if (evaluation.isCorrect) {
       correctKeyIds = [...sorted];
       playTriadAudio(sorted);
-      if (evaluation.shouldAdvance) {
+      if (evaluation.shouldAdvance && currentKind !== 'cold') {
         scheduleAutoAdvance();
       }
       setTimeout(() => {
@@ -4261,6 +4383,10 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       setTimeout(() => {
         wrongKeyIds = [];
       }, 650);
+    }
+    if (currentKind === 'cold') {
+      completeColdTestItem('answered');
+      scheduleAutoAdvance();
     }
   }
 
@@ -4302,6 +4428,35 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     if (isCurriculum3dActive && curriculum3dState) {
       if (!canUseDontKnowInMilestone3dStep(curriculum3dState)) return;
       dispatchCurriculum3dAction({ type: 'dontKnow' });
+      return;
+    }
+
+    if (currentKind === 'cold' && currentCard && !isLocked && !isCompleted) {
+      stopReactionTimer();
+      const responseMs = Math.round(performance.now() - shownPerfMs);
+      sessionTrials++;
+      sessionResponseTimes.push(responseMs);
+      sessionStreak = 0;
+      sessionLapses++;
+      const cardRef = currentCard;
+      const targetLabel = targetKeyId ? `${DISPLAY_NAMES[cardRef.note]} (${targetKeyId})` : DISPLAY_NAMES[cardRef.note];
+      feedbackText = `Ответ: ${targetLabel}. Cold Test: попытка засчитана без FSRS-изменений.`;
+      feedbackClass = 'warn';
+      if (targetKeyId) hintKeyIds = [targetKeyId];
+      else hintKeyIds = [cardRef.note];
+
+      const { logEvent, cardMutated } = runQuestionAttempt({
+        card: cardRef,
+        kind: 'cold',
+        isCorrect: false,
+        answer: null,
+        answerKeyId: null,
+        hintUsedOnFirstAttempt: true,
+        responseMs
+      });
+      if (logEvent) void recordCardReview(cardRef, logEvent, cardMutated);
+      completeColdTestItem('answered');
+      scheduleAutoAdvance();
       return;
     }
 
@@ -6559,7 +6714,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
               {/if}
 
               <TaskStage
-                eyebrow={currentTaskEyebrow || (currentKind === 'cold' ? `Cold Test · ${Math.min(coldIndex + 1, 20)}/20` : currentKind === 'confusion' ? 'КОНТРАСТ · ' + currentCard.skill : currentKind === 'scheduled' ? 'ПЛАНОВОЕ ПОВТОРЕНИЕ · ' + currentCard.skill : currentKind === 'new' ? 'Новая карточка · ' + currentCard.skill : currentKind === 'transfer' ? 'ПЕРЕНОС НАВЫКА · ' + currentCard.skill : 'ЗАКРЕПЛЕНИЕ · ' + currentCard.skill)}
+                eyebrow={currentTaskEyebrow || (currentKind === 'cold' ? `Cold Test · ${coldItemNumber}/${coldTestTotalTrials(coldQueue.length)}` : currentKind === 'confusion' ? 'КОНТРАСТ · ' + currentCard.skill : currentKind === 'scheduled' ? 'ПЛАНОВОЕ ПОВТОРЕНИЕ · ' + currentCard.skill : currentKind === 'new' ? 'Новая карточка · ' + currentCard.skill : currentKind === 'transfer' ? 'ПЕРЕНОС НАВЫКА · ' + currentCard.skill : 'ЗАКРЕПЛЕНИЕ · ' + currentCard.skill)}
                 promptText={promptHtml}
                 instructionText={
                   currentCard.skill === 'triadInversionBuild'

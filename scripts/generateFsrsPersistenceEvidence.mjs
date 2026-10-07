@@ -74,7 +74,7 @@ try {
 
   // --- Backup round-trip proof: same-ms events keep distinct identities --------------
   const sameTimestamp = 1_800_000_000_000;
-  const backupLog = (reviewEventId, cardId) => ({
+  const backupLog = (reviewEventId, cardId, overrides = {}) => ({
     reviewEventId,
     responseTimingSource: 'measured',
     ts: sameTimestamp,
@@ -98,7 +98,8 @@ try {
     difficultyBefore: 5,
     difficultyAfter: 5,
     scheduledDays: 2,
-    gradeableByFsrs: true
+    gradeableByFsrs: true,
+    ...overrides
   });
   const exportedBackup = {
     app: 'piano-key-trainer',
@@ -133,6 +134,43 @@ try {
       new Set(backupRows.map(row => row.reviewEventId)).size === 2 &&
       backupRows.every(row => row.ts === sameTimestamp),
     warnings: backupValidation.backup.warnings
+  };
+
+  // --- Duplicate identity handling: only fully equivalent payloads are deduplicated --
+  const identicalPair = backup.validateAndNormalizeBackup({
+    app: 'piano-key-trainer',
+    backupSchemaVersion: backup.BACKUP_SCHEMA_VERSION,
+    reviewLogs: [
+      backupLog('evidence-dup-id', 'find:C'),
+      backupLog('evidence-dup-id', 'find:C')
+    ]
+  });
+  const conflictingPair = backup.validateAndNormalizeBackup({
+    app: 'piano-key-trainer',
+    backupSchemaVersion: backup.BACKUP_SCHEMA_VERSION,
+    reviewLogs: [
+      backupLog('evidence-dup-id', 'find:C', { grade: 3, gradeName: 'Good' }),
+      backupLog('evidence-dup-id', 'find:C', { grade: 1, gradeName: 'Again', firstCorrect: false })
+    ]
+  });
+  if (!identicalPair.ok || !conflictingPair.ok) {
+    throw new Error('Duplicate identity evidence validation failed.');
+  }
+  const duplicateIdentityHandling = {
+    identicalPayload: {
+      input: 2,
+      normalized: identicalPair.backup.reviewLogs.length,
+      deduplicated: identicalPair.backup.reviewLogs.length === 1,
+      warning: identicalPair.backup.warnings.find(warning => warning.includes('дубликатов')) ?? null
+    },
+    conflictingPayloadSameIdAndTimestamp: {
+      input: 2,
+      normalized: conflictingPair.backup.reviewLogs.length,
+      ids: conflictingPair.backup.reviewLogs.map(log => log.reviewEventId),
+      grades: conflictingPair.backup.reviewLogs.map(log => log.grade),
+      preserved: conflictingPair.backup.reviewLogs.length === 2,
+      warning: conflictingPair.backup.warnings.find(warning => warning.includes('повторяющиеся')) ?? null
+    }
   };
 
   // --- Latency exclusion proof ------------------------------------------------------
@@ -237,6 +275,7 @@ try {
     generatedAt: new Date().toISOString(),
     migration,
     backupRoundTripSameMs,
+    duplicateIdentityHandling,
     latencyExclusion,
     fsrsParity
   }, null, 2) + '\n');

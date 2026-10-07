@@ -201,6 +201,47 @@ export function resolveBackupReviewEventId(rawValue: unknown, ts: number): strin
   return isValidReviewEventId(rawValue) ? rawValue.trim() : backfillReviewEventId(ts);
 }
 
+/**
+ * Full semantic equality of two normalized review events. Used to decide whether an
+ * identity collision is a genuine duplicate record (safe to skip) or a conflict
+ * (different content that must be preserved under a disambiguated id).
+ */
+export function areReviewLogEventsEquivalent(left: ReviewLogEvent, right: ReviewLogEvent): boolean {
+  return (
+    left.reviewEventId === right.reviewEventId &&
+    left.ts === right.ts &&
+    left.sessionId === right.sessionId &&
+    left.cardId === right.cardId &&
+    left.note === right.note &&
+    left.skill === right.skill &&
+    left.kind === right.kind &&
+    left.grade === right.grade &&
+    left.gradeName === right.gradeName &&
+    left.firstCorrect === right.firstCorrect &&
+    left.answer === right.answer &&
+    left.answerKeyId === right.answerKeyId &&
+    left.attempts === right.attempts &&
+    left.completionAttempts === right.completionAttempts &&
+    left.hintUsed === right.hintUsed &&
+    left.responseMs === right.responseMs &&
+    left.responseTimingSource === right.responseTimingSource &&
+    left.elapsedDays === right.elapsedDays &&
+    left.retrievabilityBefore === right.retrievabilityBefore &&
+    left.stabilityBefore === right.stabilityBefore &&
+    left.stabilityAfter === right.stabilityAfter &&
+    left.difficultyBefore === right.difficultyBefore &&
+    left.difficultyAfter === right.difficultyAfter &&
+    left.scheduledDays === right.scheduledDays &&
+    left.earlyPractice === right.earlyPractice &&
+    left.correctedAt === right.correctedAt &&
+    left.trialMode === right.trialMode &&
+    left.hintLevel === right.hintLevel &&
+    left.contextId === right.contextId &&
+    left.schedulerReason === right.schedulerReason &&
+    left.gradeableByFsrs === right.gradeableByFsrs
+  );
+}
+
 export function normalizeBackupReviewLog(raw: unknown): ReviewLogEvent | null {
   if (!isRecord(raw)) return null;
   const ts = asFinite(raw.ts);
@@ -392,9 +433,9 @@ export function validateAndNormalizeBackup(raw: unknown): BackupValidationResult
     }
 
     // Identity collisions must never silently overwrite another legitimate event:
-    // - exact duplicates (same identity and same content) are skipped with a warning;
-    // - a reused identity with different content is deterministically disambiguated
-    //   so both events survive, also with a warning.
+    // - records whose complete normalized payload is equivalent are skipped with a warning;
+    // - a reused identity with ANY different semantic field is deterministically
+    //   disambiguated so both events survive, also with a warning.
     const uniqueLogs: ReviewLogEvent[] = [];
     const seenByIdentity = new Map<string, ReviewLogEvent>();
     let duplicateLogsSkipped = 0;
@@ -407,10 +448,7 @@ export function validateAndNormalizeBackup(raw: unknown): BackupValidationResult
         uniqueLogs.push(log);
         continue;
       }
-      const exactDuplicate =
-        existing.ts === log.ts &&
-        existing.sessionId === log.sessionId &&
-        existing.cardId === log.cardId;
+      const exactDuplicate = areReviewLogEventsEquivalent(existing, log);
       if (exactDuplicate) {
         duplicateLogsSkipped += 1;
         continue;

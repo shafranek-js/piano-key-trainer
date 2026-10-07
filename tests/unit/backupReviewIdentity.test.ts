@@ -117,6 +117,47 @@ describe('Backup review identity — validation policy', () => {
     }
   });
 
+  it('same id and same ts/session/card but different grade is NOT treated as a duplicate', () => {
+    const result = validateAndNormalizeBackup(exportShapedBackup([
+      makeExportLog(5_000, 'grade-conflict', { grade: 3, gradeName: 'Good' }),
+      makeExportLog(5_000, 'grade-conflict', { grade: 1, gradeName: 'Again', firstCorrect: false })
+    ]));
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.backup.reviewLogs).toHaveLength(2);
+      expect(result.backup.reviewLogs.map(log => log.reviewEventId)).toEqual([
+        'grade-conflict',
+        'grade-conflict-dup2'
+      ]);
+      expect(result.backup.reviewLogs.map(log => log.grade)).toEqual([3, 1]);
+      expect(result.backup.warnings.some(warning => warning.includes('повторяющиеся'))).toBe(true);
+    }
+  });
+
+  it('content differences in responseMs or answer alone are preserved, never deduplicated', () => {
+    const responseTimeConflict = validateAndNormalizeBackup(exportShapedBackup([
+      makeExportLog(6_000, 'timing-conflict', { responseMs: 500 }),
+      makeExportLog(6_000, 'timing-conflict', { responseMs: 1_500 })
+    ]));
+    expect(responseTimeConflict.ok).toBe(true);
+    if (responseTimeConflict.ok) {
+      expect(responseTimeConflict.backup.reviewLogs).toHaveLength(2);
+      expect(new Set(responseTimeConflict.backup.reviewLogs.map(log => log.reviewEventId)).size).toBe(2);
+      expect(responseTimeConflict.backup.reviewLogs.map(log => log.responseMs).sort((a, b) => (a as number) - (b as number))).toEqual([500, 1_500]);
+    }
+
+    const answerConflict = validateAndNormalizeBackup(exportShapedBackup([
+      makeExportLog(7_000, 'answer-conflict', { answer: 'C' }),
+      makeExportLog(7_000, 'answer-conflict', { answer: 'D' })
+    ]));
+    expect(answerConflict.ok).toBe(true);
+    if (answerConflict.ok) {
+      expect(answerConflict.backup.reviewLogs).toHaveLength(2);
+      expect(new Set(answerConflict.backup.reviewLogs.map(log => log.reviewEventId)).size).toBe(2);
+      expect(answerConflict.backup.reviewLogs.map(log => log.answer).sort()).toEqual(['C', 'D']);
+    }
+  });
+
   it('deduplicates exact duplicate records with a warning', () => {
     const duplicate = makeExportLog(1_000, 'same-id');
     const result = validateAndNormalizeBackup(exportShapedBackup([duplicate, { ...duplicate }]));
@@ -158,6 +199,39 @@ describe('Backup round-trip — same-millisecond events keep distinct identities
     const afterReload = await database.reviewLogEvents.orderBy('ts').toArray();
     expect(afterReload).toHaveLength(2);
     expect(afterReload.map(event => event.reviewEventId).sort()).toEqual(['uuid-A', 'uuid-B']);
+  });
+
+  it('same id, same ts/session/card but different grade survives full import and reload', async () => {
+    const exported = exportShapedBackup([
+      makeExportLog(9_000, 'dup-content-id', { grade: 3, gradeName: 'Good' }),
+      makeExportLog(9_000, 'dup-content-id', { grade: 1, gradeName: 'Again', firstCorrect: false })
+    ]);
+
+    const validation = validateAndNormalizeBackup(exported);
+    expect(validation.ok).toBe(true);
+    if (!validation.ok) return;
+    expect(validation.backup.reviewLogs).toHaveLength(2);
+    expect(validation.backup.reviewLogs.map(log => log.reviewEventId)).toEqual([
+      'dup-content-id',
+      'dup-content-id-dup2'
+    ]);
+
+    const database = createDatabase();
+    await database.open();
+    await applyBackupAtomically(database, validation.backup, DEFAULT_SETTINGS);
+
+    let stored = await database.reviewLogEvents.orderBy('ts').toArray();
+    expect(stored).toHaveLength(2);
+    expect(stored.map(event => event.reviewEventId).sort()).toEqual([
+      'dup-content-id',
+      'dup-content-id-dup2'
+    ]);
+    expect(stored.map(event => event.grade).sort((a, b) => (a as number) - (b as number))).toEqual([1, 3]);
+
+    database.close();
+    await database.open();
+    stored = await database.reviewLogEvents.orderBy('ts').toArray();
+    expect(stored).toHaveLength(2);
   });
 
   it('legacy records without identity still get the deterministic fallback through the full import', async () => {

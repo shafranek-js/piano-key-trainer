@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-07T14:27:49.173Z",
+  "generatedAt": "2026-10-07T19:32:50.336Z",
   "migration": {
     "legacyCount": 7,
     "migratedCount": 7,
@@ -34,6 +34,28 @@
     ],
     "identitiesPreserved": true,
     "warnings": []
+  },
+  "duplicateIdentityHandling": {
+    "identicalPayload": {
+      "input": 2,
+      "normalized": 1,
+      "deduplicated": true,
+      "warning": "Пропущено дубликатов записей истории: 1."
+    },
+    "conflictingPayloadSameIdAndTimestamp": {
+      "input": 2,
+      "normalized": 2,
+      "ids": [
+        "evidence-dup-id",
+        "evidence-dup-id-dup2"
+      ],
+      "grades": [
+        3,
+        1
+      ],
+      "preserved": true,
+      "warning": "Обнаружены повторяющиеся reviewEventId с разным содержимым: исправлено 1."
+    }
   },
   "latencyExclusion": {
     "measuredSamples": 8,

@@ -7,6 +7,10 @@ reviews into one primary key during backup import. Everything else from the Chec
 (FSRS parity, latency provenance, schema v3→v4 migration, atomic persistence retry, migrator
 safety) is preserved unchanged.
 
+**Follow-up (Rev2):** the duplicate-identity dedupe was tightened to compare the full normalized
+payload (`areReviewLogEventsEquivalent`); see `FSRS_PERSISTENCE_INTEGRITY_REV2_REPORT.md`. The final
+delivery archive is `piano-key-trainer-fsrs-persistence-integrity-rev2.zip`.
+
 ---
 
 ## Confirmed defect

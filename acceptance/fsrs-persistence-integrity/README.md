@@ -23,9 +23,12 @@ Machine-readable evidence:
 - `evidence.json` (`npm run evidence:fsrs-persistence`) — legacy DB before/after migration counts
   (7 → 7, timestamps/content preserved, ids backfilled, old table retired), **backup round-trip
   same-ms proof** (`backupRoundTripSameMs`: before = 2, after = 2, identitiesPreserved = true,
-  original `evidence-uuid-A/B` kept), latency exclusion proof (P30/P85 unchanged after 1000
-  synthetic 800/1200 events; untimed correct answer → Good), FSRS parity summary (pinned `py-fsrs`
-  6.3.2, vector/sequence counts, max deviation ≈ 1e-14).
+  original `evidence-uuid-A/B` kept), **duplicate identity handling proof**
+  (`duplicateIdentityHandling`: fully equivalent payload deduplicated with warning; same id + same
+  timestamp but different grade preserved as `evidence-dup-id` / `evidence-dup-id-dup2` with
+  warning), latency exclusion proof (P30/P85 unchanged after 1000 synthetic 800/1200 events;
+  untimed correct answer → Good), FSRS parity summary (pinned `py-fsrs` 6.3.2, vector/sequence
+  counts, max deviation ≈ 1e-14).
 
 Related gates: `npm run verify` (tsc 0, svelte-check 0/0, 577 tests / 35 files, production build)
 and `smoke:scheduler-integrity`, `smoke:m3i`, `smoke:m3j`, `smoke:m3k`, `smoke:cold-test` are green.

@@ -356,11 +356,11 @@ async function seedDatabase(cdp, learningProgress, cards = browserCards) {
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
       const db = request.result;
-      const tx = db.transaction(['cards', 'reviewLogs', 'learningProgress'], 'readwrite');
-      for (const name of ['cards', 'reviewLogs', 'learningProgress']) {
+      const tx = db.transaction(['cards', 'reviewLogEvents', 'learningProgress'], 'readwrite');
+      for (const name of ['cards', 'reviewLogEvents', 'learningProgress']) {
         const store = tx.objectStore(name);
         store.clear();
-        for (const row of data[name]) store.put(row);
+        for (const row of (data[name] ?? [])) store.put(row);
       }
       tx.oncomplete = () => { db.close(); resolve(true); };
       tx.onerror = () => reject(tx.error);
@@ -650,8 +650,8 @@ try {
   assert(dailyUi.prompt.includes('Am/C') && dailyUi.instruction.includes('полный аккорд') && dailyUi.instruction.includes('обозначению Am/C') && dailyUi.count.includes('0 из 3') && dailyUi.submitDisabled === true,
     `Daily Practice did not activate and explain the expected M3I slash card: ${JSON.stringify(dailyUi)}`);
   await clickPianoChord(cdp, ['C4','E4','A4'], '[data-action="daily-triad-submit-chord"]');
-  await waitForPage(cdp, `document.querySelectorAll("*").length > 0 && new Promise(resolve => { const request=indexedDB.open('PianoTrainerDB'); request.onsuccess=()=>{const db=request.result; const tx=db.transaction('reviewLogs','readonly'); const rows=tx.objectStore('reviewLogs').getAll(); rows.onsuccess=()=>{db.close(); resolve(rows.result.some(row=>row.cardId==='triadInversionBuild:slash' && row.firstCorrect));}; request.onerror=()=>resolve(false); }; request.onerror=()=>resolve(false); })`, 'correct M3I Daily Practice slash-card log');
-  const dailyLog = (await readStore(cdp, 'reviewLogs')).filter(row => row.cardId === 'triadInversionBuild:slash');
+  await waitForPage(cdp, `document.querySelectorAll("*").length > 0 && new Promise(resolve => { const request=indexedDB.open('PianoTrainerDB'); request.onsuccess=()=>{const db=request.result; const tx=db.transaction('reviewLogEvents','readonly'); const rows=tx.objectStore('reviewLogEvents').getAll(); rows.onsuccess=()=>{db.close(); resolve(rows.result.some(row=>row.cardId==='triadInversionBuild:slash' && row.firstCorrect));}; request.onerror=()=>resolve(false); }; request.onerror=()=>resolve(false); })`, 'correct M3I Daily Practice slash-card log');
+  const dailyLog = (await readStore(cdp, 'reviewLogEvents')).filter(row => row.cardId === 'triadInversionBuild:slash');
   assert(dailyLog.length === 1 && dailyLog[0].firstCorrect === true, `Daily slash chord did not use the canonical correct-answer grade path: ${JSON.stringify(dailyLog)}`);
 
   assert(cdp.runtimeExceptions.length === 0, `Production runtime exceptions: ${JSON.stringify(cdp.runtimeExceptions)}`);
@@ -701,3 +701,5 @@ try {
     }
   }
 }
+
+

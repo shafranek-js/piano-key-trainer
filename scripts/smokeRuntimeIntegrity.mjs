@@ -276,11 +276,11 @@ async function seedDatabase(cdp, learningProgress) {
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
       const db = request.result;
-      const tx = db.transaction(['cards', 'reviewLogs', 'learningProgress'], 'readwrite');
-      for (const name of ['cards', 'reviewLogs', 'learningProgress']) {
+      const tx = db.transaction(['cards', 'reviewLogEvents', 'learningProgress'], 'readwrite');
+      for (const name of ['cards', 'reviewLogEvents', 'learningProgress']) {
         const store = tx.objectStore(name);
         store.clear();
-        for (const row of data[name]) store.put(row);
+        for (const row of (data[name] ?? [])) store.put(row);
       }
       tx.oncomplete = () => { db.close(); resolve(true); };
       tx.onerror = () => reject(tx.error);
@@ -351,8 +351,8 @@ async function reviewLogCount(cdp) {
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
       const db = request.result;
-      const tx = db.transaction('reviewLogs', 'readonly');
-      const countRequest = tx.objectStore('reviewLogs').count();
+      const tx = db.transaction('reviewLogEvents', 'readonly');
+      const countRequest = tx.objectStore('reviewLogEvents').count();
       countRequest.onsuccess = () => { db.close(); resolve(countRequest.result); };
       countRequest.onerror = () => reject(countRequest.error);
     };
@@ -567,3 +567,5 @@ try {
     }
   }
 }
+
+

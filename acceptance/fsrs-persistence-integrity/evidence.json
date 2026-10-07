@@ -1,0 +1,58 @@
+{
+  "generatedAt": "2026-10-07T08:06:56.165Z",
+  "migration": {
+    "legacyCount": 7,
+    "migratedCount": 7,
+    "timestampsPreserved": true,
+    "contentPreserved": true,
+    "backfilledIds": [
+      "legacy-10000",
+      "legacy-11000",
+      "legacy-12000",
+      "legacy-13000",
+      "legacy-14000",
+      "legacy-15000",
+      "legacy-16000"
+    ],
+    "legacyTableRetired": true
+  },
+  "latencyExclusion": {
+    "measuredSamples": 8,
+    "baseline": {
+      "p30": 710,
+      "p85": 1095,
+      "median": 850
+    },
+    "after1000Synthetic": {
+      "measuredSamples": 8,
+      "p30": 710,
+      "p85": 1095,
+      "median": 850,
+      "excludedNotMeasured": 500,
+      "excludedLegacyUnknown": 500
+    },
+    "quantilesUnchanged": true,
+    "untimedCorrectAnswerGrade": 3,
+    "legacySourceResolved": "legacy_unknown"
+  },
+  "fsrsParity": {
+    "reference": {
+      "package": "fsrs (py-fsrs)",
+      "version": "6.3.2",
+      "tag": "v6.3.2",
+      "commit": "9446cb06605c597a063aeee49f7d188d42e34dc2",
+      "repository": "https://github.com/open-spaced-repetition/py-fsrs",
+      "settings": {
+        "desiredRetention": 0.9,
+        "maximumIntervalDays": 120,
+        "learningSeconds": 45,
+        "relearningSeconds": 45,
+        "enableFuzzing": false
+      }
+    },
+    "formulaVectorCount": 72,
+    "sequenceCount": 5,
+    "sequenceStepCount": 24,
+    "maxObservedDeviation": 2.842170943040401e-14
+  }
+}

@@ -2,14 +2,15 @@
   import type { ReviewLogEvent } from '../../core/fsrs/types';
   import { SKILL_NAMES } from '../../core/fsrs/constants';
   import { quantile, mean } from '../../core/fsrs/math';
+  import { isMeasuredResponse } from '../../core/fsrs/responseTiming';
 
   let {
     reviewLogs = [] as ReviewLogEvent[]
   } = $props();
 
   const scheduledEvents = $derived(reviewLogs.filter(e => e.kind === 'scheduled'));
-  const cleanEvents = $derived(reviewLogs.filter(e => e.firstCorrect && !e.hintUsed && Number.isFinite(e.responseMs)));
-  const medianReaction = $derived(cleanEvents.length ? quantile(cleanEvents.map(e => e.responseMs), 0.5) : null);
+  const cleanEvents = $derived(reviewLogs.filter(e => e.firstCorrect && !e.hintUsed && isMeasuredResponse(e)));
+  const medianReaction = $derived(cleanEvents.length ? quantile(cleanEvents.map(e => e.responseMs as number), 0.5) : null);
   const errorCount = $derived(reviewLogs.filter(e => e.firstCorrect === false).length);
 
   function formatTime(ms: number | null): string {

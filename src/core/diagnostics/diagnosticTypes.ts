@@ -177,7 +177,7 @@ export interface ReviewEventDiagnostic {
   correct: boolean;
   grade?: Grade | null;
   firstAttempt: boolean;
-  responseTimeMs: number;
+  responseTimeMs: number | null;
   sessionId: string;
   chordDetails?: {
     targetNotes?: string[];

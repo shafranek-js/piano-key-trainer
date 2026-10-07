@@ -3477,7 +3477,7 @@ export interface ApplyMilestone3dActionWithCardsParams {
     | 'useLatencyGrading'
   >;
   reviewLog: readonly ReviewLogEvent[];
-  responseMs?: number;
+  responseMs?: number | null;
   reviewedAt?: number;
 }
 
@@ -3492,7 +3492,7 @@ export function applyMilestone3dActionWithCards(
   params: ApplyMilestone3dActionWithCardsParams
 ): ApplyMilestone3dActionWithCardsResult {
   const reviewedAt = params.reviewedAt ?? params.action.at ?? Date.now();
-  const responseMs = params.responseMs ?? 650;
+  const responseMs = params.responseMs ?? null;
 
   const advanceRes = advanceMilestone3dProgress(params.state, {
     ...params.action,

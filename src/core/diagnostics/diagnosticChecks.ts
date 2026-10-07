@@ -126,7 +126,7 @@ export function detectBottlenecks(
     stat.attempts++;
     if (e.grade !== 1) stat.correct++;
     if (e.firstCorrect) stat.firstCorrect++;
-    if (Number.isFinite(e.responseMs) && e.responseMs > 0) stat.timesMs.push(e.responseMs);
+    if (typeof e.responseMs === 'number' && Number.isFinite(e.responseMs) && e.responseMs > 0) stat.timesMs.push(e.responseMs);
   }
 
   // Count lapses by skill from cards

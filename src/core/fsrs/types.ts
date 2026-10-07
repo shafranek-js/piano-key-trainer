@@ -61,6 +61,15 @@ export type MemoryState = 'new' | 'learning' | 'review' | 'relearning';
 
 export type Grade = 1 | 2 | 3 | 4; // 1: Again, 2: Hard, 3: Good, 4: Easy
 
+/**
+ * Provenance of `ReviewLogEvent.responseMs`:
+ * - `measured` — a real user interaction was timed in this app instance;
+ * - `not_measured` — a module/synthetic transition where no response time exists (responseMs = null);
+ * - `legacy_unknown` — historical record without provenance (pre-migration logs / legacy imports).
+ * Only `measured` samples may participate in adaptive latency statistics.
+ */
+export type ResponseTimingSource = 'measured' | 'not_measured' | 'legacy_unknown';
+
 export interface CardStats {
   trials: number;
   firstCorrect: number;
@@ -103,6 +112,12 @@ export type ReviewKind =
   | 'transfer';
 
 export interface ReviewLogEvent {
+  /**
+   * Stable unique event identity (primary key since DB schema v3).
+   * Assigned before persistence and reused across persistence retries.
+   * Legacy rows are backfilled by the schema migration (`legacy-<ts>`).
+   */
+  reviewEventId?: string;
   ts: number;
   sessionId: string;
   cardId: string;
@@ -117,7 +132,10 @@ export interface ReviewLogEvent {
   attempts: number;
   completionAttempts?: number;
   hintUsed: boolean;
-  responseMs: number;
+  /** Null when no interaction time was measured. Never a synthetic placeholder. */
+  responseMs: number | null;
+  /** Provenance of `responseMs`; absent only on legacy records (read as `legacy_unknown`). */
+  responseTimingSource?: ResponseTimingSource;
   elapsedDays: number | null;
   retrievabilityBefore: number | null;
   stabilityBefore: number | null;

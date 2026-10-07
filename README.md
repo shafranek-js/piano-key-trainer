@@ -2,6 +2,13 @@
 
 > Adaptive desktop-first piano learning web application built with **Svelte 5**, **TypeScript**, and **Vite**, combining **FSRS-6 spaced repetition**, **Web MIDI**, **Salamander Grand Piano acoustic samples**, **OpenSheetMusicDisplay (OSMD)** engraving, ear training, and two-hand coordination.
 
+## ✅ Current status
+
+- Learner roadmap: **11/11 stages complete** (core curriculum + advanced modules + #11 «Ритм аккордов»); no stage is marked current.
+- **M3K (Chord Rhythm & Pulse I): accepted** — beginner timing tolerance, hands-free MIDI start, Rev1 timing/cue fixes, and physical-MIDI user acceptance passed.
+- **Cold Test Progression + Displayed Item Integrity: accepted** — all 19 task families use the central completion contract, and the displayed `Cold Test · N/20` number follows the question actually on screen.
+- **Next product work: stabilization before M3L** (FSRS canonical parity + latency provenance + persistence integrity). **M3L Two-Hand Accompaniment is not started.**
+
 ---
 
 ## 🌟 Key Features
@@ -58,7 +65,7 @@
 * **Major / Minor Triads (3H):** Full three-note chord building, quality identification, and corrective feedback.
 * **Inversions & Chord Symbols (3I):** Root, first, and second inversion, slash symbols, inversion identification, and the introductory `C → G/B → Am → F` sequence.
 * **Harmony & Accompaniment I (3J):** Beginner-friendly I–V–vi–IV orientation, root-position and smooth bass transitions, guided/independent/memory block-chord sequences, bounded transfer with fresh retry, and three gated Daily Practice card families. Rhythm and two-hand accompaniment are outside this module.
-* **Chord Rhythm & Pulse I (3K — WIP stabilization/finalization checkpoint):** 4/4 pulse at 60 BPM, a genuine two-bar chord change `C → G/B` (bar 1 C, bar 2 G/B on the next downbeat) with per-bar feedback, two-strike pattern on beats 1 and 3 across `C → G/B → Am → F`, bounded assessment (12 initial / 8 retry trials, 80% threshold), at most three focused remediation tasks, reload-safe corrective state, targeted return-to-learning, and an explicit module exit back into the normal practice lifecycle. This checkpoint is stabilization/finalization of already-existing WIP only; M3K is **not accepted yet** and adds no new pedagogy.
+* **Chord Rhythm & Pulse I (3K — accepted):** 4/4 pulse at 60 BPM, a genuine two-bar chord change `C → G/B` (bar 1 C, bar 2 G/B on the next downbeat) with per-bar feedback, two-strike pattern on beats 1 and 3 across `C → G/B → Am → F`, bounded assessment (12 initial / 8 retry trials, 80% threshold), at most three focused remediation tasks, reload-safe corrective state, targeted return-to-learning, and an explicit module exit back into the normal practice lifecycle. Stabilization and Rev1 fixes are **accepted** and add no new pedagogy.
 
 ### 3. Acoustic Sound, Web MIDI & 4-Octave Keyboard Ergonomics
 * **Salamander Grand Piano Audio (`src/audio/AudioEngine.ts`):** Real acoustic Yamaha C5 samples across 4 octaves (`C2–C6`), plus a Web Audio lookahead metronome (`src/audio/MetronomeClock.ts`). Never falls back to harsh synthetic oscillators.
@@ -66,7 +73,7 @@
 * **Persistent 4-Octave Keyboard (`C2–C6`):** 29 white keys and 20 black keys docked at the bottom of the practice workspace as a stable visual anchor that never shifts vertically when prompts or feedback change.
 
 ### 4. Local-First Storage, PWA & Optional Cloud Infrastructure
-* **IndexedDB via Dexie.js (`src/storage/db.ts`):** Stores `cards`, `reviewLogs`, `coldTests`, `repertoireHistory`, `twoHandHistory`, `lessonProgress`, and `settings` locally in `PianoTrainerDB`, with automatic one-time migration from legacy `localStorage` (`src/storage/migrator.ts`) and full JSON backup export/import.
+* **IndexedDB via Dexie.js (`src/storage/db.ts`):** Stores `cards`, `reviewLogEvents`, `coldTests`, `repertoireHistory`, `twoHandHistory`, `lessonProgress`, and `settings` locally in `PianoTrainerDB`, with automatic one-time migration from legacy `localStorage` (`src/storage/migrator.ts`) and full JSON backup export/import. Review events carry a stable `reviewEventId` identity (schema v3+) with `ts` kept as indexed chronology, and `responseTimingSource` provenance so only real measured latencies feed adaptive grading.
 * **Offline-First PWA:** Configured with `vite-plugin-pwa` and Workbox runtime caching for Salamander Grand Piano audio samples.
 * **Optional Supabase Infrastructure (`src/services/supabase.ts`):** Includes optional client and upsert helper infrastructure gated by `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` environment variables *(infrastructure module only; cloud synchronization is not currently active in the user-facing workflow)*.
 
@@ -172,6 +179,18 @@ It starts a temporary Vite production preview unless `PIANO_TRAINER_APP_URL` is 
 npm run package:audit-stabilization-a
 ```
 This creates `piano-key-trainer-audit-stabilization-a.zip` from an explicit source, test, script, documentation, report, and current screenshot allowlist. It checks that every `node scripts/<file>.mjs` command in `package.json` has its script in the archive and that two builds from unchanged inputs are byte-identical. It excludes nested ZIPs, prior acceptance evidence, `dist`, `node_modules`, `.git`, browser profiles, and temporary data.
+
+### 16. Production Cold Test Progression Smoke
+```bash
+npm run smoke:cold-test
+```
+Runs a production preview with an isolated Chrome profile and a synthetic profile that seeds eight Cold Test families. It verifies the 8/20 `triadBuild` F# major reproduction, the canonical display lifecycle (feedback keeps the answered item number; the next number appears only when the next question activates), a full 20/20 run, and the persisted `coldTests` record. Evidence: `acceptance/cold-test-display-fix/` (3 screenshots).
+
+### 17. Production Persistence Integrity Smoke
+```bash
+npm run smoke:persistence-integrity
+```
+Injects a synthetic persistence failure into the production preview and verifies: two reviews sharing one millisecond persist with distinct `reviewEventId`s; the scheduler does not advance while a commit is failed; «Повторить сохранение» reuses the same event id, persists exactly one event/card transition, and resumes the scheduler; reload keeps the persisted state consistent. Evidence: `acceptance/fsrs-persistence-integrity/` (up to 2 screenshots + machine-readable `persistence-evidence.json`).
 
 ---
 

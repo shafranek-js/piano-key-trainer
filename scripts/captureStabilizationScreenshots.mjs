@@ -154,8 +154,8 @@ try {
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
       const db = request.result;
-      const transaction = db.transaction(['cards', 'reviewLogs', 'learningProgress'], 'readwrite');
-      for (const storeName of ['cards', 'reviewLogs', 'learningProgress']) {
+      const transaction = db.transaction(['cards', 'reviewLogEvents', 'learningProgress'], 'readwrite');
+      for (const storeName of ['cards', 'reviewLogEvents', 'learningProgress']) {
         const store = transaction.objectStore(storeName);
         store.clear();
         for (const row of data[storeName]) store.put(row);
@@ -234,3 +234,4 @@ try {
     }
   }
 }
+

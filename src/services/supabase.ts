@@ -44,7 +44,7 @@ export async function syncLocalToCloud(): Promise<SyncResult | null> {
     }
 
     // 2. Sync review logs
-    const localLogs = await db.reviewLogs.toArray();
+    const localLogs = await db.reviewLogEvents.toArray();
     if (localLogs.length) {
       const logsPayload = localLogs.map(l => ({
         user_id: user.id,

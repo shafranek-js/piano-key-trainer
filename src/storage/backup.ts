@@ -4,6 +4,7 @@ import type {
   Grade,
   MemoryState,
   NoteName,
+  ResponseTimingSource,
   ReviewKind,
   ReviewLogEvent,
   Skill,
@@ -11,6 +12,7 @@ import type {
 } from '../core/fsrs/types';
 import type { LearningProgressRecord } from '../core/learning/types';
 import { normalizeBackupLearningProgress } from '../core/learning/progress';
+import { backfillReviewEventId } from '../core/fsrs/reviewEventId';
 import type { ColdTestRecord, LessonProgressRecord, PianoTrainerDatabase } from './db';
 
 export const BACKUP_SCHEMA_VERSION = 1;
@@ -51,6 +53,7 @@ const NOTE_NAMES: readonly NoteName[] = [
 const MEMORY_STATES: readonly MemoryState[] = ['new', 'learning', 'review', 'relearning'];
 const REVIEW_KINDS: readonly ReviewKind[] = ['scheduled', 'new', 'practice', 'confusion', 'cold', 'lesson', 'transfer'];
 const GRADES: readonly Grade[] = [1, 2, 3, 4];
+const RESPONSE_TIMING_SOURCES: readonly ResponseTimingSource[] = ['measured', 'not_measured', 'legacy_unknown'];
 const TRIAL_MODES: readonly NonNullable<ReviewLogEvent['trialMode']>[] = [
   'model', 'guided', 'qualify', 'mixedRetrieval', 'corrective',
   'delayedCheck', 'scheduledReview', 'transfer', 'coldTest', 'freePractice'
@@ -184,7 +187,15 @@ export function normalizeBackupReviewLog(raw: unknown): ReviewLogEvent | null {
   if (!NOTE_NAMES.includes(raw.note as NoteName)) return null;
   if (!REVIEW_KINDS.includes(raw.kind as ReviewKind)) return null;
   const grade = GRADES.includes(raw.grade as Grade) ? raw.grade as Grade : null;
+  const finiteResponseMs = asFinite(raw.responseMs);
+  const responseTimingSource: ResponseTimingSource = RESPONSE_TIMING_SOURCES.includes(
+    raw.responseTimingSource as ResponseTimingSource
+  )
+    ? raw.responseTimingSource as ResponseTimingSource
+    : 'legacy_unknown';
   return {
+    reviewEventId: backfillReviewEventId(ts),
+    responseTimingSource,
     ts,
     sessionId,
     cardId,
@@ -199,7 +210,7 @@ export function normalizeBackupReviewLog(raw: unknown): ReviewLogEvent | null {
     attempts: Math.max(1, asNonNegativeInt(raw.attempts, 1)),
     completionAttempts: raw.completionAttempts === undefined ? undefined : asNonNegativeInt(raw.completionAttempts),
     hintUsed: raw.hintUsed === true,
-    responseMs: Math.max(0, asFinite(raw.responseMs) ?? 0),
+    responseMs: finiteResponseMs == null ? null : Math.max(0, finiteResponseMs),
     elapsedDays: asNonNegativeNumberOrNull(raw.elapsedDays),
     retrievabilityBefore: asNonNegativeNumberOrNull(raw.retrievabilityBefore),
     stabilityBefore: asNonNegativeNumberOrNull(raw.stabilityBefore),
@@ -399,12 +410,16 @@ export async function applyBackupAtomically(
 ): Promise<void> {
   await database.transaction(
     'rw',
-    [database.cards, database.reviewLogs, database.coldTests, database.lessonProgress, database.learningProgress, database.settings],
+    [database.cards, database.reviewLogEvents, database.coldTests, database.lessonProgress, database.learningProgress, database.settings],
     async () => {
       await database.cards.clear();
       if (backup.cards.length) await database.cards.bulkPut(backup.cards);
-      await database.reviewLogs.clear();
-      if (backup.reviewLogs.length) await database.reviewLogs.bulkPut(backup.reviewLogs);
+      await database.reviewLogEvents.clear();
+      if (backup.reviewLogs.length) {
+        await database.reviewLogEvents.bulkPut(
+          backup.reviewLogs as Array<ReviewLogEvent & { reviewEventId: string }>
+        );
+      }
       await database.coldTests.clear();
       if (backup.coldTests.length) await database.coldTests.bulkPut(backup.coldTests);
       await database.lessonProgress.clear();

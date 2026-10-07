@@ -9,6 +9,8 @@
     downloadDiagnosticsFile
   } from '../../core/diagnostics/buildDiagnosticSnapshot';
   import { getSchedulerDiagnostics } from '../../core/diagnostics/schedulerTracker';
+  import { latencyDiagnosticsSummary } from '../../core/fsrs/responseTiming';
+  import type { PersistenceDiagnosticEntry, StorageWriteFailure } from '../../core/fsrs/persistenceDiagnostics';
 
   let {
     coldTests = [] as ColdTestRecord[],
@@ -18,8 +20,18 @@
     settings = undefined as UserSettings | undefined,
     advancedModulesStatus = undefined as any,
     advancedModuleAvailability = undefined as any,
-    level = 'white' as 'white' | 'all'
+    level = 'white' as 'white' | 'all',
+    persistenceDiagnostics = [] as PersistenceDiagnosticEntry[],
+    storageWriteFailures = [] as StorageWriteFailure[]
   } = $props();
+
+  const latencySummary = $derived(latencyDiagnosticsSummary(reviewLogs));
+  const persistenceStatusCounts = $derived({
+    persisted: persistenceDiagnostics.filter(entry => entry.commitStatus === 'persisted').length,
+    duplicateRejected: persistenceDiagnostics.filter(entry => entry.commitStatus === 'duplicate_rejected').length,
+    failed: persistenceDiagnostics.filter(entry => entry.commitStatus === 'failed' || entry.commitStatus === 'retry_failed').length,
+    retried: persistenceDiagnostics.filter(entry => entry.commitStatus === 'retry_succeeded').length
+  });
 
   let exportFeedback = $state<string | null>(null);
   let feedbackTimer: ReturnType<typeof setTimeout> | null = null;
@@ -164,6 +176,44 @@
       </b>
     </div>
   </div>
+
+  <div class="diagnostic-integrity-strip" data-testid="diagnostic-persistence" aria-label="Persistence и latency диагностика">
+    <div class="diagnostic-stat-item">
+      <small>Latency: measured / not_measured / legacy</small>
+      <b>{latencySummary.measuredSamples} · {latencySummary.excludedNotMeasured} · {latencySummary.excludedLegacyUnknown}</b>
+    </div>
+    <div class="diagnostic-stat-item">
+      <small>P30 / P85 · только measured</small>
+      <b>
+        {latencySummary.p30 != null ? `${(latencySummary.p30 / 1000).toFixed(1)} с` : '—'}
+        /
+        {latencySummary.p85 != null ? `${(latencySummary.p85 / 1000).toFixed(1)} с` : '—'}
+      </b>
+    </div>
+    <div class="diagnostic-stat-item">
+      <small>Review commits</small>
+      <b class={persistenceStatusCounts.failed > 0 ? 'text-warn' : 'text-ok'}>
+        {persistenceStatusCounts.persisted} saved · {persistenceStatusCounts.retried} retried · {persistenceStatusCounts.duplicateRejected} duplicate · {persistenceStatusCounts.failed} failed
+      </b>
+    </div>
+    <div class="diagnostic-stat-item">
+      <small>Ошибки записи статистики</small>
+      <b class={storageWriteFailures.length > 0 ? 'text-warn' : 'text-ok'}>{storageWriteFailures.length}</b>
+    </div>
+  </div>
+
+  {#if persistenceDiagnostics.length > 0}
+    <div class="diagnostic-module-list" data-testid="diagnostic-persistence-log">
+      <h3>Последние коммиты отзывов</h3>
+      {#each persistenceDiagnostics.slice(-5).reverse() as entry (entry.at + ':' + entry.commitAttempt)}
+        <div class="diagnostic-module-row">
+          <strong>{entry.commitStatus}{entry.retryCount > 0 ? ` · retry ${entry.retryCount}` : ''}</strong>
+          <span>{entry.reviewEventId ?? '—'} · {entry.cardId ?? '—'} · {entry.questionInstanceId ?? '—'}</span>
+          <small>attempt {entry.commitAttempt}{entry.errorClass ? ` · ${entry.errorClass}` : ''}{entry.persistedAt ? ` · saved ${new Date(entry.persistedAt).toLocaleTimeString('ru-RU')}` : ''}</small>
+        </div>
+      {/each}
+    </div>
+  {/if}
 
   <div class="diagnostic-module-list" data-testid="diagnostic-advanced-modules">
     <h3>Продвинутые модули</h3>

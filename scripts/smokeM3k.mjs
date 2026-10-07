@@ -334,11 +334,11 @@ async function seedDatabase(cdp, data) {
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
       const db = request.result;
-      const names = ['cards','reviewLogs','learningProgress','settings'];
+      const names = ['cards','reviewLogEvents','learningProgress','settings'];
       const tx = db.transaction(names, 'readwrite');
-      for (const name of ['cards','reviewLogs','learningProgress']) {
+      for (const name of ['cards','reviewLogEvents','learningProgress']) {
         const store = tx.objectStore(name); store.clear();
-        for (const row of data[name]) store.put(row);
+        for (const row of (data[name] ?? [])) store.put(row);
       }
       tx.objectStore('settings').put({key:'userSettings',value:${JSON.stringify(baseSettings)}});
       tx.oncomplete = () => {
@@ -761,7 +761,7 @@ try {
   assert(twoStrikesOutcome.trace?.questionInstanceId === strikeQuestionId && Boolean(strikeQuestionId),
     `Both strikes must share one question: ${JSON.stringify({ first: strikeQuestionId, second: twoStrikesOutcome.trace?.questionInstanceId })}`);
   assert((await cdp.evaluate('window.__m3kAttemptCount ?? 0')) === strikesBefore + 2, 'twoStrikes must produce exactly two evaluations.');
-  const strikeLogs = await readStore(cdp, 'reviewLogs');
+  const strikeLogs = await readStore(cdp, 'reviewLogEvents');
   assert(strikeLogs.length === 0, `twoStrikes module assessment must not write ReviewLogs: ${JSON.stringify(strikeLogs)}`);
 
   // 8b. Holding the chord after strike 1 must surface a release prompt, not a silent lock.
@@ -796,7 +796,7 @@ try {
   await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"]')?.dataset.rhythmStep === 'transferAssessment'`, 'corrective state after reload');
   await runRhythmTrial(cdp, 'C');
   await waitFor(cdp, `document.querySelector('[data-testid="chord-rhythm-stage"] .rhythm-feedback.good')?.innerText.includes('Исправлено')`, 'corrective completion');
-  const logsAfterCorrective = await readStore(cdp, 'reviewLogs');
+  const logsAfterCorrective = await readStore(cdp, 'reviewLogEvents');
   assert(logsAfterCorrective.length === 0, `Module assessment unexpectedly wrote FSRS review logs: ${JSON.stringify(logsAfterCorrective)}`);
 
   // 5. Failed attempt buffering: bounded assessment -> remediation -> fresh retry is preserved.
@@ -870,3 +870,4 @@ try {
     }
   }
 }
+

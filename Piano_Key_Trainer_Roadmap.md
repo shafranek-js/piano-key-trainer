@@ -14,24 +14,28 @@
 - **3H — Major and Minor Triads:** three-note chord building, quality identification, diagnostics, and transfer.
 - **3I — Chord Inversions and Chord Symbols:** accepted baseline; first and second inversion, inversion identification, slash symbols, and the introductory `C → G/B → Am → F` sequence.
 - **3J — Harmony and Accompaniment I:** accepted baseline; I–V–vi–IV functions, root-position and smooth-bass progressions, bounded transfer with focused remediation, and Daily Practice integration.
+- **3K — Chord Rhythm & Pulse I:** accepted baseline; 4/4 pulse, two-bar `C → G/B` change, two-strike patterns, bounded assessment/remediation, and Daily Practice integration. Physical-MIDI user acceptance passed.
+- **Cold Test Progression + Displayed Item Integrity:** accepted; all 19 task families advance through the central completion contract, and the displayed `Cold Test · N/20` follows the rendered question.
 - **Scheduler Integrity:** accepted baseline; active questions cannot be replaced by refresh, and persistence completes before the next scheduler decision.
 
-## Current checkpoint: Milestone 3K — Chord Rhythm & Pulse I (WIP stabilization, NOT accepted)
+## Current checkpoint: FSRS & Persistence Integrity (Checkpoint B, pending independent acceptance)
 
-M3K already exists in the working tree as an unfinished module. Checkpoint A ("Audit Remediation & M3K Stabilization") treats it as stabilization work only:
+Stabilization-only work on the layer that stores and schedules every exercise; no new curriculum milestone:
 
-- no new rhythm patterns, BPM values, accompaniment styles, two-hand mode, eighth notes, or syncopation;
-- quality gates restored to green (typecheck, Svelte check, tests, production build);
-- advanced modules have a single explicit exit lifecycle, one module active at a time, and input routing that always matches the visible module;
-- corrective/assessment state survives reload, bounded assessment never loops, and a failed retry is terminal with working return-to-learning and Program actions;
-- backup import is treated as untrusted input (versioned schema, validation, atomic transaction), and the canonical one-grade rule is enforced across curriculum modules;
-- FSRS algorithm retuning, MusicXML stabilization, audio fallback redesign, and the `App.svelte` architectural rewrite remain **out of scope** for this checkpoint.
+- FSRS-6 policy review against the pinned canonical reference (`py-fsrs` 6.3.2) with golden parity vectors; corrections apply to future reviews only and never rewrite historical card state.
+- Latency provenance (`measured` / `not_measured` / `legacy_unknown`): synthetic module transitions no longer fabricate `responseMs`, and adaptive P30/P85 uses measured samples only.
+- Review events get a stable `reviewEventId` identity (Dexie schema v3→v4) with a copy-style migration that preserves every legacy log; retried persistence reuses the same id.
+- Failed review commits are recoverable: the scheduler is blocked until «Повторить сохранение» succeeds, with bounded diagnostics; Cold Test/lesson statistics writes are guarded.
+- The legacy localStorage migrator writes in one atomic transaction and only marks completion after verification.
 
-The learner-facing roadmap has **11 stages**; #11 is «Ритм аккордов». When all 11 stages are completed, no stage is marked current. M3K stays WIP until its own independent acceptance.
+M3L, two-hand accompaniment, new rhythm patterns/BPM, MusicXML/repertoire, AudioEngine strategy, MIDI redesign, `App.svelte` decomposition, and Supabase cleanup remain out of scope.
+
+The learner-facing roadmap has **11/11 stages complete** («Ритм аккордов» is #11). M3L is **not started**.
 
 ## Next educational direction
 
-- Rhythm scoring and two-hand accompaniment remain future work beyond M3K stabilization.
+- **After this stabilization checkpoint is accepted:** M3L Two-Hand Accompaniment (a separate course milestone with its own acceptance).
+- Rhythm scoring beyond M3K and two-hand accompaniment remain future work.
 - In the learner-facing Learning Roadmap the title is **#11 «Ритм аккордов»**. It becomes available after #10, and the UI does not expose internal milestone IDs.
 
 ## Verification commands
@@ -46,4 +50,6 @@ npm run smoke:m3i
 npm run smoke:scheduler-integrity
 npm run smoke:m3j
 npm run smoke:m3k
+npm run smoke:cold-test
+npm run smoke:persistence-integrity
 ```

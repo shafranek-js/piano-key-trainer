@@ -3495,7 +3495,7 @@ export interface ApplyCurriculumActionWithCardsParams {
     | 'useLatencyGrading'
   >;
   reviewLog?: readonly ReviewLogEvent[];
-  responseMs?: number;
+  responseMs?: number | null;
   reviewedAt?: number;
 }
 
@@ -3568,7 +3568,7 @@ export function applyCurriculumActionWithCards(
     answer,
     answerKeyId,
     hintUsedOnFirstAttempt: false,
-    responseMs: params.responseMs ?? 800,
+    responseMs: params.responseMs ?? null,
     settings: params.settings,
     reviewLog: params.reviewLog ?? [],
     sessionId: trialContext.sessionId,

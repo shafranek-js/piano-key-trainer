@@ -20,19 +20,34 @@ export interface FsrsReviewResult {
   label: string;
 }
 
+/** Canonical FSRS-6 stability floor (py-fsrs `STABILITY_MIN`). */
+export const STABILITY_MIN = 0.001;
+
 export function initialStability(grade: Grade): number {
-  return Math.max(W[grade - 1], 0.01);
+  return Math.max(W[grade - 1], STABILITY_MIN);
+}
+
+/** Canonical D0(rating) without the [1,10] clamp (py-fsrs `_initial_difficulty(..., clamp=False)`). */
+export function initialDifficultyRaw(grade: Grade): number {
+  return W[4] - Math.exp(W[5] * (grade - 1)) + 1;
 }
 
 export function initialDifficulty(grade: Grade): number {
-  return clamp(W[4] - Math.exp(W[5] * (grade - 1)) + 1, 1, 10);
+  return clamp(initialDifficultyRaw(grade), 1, 10);
 }
 
 export function nextDifficulty(difficulty: number, grade: Grade): number {
-  const target = initialDifficulty(4);
+  // Canonical mean reversion targets the UNCLAMPED D0(Easy).
+  const target = initialDifficultyRaw(4);
   const delta = -W[6] * (grade - 3);
   const damped = ((10 - difficulty) * delta) / 9;
   return clamp(W[7] * target + (1 - W[7]) * (difficulty + damped), 1, 10);
+}
+
+/** Canonical elapsed whole days (py-fsrs uses `timedelta.days`, i.e. floor). */
+export function elapsedWholeDays(lastReviewAt: number, now: number): number {
+  if (!lastReviewAt || lastReviewAt <= 0) return Number.POSITIVE_INFINITY;
+  return Math.max(0, Math.floor((now - lastReviewAt) / DAY_MS));
 }
 
 export function retrievability(
@@ -42,7 +57,7 @@ export function retrievability(
   if (!card || !card.lastReviewAt || !(card.stability != null && card.stability > 0)) {
     return null;
   }
-  const elapsedDays = Math.max(0, now - card.lastReviewAt) / DAY_MS;
+  const elapsedDays = Math.max(0, Math.floor((now - card.lastReviewAt) / DAY_MS));
   return Math.pow(1 + (FACTOR * elapsedDays) / card.stability, -DECAY);
 }
 
@@ -53,7 +68,7 @@ export function intervalForRetention(stability: number, retention: number): numb
 export function shortTermStability(stability: number, grade: Grade): number {
   let inc = Math.exp(W[17] * (grade - 3 + W[18])) * Math.pow(stability, -W[19]);
   if (grade >= 2) inc = Math.max(1, inc);
-  return Math.max(0.01, stability * inc);
+  return Math.max(STABILITY_MIN, stability * inc);
 }
 
 export function recallStability(
@@ -65,7 +80,7 @@ export function recallStability(
   const hardPenalty = grade === 2 ? W[15] : 1;
   const easyBonus = grade === 4 ? W[16] : 1;
   return Math.max(
-    0.01,
+    STABILITY_MIN,
     stability *
       (1 +
         Math.exp(W[8]) *
@@ -88,7 +103,7 @@ export function forgetStability(
     (Math.pow(stability + 1, W[13]) - 1) *
     Math.exp((1 - r) * W[14]);
   const shortTermCap = stability / Math.exp(W[17] * W[18]);
-  return Math.max(0.01, Math.min(longTerm, shortTermCap));
+  return Math.max(STABILITY_MIN, Math.min(longTerm, shortTermCap));
 }
 
 export function scheduleIntervalMs(
@@ -96,8 +111,9 @@ export function scheduleIntervalMs(
   desiredRetention: number,
   maxIntervalDays: number
 ): { days: number; ms: number } {
+  // Canonical: intervals are whole days (`round` in py-fsrs `_next_interval`).
   const days = clamp(
-    intervalForRetention(stability, desiredRetention),
+    Math.round(intervalForRetention(stability, desiredRetention)),
     1,
     maxIntervalDays
   );
@@ -134,7 +150,6 @@ export function applyFsrsReview(
     card.stability <= 0 ||
     card.difficulty == null ||
     card.difficulty <= 0;
-  const wasRelearning = card.memoryState === 'relearning';
 
   let s: number;
   let d: number;
@@ -147,14 +162,17 @@ export function applyFsrsReview(
     const currentStab = card.stability ?? initialStability(3);
     const r = before.retrievability ?? 1;
 
-    d = nextDifficulty(currentDiff, grade);
-    if (wasRelearning) {
+    // Canonical FSRS-6 updates stability from the PRE-review difficulty and only
+    // then updates difficulty; same-day reviews use short-term stability.
+    const sameDay = elapsedWholeDays(card.lastReviewAt, now) < 1;
+    if (sameDay) {
       s = shortTermStability(currentStab, grade);
     } else if (grade === 1) {
-      s = forgetStability(d, currentStab, r);
+      s = forgetStability(currentDiff, currentStab, r);
     } else {
-      s = recallStability(d, currentStab, r, grade);
+      s = recallStability(currentDiff, currentStab, r, grade);
     }
+    d = nextDifficulty(currentDiff, grade);
   }
 
   card.stability = s;

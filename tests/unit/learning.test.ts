@@ -25,7 +25,8 @@ import {
 } from '../../src/core/fsrs/reviewLog';
 import { DAY_MS } from '../../src/core/fsrs/constants';
 import type { Card } from '../../src/core/fsrs/types';
-import { db, DB_V1_STORES, DB_V2_STORES, PianoTrainerDatabase } from '../../src/storage/db';
+import { db, DB_V1_STORES, DB_V2_STORES, DB_V3_STORES, PianoTrainerDatabase } from '../../src/storage/db';
+import { REVIEW_LOGS_TABLE } from '../../src/storage/reviewMigrations';
 
 function makeFreshCard(
   id = 'find:C',
@@ -754,7 +755,7 @@ describe('Milestone 3A — Legacy Adapter & Regression Compatibility (Section 21
 });
 
 describe('Milestone 3A — Dexie v2 Schema & Backup Compatibility (Sections 22 & 23)', () => {
-  it('defines Dexie v1 and v2 schemas preserving all v1 stores and adding learningProgress in v2', () => {
+  it('defines Dexie schemas preserving v1 stores, adding learningProgress in v2 and identity-keyed review events in v3/v4', () => {
     expect(Object.keys(DB_V1_STORES)).toEqual([
       'cards',
       'reviewLogs',
@@ -775,14 +776,15 @@ describe('Milestone 3A — Dexie v2 Schema & Backup Compatibility (Sections 22 &
       'learningProgress'
     ]);
     expect(DB_V2_STORES.learningProgress).toBe('id, itemId, state, updatedAt');
+    expect(DB_V3_STORES[REVIEW_LOGS_TABLE]).toBe('reviewEventId, ts, sessionId, cardId, kind, skill');
 
     const testDb = new PianoTrainerDatabase('PianoTrainerTestSchemaCheck');
-    expect(testDb.verno).toBe(2);
+    expect(testDb.verno).toBe(4);
     const tableNames = testDb.tables.map(t => t.name).sort();
     expect(tableNames).toEqual(
       [
         'cards',
-        'reviewLogs',
+        REVIEW_LOGS_TABLE,
         'coldTests',
         'repertoireHistory',
         'twoHandHistory',
@@ -791,7 +793,9 @@ describe('Milestone 3A — Dexie v2 Schema & Backup Compatibility (Sections 22 &
         'learningProgress'
       ].sort()
     );
+    expect(tableNames).not.toContain('reviewLogs');
     expect(db.learningProgress).toBeDefined();
+    expect(db.reviewLogEvents).toBeDefined();
   });
 
   it('maintains backward-compatible backup import for old backups without learningProgress and normalizes new backups', () => {

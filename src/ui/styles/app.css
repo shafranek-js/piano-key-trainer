@@ -4498,3 +4498,20 @@ body::before{opacity:.9}
 
 
 
+.persistence-error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 0 0 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(248, 113, 113, 0.55);
+  background: rgba(127, 29, 29, 0.35);
+  color: #fecaca;
+  font-size: 0.86rem;
+}
+
+.persistence-error-banner .btn {
+  flex: 0 0 auto;
+}

@@ -260,9 +260,9 @@ async function seedDatabase(cdp, learningProgress, resetLogs = true) {
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
       const db = request.result;
-      const tx = db.transaction(['cards','reviewLogs','learningProgress','settings'], 'readwrite');
+      const tx = db.transaction(['cards','reviewLogEvents','learningProgress','settings'], 'readwrite');
       for (const row of data.cards) tx.objectStore('cards').put(row);
-      if (data.resetLogs) tx.objectStore('reviewLogs').clear();
+      if (data.resetLogs) tx.objectStore('reviewLogEvents').clear();
       tx.objectStore('learningProgress').clear();
       for (const row of data.learningProgress) tx.objectStore('learningProgress').put(row);
       tx.objectStore('settings').put({key:'userSettings',value:{sessionPreset:'normal',level:'white',mode:'smart',autoAdvanceDelaySeconds:0,desiredRetention:0.9,maxIntervalDays:120,relearningSeconds:45,newPitchClassesPerSession:2,useLatencyGrading:true,notationClef:'treble'}});
@@ -406,15 +406,15 @@ try {
   await waitFor(cdp, `!document.querySelector('.session-strip .session-meta b')?.innerText.includes('Все повторы')`, 'Balanced session after changing preset');
   await waitForSoundTask(cdp);
   await closeSettings(cdp);
-  const logsBeforeCorrect = (await readStore(cdp, 'reviewLogs')).length;
+  const logsBeforeCorrect = (await readStore(cdp, 'reviewLogEvents')).length;
   await clickKey(cdp, 'G4');
   await waitFor(cdp, `document.querySelector('.feedback')?.innerText.includes('Правильно')`, 'correct G4 feedback');
   for (let attempt = 0; attempt < 50; attempt++) {
-    if ((await readStore(cdp, 'reviewLogs')).length === logsBeforeCorrect + 1) break;
+    if ((await readStore(cdp, 'reviewLogEvents')).length === logsBeforeCorrect + 1) break;
     await delay(100);
   }
   const correctCard = (await readStore(cdp, 'cards')).find(card => card.id === 'soundToKey:G');
-  assert((await readStore(cdp, 'reviewLogs')).length === logsBeforeCorrect + 1, 'Correct G4 did not persist exactly one ReviewLog.');
+  assert((await readStore(cdp, 'reviewLogEvents')).length === logsBeforeCorrect + 1, 'Correct G4 did not persist exactly one ReviewLog.');
   assert(correctCard?.dueAt > Date.now(), 'Correct G4 did not move the due date into the future.');
   const cardDueAfterCorrect = correctCard.dueAt;
   await clickNext(cdp);
@@ -435,17 +435,17 @@ try {
   await clickKey(cdp, 'F4');
   await waitFor(cdp, `document.querySelector('.feedback')?.innerText.includes('Ошибка')`, 'wrong first-answer feedback');
   for (let attempt = 0; attempt < 50; attempt++) {
-    if ((await readStore(cdp, 'reviewLogs')).length === 1) break;
+    if ((await readStore(cdp, 'reviewLogEvents')).length === 1) break;
     await delay(100);
   }
   const wrongFirstCard = (await readStore(cdp, 'cards')).find(card => card.id === 'soundToKey:G');
-  assert((await readStore(cdp, 'reviewLogs')).length === 1, 'Wrong first response did not persist one ReviewLog.');
+  assert((await readStore(cdp, 'reviewLogEvents')).length === 1, 'Wrong first response did not persist one ReviewLog.');
   assert(wrongFirstCard?.lastGrade === 1 && wrongFirstCard.dueAt > Date.now(), 'Wrong first response did not persist its single Again scheduling transition.');
   const dueAfterWrong = wrongFirstCard.dueAt;
   await clickKey(cdp, 'G4');
   await waitFor(cdp, `document.querySelector('.feedback')?.innerText.includes('Исправлено')`, 'corrective answer feedback');
   await delay(250);
-  const wrongCorrectiveLogs = await readStore(cdp, 'reviewLogs');
+  const wrongCorrectiveLogs = await readStore(cdp, 'reviewLogEvents');
   const afterCorrectiveCard = (await readStore(cdp, 'cards')).find(card => card.id === 'soundToKey:G');
   assert(wrongCorrectiveLogs.length === 1, `Corrective answer added another ReviewLog (${wrongCorrectiveLogs.length}).`);
   assert(afterCorrectiveCard?.dueAt === dueAfterWrong && afterCorrectiveCard.lastGrade === 1, 'Corrective answer mutated the FSRS schedule a second time.');
@@ -527,3 +527,4 @@ try {
     }
   }
 }
+

@@ -1,0 +1,42 @@
+{
+  "generatedAt": "2026-10-07T08:12:35.024Z",
+  "smoke": "smoke:persistence-integrity",
+  "sameMsProof": {
+    "frozenTimestamp": 1800000000000,
+    "eventCount": 2,
+    "timestamps": [
+      1800000000000
+    ],
+    "reviewEventIds": [
+      "mywpiww0-43450498-7d22-4c63-83b7-b4d96d1d24f2",
+      "mywpiww0-4feb46a1-f62b-4c33-a287-169ab8bb9cbd"
+    ]
+  },
+  "failureRetryProof": {
+    "failedErrorClass": "InjectedPersistenceFailure",
+    "failedReviewEventId": "mywpiww0-4feb46a1-f62b-4c33-a287-169ab8bb9cbd",
+    "retryCount": 1,
+    "reusedSameReviewEventId": true,
+    "schedulerStayedOnFailedQuestion": true,
+    "schedulerAdvancedAfterRetry": true,
+    "finalEventCount": 2
+  },
+  "reloadProof": {
+    "eventCount": 2,
+    "distinctEventIds": 2,
+    "findCards": [
+      {
+        "id": "find:C",
+        "reps": 2
+      },
+      {
+        "id": "find:D",
+        "reps": 2
+      },
+      {
+        "id": "find:E",
+        "reps": 1
+      }
+    ]
+  }
+}

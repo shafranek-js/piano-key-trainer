@@ -10,7 +10,9 @@
 - **Historical Prototype:** `piano_key_trainer_fsrs_v6_0_1_scroll_fix.html` is retained in the repository root strictly as a historical reference artifact. All active development, testing, and builds target the Svelte/TypeScript application.
 
 > [!NOTE]
-> **Milestone Progression Status (`3B (complete) → 3B.5A (complete) → 3B.5B (COMPLETE) → 3C (COMPLETE) → 3D (COMPLETE) → 3E (COMPLETE) → 3F (COMPLETE) → 3G (COMPLETE) → 3H (COMPLETE) → 3I (FINALIZATION CHECKPOINT)`)**
+> **Milestone Progression Status (`3B (complete) → 3B.5A (complete) → 3B.5B (COMPLETE) → 3C (COMPLETE) → 3D (COMPLETE) → 3E (COMPLETE) → 3F (COMPLETE) → 3G (COMPLETE) → 3H (COMPLETE) → 3I (ACCEPTED) → 3J (ACCEPTED) → 3K (ACCEPTED) → Cold Test Display (ACCEPTED) → FSRS & Persistence Integrity, Checkpoint B (pending acceptance)`)**
+>
+> **Learner roadmap: 11/11 stages complete.** Next product work is this stabilization checkpoint; M3L (Two-Hand Accompaniment) starts only after its independent acceptance.
 >
 > - **Milestone 3A — Learning State Foundation:** complete (`src/core/learning/types.ts`, `trialPolicy.ts`, `progress.ts`).
 > - **Milestone 3B — First-Run C/F Guided Learning:** complete (`src/core/learning/firstRunCf.ts`, `src/ui/components/FirstRunStage.svelte`). Brand-new learners enter the 11-step C/F guided flow on the **Training** screen before any unscaffolded FSRS trials.
@@ -24,7 +26,9 @@
 > - **Milestone 3H — Major / Minor Triads (`COMPLETE`):** Post-graduation triad module with full three-note build, major/minor identify, constructive quality/voicing diagnostics, corrective persistence, transfer, and Daily Practice integration.
 > - **Milestone 3I — Chord Inversions & Chord Symbols (`ACCEPTED`):** First/second inversion, bass reading, inversion identify, slash symbols, `C → G/B → Am → F`, and bounded transfer. Independent acceptance closed the scheduler-integrity hold; the next separate checkpoint is M3J below.
 > - **Milestone 3J — Harmony & Accompaniment I (`ACCEPTED`):** I–V–vi–IV orientation, root-position and smooth-bass progressions, bounded transfer with focused remediation and fresh retry, and three gated Daily Practice card families (`src/core/learning/harmony.ts`).
-> - **Milestone 3K — Chord Rhythm & Pulse I (`WIP — Audit Remediation & M3K Stabilization Checkpoint A in progress; NOT accepted`):** the unfinished rhythm module (`src/core/learning/chordRhythm.ts`) is frozen pedagogically. Only lifecycle exits, module exclusivity, reload-safe corrective state, input/timer teardown, backup safety, and quality-gate stabilization are in scope; see section 3.17.
+> - **Milestone 3K — Chord Rhythm & Pulse I (`ACCEPTED`):** 4/4 pulse at 60 BPM, the two-bar `C → G/B` change, two-strike patterns on beats 1 and 3, bounded assessment/remediation, reload-safe corrective state, and Daily Practice integration. Beginner timing tolerance, hands-free MIDI start, Rev1 timing/cue fixes and the physical-MIDI user test passed; see section 3.17.
+> - **Cold Test Progression + Displayed Item Integrity (`ACCEPTED`):** all 19 task families advance through the central `completeColdTestItem` contract; the displayed `Cold Test · N/20` follows the rendered question, and the completion pointer stays separate (`coldIndex` vs `activeColdItemIndex`).
+> - **FSRS & Persistence Integrity (Checkpoint B, pending independent acceptance):** canonical FSRS-6 parity against pinned `py-fsrs` 6.3.2, latency provenance, stable `reviewEventId` identity with schema v3→v4 migration, recoverable persistence retry, atomic legacy migrator. M3L is not started; next product work is stabilization before M3L.
 
 
 ---
@@ -545,7 +549,7 @@ Milestone 3H bridges physical interval perception into functional harmony by int
 1. **Acoustic Audio Only:** `AudioEngine.ts` uses Salamander Grand Piano (Yamaha C5) samples across `C2–C6`. Never introduce oscillator synth fallbacks.
 2. **Persistent Bottom-Docked Keyboard (`C2–C6`):** `Keyboard.svelte` is a fixed visual anchor in the practice workspace. Feedback, prompts, answer buttons, or timers must never shift the piano vertically, and `:focus-visible` must never raise white keys above black keys.
 3. **Separated Performance Metrics:** Pitch accuracy, rhythm timing error, MIDI velocity dynamics (`p` / `mf` / `f`), MIDI hold-duration articulation (`legato` / `detached`), and two-hand onset simultaneity are evaluated and stored independently from FSRS memory scheduling.
-4. **IndexedDB & Legacy Migration:** `PianoTrainerDB` (`src/storage/db.ts`, schema v2 including `learningProgress`) is the primary store. `LegacyMigrator` (`src/storage/migrator.ts`) migrates legacy `localStorage` data once on startup. `src/services/supabase.ts` provides optional cloud-sync scaffolding when `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are configured, but is not currently part of the active user workflow.
+4. **IndexedDB & Legacy Migration:** `PianoTrainerDB` (`src/storage/db.ts`, schema v4: v1 stores + `learningProgress` + identity-keyed `reviewLogEvents`) is the primary store. Review events are keyed by stable `reviewEventId` with `ts` as indexed chronology; `responseTimingSource` marks `measured` / `not_measured` / `legacy_unknown` provenance, and only measured samples feed adaptive latency grading. `LegacyMigrator` (`src/storage/migrator.ts`) migrates legacy `localStorage` data in one atomic transaction and marks completion only after verification. `src/services/supabase.ts` provides optional cloud-sync scaffolding when `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are configured, but is not currently part of the active user workflow.
 
 ---
 
@@ -613,9 +617,9 @@ npm run verify
 
 **Acceptance boundary:** stop after M3J is packaged and reported. Do not begin rhythm-scored accompaniment, two-hand accompaniment, or the next harmony level before independent acceptance.
 
-### 3.17 Audit Remediation & M3K Stabilization — Checkpoint A (WIP, not accepted)
+### 3.17 Audit Remediation & M3K Stabilization — Checkpoint A (ACCEPTED)
 
-Source audit: [`CODE_AUDIT.md`](file:///c:/Projects/piano-key-trainer/CODE_AUDIT.md). Checkpoint report: [`AUDIT_STABILIZATION_A_REPORT.md`](file:///c:/Projects/piano-key-trainer/AUDIT_STABILIZATION_A_REPORT.md). Evidence: `acceptance/audit-stabilization-a/`.
+Source audit: [`CODE_AUDIT.md`](file:///c:/Projects/piano-key-trainer/CODE_AUDIT.md). Checkpoint report: [`AUDIT_STABILIZATION_A_REPORT.md`](file:///c:/Projects/piano-key-trainer/AUDIT_STABILIZATION_A_REPORT.md). Evidence: `acceptance/audit-stabilization-a/`. M3K stabilization, Rev1 timing/cue fixes, Cold Test progression/display fixes, and the physical-MIDI user test are **accepted**.
 
 - **Scope freeze:** no new M3K pedagogy, no FSRS algorithm retuning, no MusicXML stabilization, no audio fallback redesign, no `App.svelte` rewrite. M3K remains WIP until its own acceptance.
 - **Learner roadmap:** 11 stages / 6 advanced modules; when all 11 stages are completed, `currentStageId` is `null` (`src/core/curriculum/learningRoadmap.ts`).

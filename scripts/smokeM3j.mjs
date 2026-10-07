@@ -222,11 +222,11 @@ async function seedDatabase(cdp, data) {
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
       const db = request.result;
-      const names = ['cards','reviewLogs','learningProgress','settings'];
+      const names = ['cards','reviewLogEvents','learningProgress','settings'];
       const tx = db.transaction(names, 'readwrite');
-      for (const name of ['cards','reviewLogs','learningProgress']) {
+      for (const name of ['cards','reviewLogEvents','learningProgress']) {
         const store = tx.objectStore(name); store.clear();
-        for (const row of data[name]) store.put(row);
+        for (const row of (data[name] ?? [])) store.put(row);
       }
       tx.objectStore('settings').put({key:'userSettings',value:{sessionPreset:'normal',level:'white',mode:'smart',autoAdvanceDelaySeconds:0,desiredRetention:0.9,maxIntervalDays:120,relearningSeconds:45,newPitchClassesPerSession:2,useLatencyGrading:true,notationClef:'treble'}});
       tx.oncomplete = () => {
@@ -803,12 +803,12 @@ try {
     await noteOff(cdp, MIDI_VOICINGS[chord]);
   }
   await waitFor(cdp, `Boolean(document.querySelector('[data-testid="harmony-review-next"]'))`, 'visible Daily Practice next-task control');
-  const reviewLogsBeforeNext = (await readStore(cdp, 'reviewLogs')).filter(log => log.cardId === 'harmonyProgressionPlay:C-G/B-Am-F');
+  const reviewLogsBeforeNext = (await readStore(cdp, 'reviewLogEvents')).filter(log => log.cardId === 'harmonyProgressionPlay:C-G/B-Am-F');
   const progressedCard = (await readStore(cdp, 'cards')).find(card => card.id === 'harmonyProgressionPlay:C-G/B-Am-F');
   assert(reviewLogsBeforeNext.length === 1 && reviewLogsBeforeNext[0].firstCorrect && progressedCard?.dueAt > Date.now(), `One Harmony progression did not persist one successful FSRS transition before the next task: ${JSON.stringify({ reviewLogsBeforeNext, dueAt: progressedCard?.dueAt })}`);
   await cdp.evaluate(`document.querySelector('[data-testid="harmony-review-next"]')?.click()`);
   await waitFor(cdp, `document.querySelector('[data-testid="harmony-review-stage"]')?.dataset.reviewCardId === 'harmonyFunctionIdentify:I'`, 'next due Harmony semantic card after saved progression');
-  const finalDailyLogs = (await readStore(cdp, 'reviewLogs')).filter(log => log.cardId === 'harmonyProgressionPlay:C-G/B-Am-F');
+  const finalDailyLogs = (await readStore(cdp, 'reviewLogEvents')).filter(log => log.cardId === 'harmonyProgressionPlay:C-G/B-Am-F');
   assert(finalDailyLogs.length === 1, `Correct progression or replay created more than one ReviewLog: ${finalDailyLogs.length}`);
   dailySemanticEvidence = await inspectSemanticAnswer(cdp);
   const diagnostic = await captureDiagnostics(cdp);
@@ -909,3 +909,5 @@ try {
     }
   }
 }
+
+

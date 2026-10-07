@@ -220,11 +220,11 @@ async function seedDatabase(cdp, data, attempt = 1) {
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
       const db = request.result;
-      const names = ['cards','reviewLogs','learningProgress','settings'];
+      const names = ['cards','reviewLogEvents','learningProgress','settings'];
       const tx = db.transaction(names, 'readwrite');
-      for (const name of ['cards','reviewLogs','learningProgress']) {
+      for (const name of ['cards','reviewLogEvents','learningProgress']) {
         const store = tx.objectStore(name); store.clear();
-        for (const row of data[name]) store.put(row);
+        for (const row of (data[name] ?? [])) store.put(row);
       }
       tx.objectStore('settings').put({key:'userSettings',value:${JSON.stringify(baseSettings)}});
       tx.oncomplete = () => {
@@ -519,3 +519,8 @@ try {
     }
   }
 }
+
+
+
+
+

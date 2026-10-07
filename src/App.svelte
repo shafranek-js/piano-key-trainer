@@ -20,6 +20,12 @@
   import { APP_VERSION } from './core/version';
   import { isMastered } from './core/fsrs/fsrs6';
   import { commitCardReview } from './core/fsrs/reviewPersistence';
+  import { resolveReviewEventId } from './core/fsrs/reviewEventId';
+  import { isMeasuredResponse } from './core/fsrs/responseTiming';
+  import type { PersistenceDiagnosticEntry, StorageWriteFailure } from './core/fsrs/persistenceDiagnostics';
+  import { migrateLegacyReviewLog } from './storage/reviewMigrations';
+  import { persistReviewEventAtomically } from './storage/reviewStore';
+  import { guardedStatisticsWrite, defaultErrorClassName as errorClassName } from './storage/guardedWrite';
   import {
     createSessionId,
     submitQuestionAttempt,
@@ -313,7 +319,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   async function exportProfileData() {
     try {
       const cardsList = await db.cards.toArray();
-      const logsList = await db.reviewLogs.toArray();
+      const logsList = (await db.reviewLogEvents.toArray()).slice().sort((a, b) => a.ts - b.ts);
       const coldList = await db.coldTests.toArray();
       const progressList = await db.lessonProgress.toArray();
       const learningProgressList = await db.learningProgress.toArray();
@@ -379,7 +385,9 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       coldTests = backup.coldTests;
       lessonProgressMap = new Map(backup.lessonProgress.map(p => [p.id, p]));
       learningProgressMap = new Map(backup.learningProgress.map(p => [p.id, p]));
-      reviewPersistenceFailed = false;
+      failedReviewCommits = [];
+      storageWriteFailures = [];
+      persistenceDiagnostics = [];
       pendingReviewCommitCount = 0;
       deferredNextRoundCallId = null;
       clearActiveAdvancedModuleStates();
@@ -600,7 +608,22 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   let currentNextRoundCallId: string | null = null;
   let deferredNextRoundCallId: string | null = null;
   let pendingReviewCommitCount = 0;
-  let reviewPersistenceFailed = false;
+  interface FailedReviewCommit {
+    event: ReviewLogEvent;
+    card: Card | null;
+    cardMutated: boolean;
+    commitAttempt: number;
+    retryCount: number;
+    errorClass: string;
+    questionInstanceId: string | null;
+    transitionId: string | null;
+    firstFailedAt: number;
+  }
+  let failedReviewCommits = $state<FailedReviewCommit[]>([]);
+  let storageWriteFailures = $state<StorageWriteFailure[]>([]);
+  let persistenceDiagnostics = $state<PersistenceDiagnosticEntry[]>([]);
+  let isRetryingPersistence = $state(false);
+  let failNextReviewCommit = false;
   const reviewTraceIdByKey = new Map<string, string>();
   let sessionEndsAt = $state<number | null>(Date.now() + ((initialSettings.sessionPreset === 'quick') ? 3 : 8) * 60 * 1000);
   let isSessionEnded = $state(false);
@@ -1133,7 +1156,9 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       if (missingHarmonyCards.length) await db.cards.bulkPut(missingHarmonyCards);
       cards = storedCards;
 
-      reviewLogs = await db.reviewLogs.toArray();
+      reviewLogs = (await db.reviewLogEvents.toArray())
+        .map(event => migrateLegacyReviewLog(event))
+        .sort((a, b) => a.ts - b.ts);
       coldTests = await db.coldTests.toArray();
 
       const storedLessons = await db.lessonProgress.toArray();
@@ -1305,7 +1330,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
 
     if (sessionPreset === 'cold' && (reason === 'cold_complete' || sessionTrials >= 20)) {
       coldResult = coldResultFromEvents(events, endedAt);
-      db.coldTests.put(coldResult);
+      void guardedStatisticsWrite('coldTests', () => db.coldTests.put(coldResult as ColdTestRecord), reportStorageWriteFailure);
       coldTests = [...coldTests, coldResult];
     }
 
@@ -1395,8 +1420,12 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     isSessionSummaryOpen = true;
   }
 
+  function measuredTimes(events: ReviewLogEvent[]): number[] {
+    return events.filter(isMeasuredResponse).map(event => event.responseMs as number);
+  }
+
   function coldResultFromEvents(events: ReviewLogEvent[], endedAt = Date.now()): ColdTestRecord {
-    const times = events.filter(e => Number.isFinite(e.responseMs)).map(e => e.responseMs);
+    const times = measuredTimes(events);
     const bySkill: Record<string, { n: number; correct: number; accuracy: number | null; median: number | null }> = {};
     const byNote: Record<string, { n: number; correct: number; accuracy: number | null; median: number | null }> = {};
     const confusions: Record<string, number> = {};
@@ -1417,12 +1446,12 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     }
 
     for (const [skillKey, x] of Object.entries(bySkill)) {
-      const skillTimes = events.filter(e => e.skill === skillKey && Number.isFinite(e.responseMs)).map(e => e.responseMs);
+      const skillTimes = measuredTimes(events.filter(e => e.skill === skillKey));
       x.accuracy = x.n ? x.correct / x.n : null;
       x.median = quantile(skillTimes, 0.5);
     }
     for (const [noteKey, x] of Object.entries(byNote)) {
-      const noteTimes = events.filter(e => e.note === noteKey && Number.isFinite(e.responseMs)).map(e => e.responseMs);
+      const noteTimes = measuredTimes(events.filter(e => e.note === noteKey));
       x.accuracy = x.n ? x.correct / x.n : null;
       x.median = quantile(noteTimes, 0.5);
     }
@@ -1450,7 +1479,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       const row = byNote.get(e.note) || { note: e.note, n: 0, wrong: 0, times: [] };
       row.n++;
       if (!e.firstCorrect) row.wrong++;
-      if (Number.isFinite(e.responseMs)) row.times.push(e.responseMs);
+      if (isMeasuredResponse(e)) row.times.push(e.responseMs as number);
       byNote.set(e.note, row);
     }
     const rows = [...byNote.values()].map(r => ({ ...r, median: quantile(r.times, 0.5) || 0 })).sort((a, b) => b.wrong - a.wrong || b.median - a.median);
@@ -1657,6 +1686,9 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     currentKind = params.kind;
     currentCard = params.card;
     currentQuestionInstanceId = activatePracticeQuestion(currentSessionId);
+    if (typeof window !== 'undefined') {
+      (window as unknown as { __activeQuestionId?: string | null }).__activeQuestionId = currentQuestionInstanceId;
+    }
     if (params.kind === 'cold') {
       // Displayed Cold Test number follows the question actually being rendered.
       const navigation = activateColdTestItem(
@@ -1747,10 +1779,11 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       updateNextRoundRequest(callId, 'deferred_review_persistence');
       return;
     }
-    if (reviewPersistenceFailed) {
+    if (failedReviewCommits.length > 0) {
+      deferredNextRoundCallId = callId;
       updateNextRoundRequest(callId, 'blocked_persistence_failure');
       feedbackClass = 'bad';
-      feedbackText = 'Не удалось сохранить ответ. Тренировка остановлена, чтобы не пересчитать карточку до сохранения.';
+      feedbackText = 'Не удалось сохранить ответ. Тренировка остановлена, чтобы не пересчитать карточку до сохранения. Нажмите «Повторить сохранение».';
       currentNextRoundCallId = null;
       return;
     }
@@ -2054,7 +2087,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     answer: NoteName | null;
     answerKeyId?: string | null;
     hintUsedOnFirstAttempt?: boolean;
-    responseMs: number;
+    responseMs: number | null;
     inputMethod?: TrialInputMethod;
   }) {
     const cardStateBefore = params.card.memoryState;
@@ -2120,53 +2153,114 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     return result;
   }
 
+  function pushPersistenceDiagnostic(entry: Omit<PersistenceDiagnosticEntry, 'at'>) {
+    const next = [...persistenceDiagnostics, { at: Date.now(), ...entry }].slice(-20);
+    persistenceDiagnostics = next;
+    if (typeof window !== 'undefined') {
+      (window as unknown as { __persistenceDiagnostics?: PersistenceDiagnosticEntry[] }).__persistenceDiagnostics = next;
+    }
+  }
+
+  function reportStorageWriteFailure(entry: StorageWriteFailure) {
+    const next = [...storageWriteFailures, entry].slice(-20);
+    storageWriteFailures = next;
+    if (typeof window !== 'undefined') {
+      (window as unknown as { __storageWriteFailures?: StorageWriteFailure[] }).__storageWriteFailures = next;
+    }
+    console.warn(`Non-FSRS statistics write failed (${entry.store}):`, entry.errorClass);
+  }
+
+  /**
+   * Atomic persistence boundary: card mutation + review event commit in one IndexedDB
+   * transaction, keyed by the stable `reviewEventId` (idempotent on retry).
+   */
+  async function persistReviewRecord(
+    record: { event: ReviewLogEvent; card: Card | null; cardMutated: boolean },
+    meta: { commitAttempt: number; retryCount: number; transitionId: string | null; questionInstanceId: string | null }
+  ): Promise<void> {
+    if (failNextReviewCommit) {
+      failNextReviewCommit = false;
+      throw new DOMException('Injected persistence failure for smoke', 'InjectedPersistenceFailure');
+    }
+    const eventId = resolveReviewEventId(record.event);
+    if (!eventId) throw new Error('Review event has no stable identity.');
+    const status = await persistReviewEventAtomically(db, {
+      card: record.card ? ($state.snapshot(record.card) as Card) : null,
+      event: $state.snapshot(record.event) as ReviewLogEvent
+    });
+
+    if (meta.transitionId) markSchedulerReviewPersisted(meta.transitionId, true);
+    pushPersistenceDiagnostic({
+      reviewEventId: eventId,
+      questionInstanceId: meta.questionInstanceId,
+      cardId: record.event.cardId,
+      commitAttempt: meta.commitAttempt,
+      commitStatus: status === 'duplicate_rejected'
+        ? 'duplicate_rejected'
+        : meta.retryCount > 0
+          ? 'retry_succeeded'
+          : 'persisted',
+      errorClass: null,
+      retryCount: meta.retryCount,
+      persistedAt: Date.now()
+    });
+  }
+
   function recordCardReview(
     cardRef: Card | null,
     logEvent: ReviewLogEvent | null,
     cardMutated: boolean
   ) {
-    if (isProfileImporting) return Promise.resolve();
+    if (isProfileImporting || !logEvent) return Promise.resolve();
     const cardSnapshot = cardRef ? $state.snapshot(cardRef) : null;
-    const logSnapshot = $state.snapshot(logEvent);
-    const reviewTraceKey = logEvent ? `${logEvent.ts}:${logEvent.sessionId}:${logEvent.cardId}` : null;
-    const transitionId = reviewTraceKey ? reviewTraceIdByKey.get(reviewTraceKey) ?? null : null;
-    if (reviewTraceKey) reviewTraceIdByKey.delete(reviewTraceKey);
-    if (logEvent) pendingReviewCommitCount++;
+    const logSnapshot = $state.snapshot(logEvent) as ReviewLogEvent;
+    const reviewTraceKey = `${logSnapshot.ts}:${logSnapshot.sessionId}:${logSnapshot.cardId}`;
+    const transitionId = reviewTraceIdByKey.get(reviewTraceKey) ?? null;
+    reviewTraceIdByKey.delete(reviewTraceKey);
+    const questionInstanceId = currentQuestionInstanceId;
+    pendingReviewCommitCount++;
     const commit = reviewPersistenceQueue.then(async () => {
-      reviewLogs = await commitCardReview({
-        card: cardSnapshot,
-        logEvent: logSnapshot,
-        cardMutated,
-        reviewLogs,
-        persist: async ({ card, event }) => db.transaction(
-          'rw',
-          db.cards,
-          db.reviewLogs,
-          async () => {
-            const existing = await db.reviewLogs.get(event.ts);
-            if (existing) {
-              if (
-                existing.sessionId === event.sessionId &&
-                existing.cardId === event.cardId
-              ) return;
-              throw new Error(`Review timestamp collision at ${event.ts}.`);
-            }
-            if (card) await db.cards.put(card);
-            await db.reviewLogs.add(event);
-          }
-        )
-      });
+      try {
+        reviewLogs = await commitCardReview({
+          card: cardSnapshot,
+          logEvent: logSnapshot,
+          cardMutated,
+          reviewLogs,
+          persist: record => persistReviewRecord(
+            { event: record.event, card: record.card, cardMutated },
+            { commitAttempt: 1, retryCount: 0, transitionId, questionInstanceId }
+          )
+        });
+      } catch (error) {
+        if (transitionId) markSchedulerReviewPersisted(transitionId, false);
+        const errorClass = errorClassName(error);
+        failedReviewCommits = [...failedReviewCommits, {
+          event: logSnapshot,
+          card: cardSnapshot && cardMutated ? cardSnapshot : null,
+          cardMutated,
+          commitAttempt: 1,
+          retryCount: 0,
+          errorClass,
+          questionInstanceId,
+          transitionId,
+          firstFailedAt: Date.now()
+        }];
+        pushPersistenceDiagnostic({
+          reviewEventId: resolveReviewEventId(logSnapshot),
+          questionInstanceId,
+          cardId: logSnapshot.cardId,
+          commitAttempt: 1,
+          commitStatus: 'failed',
+          errorClass,
+          retryCount: 0,
+          persistedAt: null
+        });
+        console.warn('Review persistence failed:', error);
+      }
     });
-    const finalized = commit.then(() => {
-      if (transitionId) markSchedulerReviewPersisted(transitionId, true);
-    }).catch(error => {
-      if (transitionId) markSchedulerReviewPersisted(transitionId, false);
-      if (logEvent) reviewPersistenceFailed = true;
-      console.warn('Review persistence failed:', error);
-    }).finally(() => {
-      if (!logEvent) return;
+    const finalized = commit.finally(() => {
       pendingReviewCommitCount = Math.max(0, pendingReviewCommitCount - 1);
-      if (pendingReviewCommitCount === 0 && deferredNextRoundCallId) {
+      if (pendingReviewCommitCount === 0 && deferredNextRoundCallId && failedReviewCommits.length === 0) {
         const callId = deferredNextRoundCallId;
         deferredNextRoundCallId = null;
         queueMicrotask(() => nextRound(callId));
@@ -2174,6 +2268,53 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     });
     reviewPersistenceQueue = finalized;
     return finalized;
+  }
+
+  /** Retries every failed review commit with the same `reviewEventId` (no duplicate event). */
+  async function retryFailedReviewPersistence() {
+    if (isRetryingPersistence || failedReviewCommits.length === 0) return;
+    isRetryingPersistence = true;
+    const remaining: FailedReviewCommit[] = [];
+    for (const failed of [...failedReviewCommits]) {
+      const commitAttempt = failed.commitAttempt + 1;
+      const retryCount = failed.retryCount + 1;
+      try {
+        reviewLogs = await commitCardReview({
+          card: failed.card,
+          logEvent: failed.event,
+          cardMutated: failed.cardMutated,
+          reviewLogs,
+          persist: record => persistReviewRecord(
+            { event: record.event, card: record.card, cardMutated: failed.cardMutated },
+            { commitAttempt, retryCount, transitionId: failed.transitionId, questionInstanceId: failed.questionInstanceId }
+          )
+        });
+      } catch (error) {
+        const errorClass = errorClassName(error);
+        remaining.push({ ...failed, commitAttempt, retryCount, errorClass });
+        pushPersistenceDiagnostic({
+          reviewEventId: resolveReviewEventId(failed.event),
+          questionInstanceId: failed.questionInstanceId,
+          cardId: failed.event.cardId,
+          commitAttempt,
+          commitStatus: 'retry_failed',
+          errorClass,
+          retryCount,
+          persistedAt: null
+        });
+      }
+    }
+    failedReviewCommits = remaining;
+    isRetryingPersistence = false;
+    if (remaining.length === 0) {
+      feedbackClass = 'good';
+      feedbackText = 'Сохранение ответа восстановлено.';
+      if (deferredNextRoundCallId) {
+        const callId = deferredNextRoundCallId;
+        deferredNextRoundCallId = null;
+        nextRound(callId);
+      }
+    }
   }
 
   async function persistLearningProgressRecords(
@@ -4650,7 +4791,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
         startedAt: Date.now() - 60000,
         completedAt: Date.now()
       };
-      db.lessonProgress.put(rec);
+      void guardedStatisticsWrite('lessonProgress', () => db.lessonProgress.put(rec), reportStorageWriteFailure);
       lessonProgressMap.set(lesson.id, rec);
       leaveLesson();
       activePage = 'lessons';
@@ -6132,6 +6273,9 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
         }
         isSessionSummaryOpen = true;
       };
+      (window as any).__persistenceTestHooks = {
+        failNextReviewCommit: () => { failNextReviewCommit = true; }
+      };
     }
 
     window.addEventListener('keydown', handleWindowKeydown);
@@ -6305,6 +6449,24 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
             isEnded={isSessionEnded}
             onEndSession={() => finishLearningSession('manual')}
           />
+        {/if}
+
+        {#if failedReviewCommits.length > 0}
+          <div class="persistence-error-banner" data-testid="persistence-error-banner" role="alert">
+            <span>
+              Не удалось сохранить ответ. Тренировка не продолжится, пока запись не будет сохранена
+              (попытка {failedReviewCommits[0].commitAttempt}, причина: {failedReviewCommits[0].errorClass}).
+            </span>
+            <button
+              type="button"
+              class="btn warn"
+              data-testid="persistence-retry-btn"
+              disabled={isRetryingPersistence}
+              onclick={() => void retryFailedReviewPersistence()}
+            >
+              {isRetryingPersistence ? 'Сохраняем…' : 'Повторить сохранение'}
+            </button>
+          </div>
         {/if}
 
         <!-- Interactive Task Stage Area (Fixed Grid Row 2) -->
@@ -6960,6 +7122,8 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
             chordRhythm: advancedModuleStates.chordRhythm.available
           }}
           level={settings.level || 'white'}
+          {persistenceDiagnostics}
+          {storageWriteFailures}
         />
       </div>
     {:else if activePage === 'calibration'}

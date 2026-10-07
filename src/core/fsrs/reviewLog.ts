@@ -1,6 +1,7 @@
 import { DAY_MS } from './constants';
 import { applyFsrsReview, retrievability, type FsrsReviewResult } from './fsrs6';
 import { determineGrade } from './latencyGrading';
+import { createReviewEventId } from './reviewEventId';
 import {
   createLegacyTrialContext,
   createTrialContext,
@@ -20,6 +21,7 @@ import type {
   Card,
   Grade,
   NoteName,
+  ResponseTimingSource,
   ReviewKind,
   ReviewLogEvent,
   UserSettings
@@ -160,7 +162,11 @@ export interface ApplyReviewAndBuildLogParams {
   answer: NoteName | null;
   answerKeyId?: string | null;
   hintUsed: boolean;
-  responseMs: number;
+  /** Null when the interaction was not timed; never synthesize a placeholder. */
+  responseMs: number | null;
+  responseTimingSource?: ResponseTimingSource;
+  /** Stable event identity, generated once and reused across persistence retries. */
+  reviewEventId?: string;
   settings: FsrsReviewSettings;
   reviewLog?: readonly ReviewLogEvent[];
   sessionId?: string;
@@ -213,6 +219,12 @@ export function applyReviewAndBuildLog(
   );
   const attempts = params.attempts ?? 1;
   const answerKeyId = params.answerKeyId ?? null;
+  const responseTimingSource: ResponseTimingSource =
+    params.responseTimingSource ??
+    (typeof responseMs === 'number' && Number.isFinite(responseMs) ? 'measured' : 'not_measured');
+  const reviewEventId =
+    params.reviewEventId ??
+    createReviewEventId({ ts: reviewedAt, sessionId, cardId: card.id });
 
   const rawTrialContext =
     params.trialContext ??
@@ -257,6 +269,7 @@ export function applyReviewAndBuildLog(
   if (kind === 'cold' || trialContext.mode === 'coldTest') {
     const retrievabilityBefore = retrievability(card, reviewedAt);
     const logEvent: ReviewLogEvent = {
+      reviewEventId,
       ts: reviewedAt,
       sessionId,
       cardId: card.id,
@@ -271,6 +284,7 @@ export function applyReviewAndBuildLog(
       attempts,
       hintUsed: effectiveHintUsed,
       responseMs,
+      responseTimingSource,
       elapsedDays: null,
       retrievabilityBefore,
       stabilityBefore: card.stability,
@@ -319,6 +333,7 @@ export function applyReviewAndBuildLog(
     );
 
     const logEvent: ReviewLogEvent = {
+      reviewEventId,
       ts: reviewedAt,
       sessionId,
       cardId: card.id,
@@ -333,6 +348,7 @@ export function applyReviewAndBuildLog(
       attempts,
       hintUsed: effectiveHintUsed,
       responseMs,
+      responseTimingSource,
       elapsedDays,
       retrievabilityBefore: fsrsResult.before.retrievability,
       stabilityBefore: fsrsResult.before.stability,
@@ -376,6 +392,7 @@ export function applyReviewAndBuildLog(
   const retrievabilityBefore = retrievability(card, reviewedAt);
 
   const logEvent: ReviewLogEvent = {
+    reviewEventId,
     ts: reviewedAt,
     sessionId,
     cardId: card.id,
@@ -390,6 +407,7 @@ export function applyReviewAndBuildLog(
     attempts,
     hintUsed: effectiveHintUsed,
     responseMs,
+    responseTimingSource,
     elapsedDays: null,
     retrievabilityBefore,
     stabilityBefore: card.stability,
@@ -433,7 +451,9 @@ export interface SubmitQuestionAttemptParams {
   answer: NoteName | null;
   answerKeyId?: string | null;
   hintUsedOnFirstAttempt?: boolean;
-  responseMs: number;
+  responseMs: number | null;
+  responseTimingSource?: ResponseTimingSource;
+  reviewEventId?: string;
   settings: FsrsReviewSettings;
   reviewLog?: readonly ReviewLogEvent[];
   sessionId?: string;
@@ -508,6 +528,8 @@ export function submitQuestionAttempt(
       answerKeyId: params.answerKeyId ?? null,
       hintUsed: effectiveHintUsed,
       responseMs: params.responseMs,
+      responseTimingSource: params.responseTimingSource,
+      reviewEventId: params.reviewEventId,
       settings: params.settings,
       reviewLog: params.reviewLog,
       sessionId,

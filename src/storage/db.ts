@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type { Card, ReviewLogEvent } from '../core/fsrs/types';
 import type { LearningProgressRecord } from '../core/learning/types';
+import { migrateLegacyReviewLog, REVIEW_LOGS_TABLE } from './reviewMigrations';
 
 export interface ColdTestRecord {
   id: string;
@@ -67,9 +68,20 @@ export const DB_V2_STORES: Readonly<Record<string, string>> = {
   learningProgress: 'id, itemId, state, updatedAt'
 };
 
+/** Schema v3: review events get a stable identity key; `ts` stays indexed chronology. */
+export const DB_V3_STORES: Readonly<Record<string, string>> = {
+  ...DB_V2_STORES,
+  [REVIEW_LOGS_TABLE]: 'reviewEventId, ts, sessionId, cardId, kind, skill'
+};
+
 export class PianoTrainerDatabase extends Dexie {
   cards!: EntityTable<Card, 'id'>;
+  /**
+   * Legacy table (schema v1–v2) keyed by `ts`. It is retired in schema v4;
+   * all reads/writes go through `reviewLogEvents`.
+   */
   reviewLogs!: EntityTable<ReviewLogEvent, 'ts'>;
+  reviewLogEvents!: EntityTable<ReviewLogEvent & { reviewEventId: string }, 'reviewEventId'>;
   coldTests!: EntityTable<ColdTestRecord, 'id'>;
   repertoireHistory!: EntityTable<RepertoireHistoryRecord, 'id'>;
   twoHandHistory!: EntityTable<TwoHandHistoryRecord, 'id'>;
@@ -81,6 +93,16 @@ export class PianoTrainerDatabase extends Dexie {
     super(name);
     this.version(1).stores({ ...DB_V1_STORES });
     this.version(2).stores({ ...DB_V2_STORES });
+    this.version(3)
+      .stores({ [REVIEW_LOGS_TABLE]: DB_V3_STORES[REVIEW_LOGS_TABLE] })
+      .upgrade(async tx => {
+        // Copy legacy rows into the identity-keyed store; nothing is deleted here.
+        const legacyRows = (await tx.table('reviewLogs').toArray()) as ReviewLogEvent[];
+        if (legacyRows.length) {
+          await tx.table(REVIEW_LOGS_TABLE).bulkPut(legacyRows.map(migrateLegacyReviewLog));
+        }
+      });
+    this.version(4).stores({ reviewLogs: null });
   }
 }
 

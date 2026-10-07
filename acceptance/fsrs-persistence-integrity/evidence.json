@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-07T08:06:56.165Z",
+  "generatedAt": "2026-10-07T14:27:49.173Z",
   "migration": {
     "legacyCount": 7,
     "migratedCount": 7,
@@ -15,6 +15,25 @@
       "legacy-16000"
     ],
     "legacyTableRetired": true
+  },
+  "backupRoundTripSameMs": {
+    "before": 2,
+    "after": 2,
+    "beforeTimestamp": 1800000000000,
+    "afterTimestamps": [
+      1800000000000,
+      1800000000000
+    ],
+    "beforeReviewEventIds": [
+      "evidence-uuid-A",
+      "evidence-uuid-B"
+    ],
+    "afterReviewEventIds": [
+      "evidence-uuid-A",
+      "evidence-uuid-B"
+    ],
+    "identitiesPreserved": true,
+    "warnings": []
   },
   "latencyExclusion": {
     "measuredSamples": 8,

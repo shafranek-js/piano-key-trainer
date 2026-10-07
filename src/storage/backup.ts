@@ -177,6 +177,30 @@ export function normalizeBackupCard(raw: unknown): Card | null {
   };
 }
 
+const REVIEW_EVENT_ID_MAX_LENGTH = 128;
+const REVIEW_EVENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:#-]*$/;
+
+/**
+ * Resolves the identity of an imported review log:
+ * - a valid existing `reviewEventId` is preserved (so same-millisecond events keep
+ *   distinct identities across export → import);
+ * - missing or malformed ids fall back to the deterministic legacy identity.
+ * The value is untrusted input: trimmed, length-bounded and character-validated.
+ */
+export function isValidReviewEventId(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  return (
+    trimmed.length > 0 &&
+    trimmed.length <= REVIEW_EVENT_ID_MAX_LENGTH &&
+    REVIEW_EVENT_ID_PATTERN.test(trimmed)
+  );
+}
+
+export function resolveBackupReviewEventId(rawValue: unknown, ts: number): string {
+  return isValidReviewEventId(rawValue) ? rawValue.trim() : backfillReviewEventId(ts);
+}
+
 export function normalizeBackupReviewLog(raw: unknown): ReviewLogEvent | null {
   if (!isRecord(raw)) return null;
   const ts = asFinite(raw.ts);
@@ -194,7 +218,7 @@ export function normalizeBackupReviewLog(raw: unknown): ReviewLogEvent | null {
     ? raw.responseTimingSource as ResponseTimingSource
     : 'legacy_unknown';
   return {
-    reviewEventId: backfillReviewEventId(ts),
+    reviewEventId: resolveBackupReviewEventId(raw.reviewEventId, ts),
     responseTimingSource,
     ts,
     sessionId,
@@ -349,16 +373,72 @@ export function validateAndNormalizeBackup(raw: unknown): BackupValidationResult
 
   const reviewLogs: ReviewLogEvent[] = [];
   let skippedLogs = 0;
+  let malformedIdentityCount = 0;
   if (raw.reviewLogs !== undefined) {
     if (!Array.isArray(raw.reviewLogs)) {
       return { ok: false, error: 'Повреждённый раздел истории повторений в резервной копии.' };
     }
     for (const item of raw.reviewLogs) {
+      if (
+        isRecord(item) &&
+        item.reviewEventId !== undefined &&
+        !isValidReviewEventId(item.reviewEventId)
+      ) {
+        malformedIdentityCount += 1;
+      }
       const log = normalizeBackupReviewLog(item);
       if (log) reviewLogs.push(log);
       else skippedLogs += 1;
     }
+
+    // Identity collisions must never silently overwrite another legitimate event:
+    // - exact duplicates (same identity and same content) are skipped with a warning;
+    // - a reused identity with different content is deterministically disambiguated
+    //   so both events survive, also with a warning.
+    const uniqueLogs: ReviewLogEvent[] = [];
+    const seenByIdentity = new Map<string, ReviewLogEvent>();
+    let duplicateLogsSkipped = 0;
+    let disambiguatedIds = 0;
+    for (const log of reviewLogs) {
+      const identity = log.reviewEventId as string;
+      const existing = seenByIdentity.get(identity);
+      if (!existing) {
+        seenByIdentity.set(identity, log);
+        uniqueLogs.push(log);
+        continue;
+      }
+      const exactDuplicate =
+        existing.ts === log.ts &&
+        existing.sessionId === log.sessionId &&
+        existing.cardId === log.cardId;
+      if (exactDuplicate) {
+        duplicateLogsSkipped += 1;
+        continue;
+      }
+      const base = identity.length > 100 ? identity.slice(0, 100) : identity;
+      let suffix = 2;
+      let candidate = `${base}-dup${suffix}`;
+      while (seenByIdentity.has(candidate)) {
+        suffix += 1;
+        candidate = `${base}-dup${suffix}`;
+      }
+      const disambiguated: ReviewLogEvent = { ...log, reviewEventId: candidate };
+      seenByIdentity.set(candidate, disambiguated);
+      uniqueLogs.push(disambiguated);
+      disambiguatedIds += 1;
+    }
+    reviewLogs.length = 0;
+    reviewLogs.push(...uniqueLogs);
     reviewLogs.sort((a, b) => a.ts - b.ts);
+    if (duplicateLogsSkipped > 0) {
+      warnings.push(`Пропущено дубликатов записей истории: ${duplicateLogsSkipped}.`);
+    }
+    if (disambiguatedIds > 0) {
+      warnings.push(`Обнаружены повторяющиеся reviewEventId с разным содержимым: исправлено ${disambiguatedIds}.`);
+    }
+  }
+  if (malformedIdentityCount > 0) {
+    warnings.push(`Некорректные reviewEventId заменены детерминированными: ${malformedIdentityCount}.`);
   }
   if (skippedLogs > 0) warnings.push(`Пропущено некорректных записей истории: ${skippedLogs}.`);
 

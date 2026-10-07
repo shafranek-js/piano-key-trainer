@@ -40,6 +40,8 @@ try {
   const responseTiming = await server.ssrLoadModule('/src/core/fsrs/responseTiming.ts');
   const latency = await server.ssrLoadModule('/src/core/fsrs/latencyGrading.ts');
   const fsrs = await server.ssrLoadModule('/src/core/fsrs/fsrs6.ts');
+  const backup = await server.ssrLoadModule('/src/storage/backup.ts');
+  const constants = await server.ssrLoadModule('/src/core/fsrs/constants.ts');
 
   // --- Legacy DB migration evidence -------------------------------------------------
   const legacyName = `EvidenceLegacy-${Date.now()}`;
@@ -69,6 +71,69 @@ try {
   };
   migrated.close();
   await Dexie.delete(legacyName);
+
+  // --- Backup round-trip proof: same-ms events keep distinct identities --------------
+  const sameTimestamp = 1_800_000_000_000;
+  const backupLog = (reviewEventId, cardId) => ({
+    reviewEventId,
+    responseTimingSource: 'measured',
+    ts: sameTimestamp,
+    sessionId: 'evidence-backup',
+    cardId,
+    note: 'C',
+    skill: 'find',
+    kind: 'scheduled',
+    grade: 3,
+    gradeName: 'Good',
+    firstCorrect: true,
+    answer: 'C',
+    answerKeyId: 'C4',
+    attempts: 1,
+    hintUsed: false,
+    responseMs: 500,
+    elapsedDays: 1,
+    retrievabilityBefore: 0.9,
+    stabilityBefore: 1,
+    stabilityAfter: 2,
+    difficultyBefore: 5,
+    difficultyAfter: 5,
+    scheduledDays: 2,
+    gradeableByFsrs: true
+  });
+  const exportedBackup = {
+    app: 'piano-key-trainer',
+    backupSchemaVersion: backup.BACKUP_SCHEMA_VERSION,
+    version: '6.2.0',
+    exportedAt: '2026-10-07T00:00:00.000Z',
+    reviewLogs: [
+      backupLog('evidence-uuid-A', 'find:C'),
+      backupLog('evidence-uuid-B', 'find:D')
+    ]
+  };
+  const backupValidation = backup.validateAndNormalizeBackup(exportedBackup);
+  if (!backupValidation.ok) {
+    throw new Error(`Backup validation for evidence failed: ${backupValidation.error}`);
+  }
+  const backupName = `EvidenceBackup-${Date.now()}`;
+  const backupDatabase = new dbModule.PianoTrainerDatabase(backupName);
+  await backupDatabase.open();
+  await backup.applyBackupAtomically(backupDatabase, backupValidation.backup, constants.DEFAULT_SETTINGS);
+  const backupRows = await backupDatabase.reviewLogEvents.orderBy('ts').toArray();
+  backupDatabase.close();
+  await Dexie.delete(backupName);
+  const backupRoundTripSameMs = {
+    before: exportedBackup.reviewLogs.length,
+    after: backupRows.length,
+    beforeTimestamp: sameTimestamp,
+    afterTimestamps: backupRows.map(row => row.ts),
+    beforeReviewEventIds: exportedBackup.reviewLogs.map(row => row.reviewEventId),
+    afterReviewEventIds: backupRows.map(row => row.reviewEventId).sort(),
+    identitiesPreserved:
+      backupRows.length === 2 &&
+      new Set(backupRows.map(row => row.reviewEventId)).size === 2 &&
+      backupRows.every(row => row.ts === sameTimestamp),
+    warnings: backupValidation.backup.warnings
+  };
 
   // --- Latency exclusion proof ------------------------------------------------------
   const measured = [500, 600, 700, 800, 900, 1000, 1100, 1200].map((responseMs, index) => ({
@@ -171,6 +236,7 @@ try {
   await writeFile(outputPath, JSON.stringify({
     generatedAt: new Date().toISOString(),
     migration,
+    backupRoundTripSameMs,
     latencyExclusion,
     fsrsParity
   }, null, 2) + '\n');

@@ -5,6 +5,10 @@ boundary. No new curriculum milestone. Continues from the accepted Cold Test Dis
 (`74ee012`). M3L is not started; M3K semantics, Cold Test composition, one-attempt policy, the
 learner roadmap and all accepted module behavior are unchanged.
 
+**Follow-up (P0 backup identity fix):** a backup round-trip defect was found during independent
+review and fixed in `FSRS_PERSISTENCE_INTEGRITY_REV1_REPORT.md`; the final delivery archive is
+`piano-key-trainer-fsrs-persistence-integrity-rev1.zip`.
+
 ---
 
 ## Baseline
@@ -136,7 +140,14 @@ values are untouched; corrections apply from the next review of each card.
   second open unchanged).
 - Two reviews sharing a millisecond persist independently (distinct ids) — unit test + production
   smoke with a frozen clock.
-- Backup import assigns `legacy-<ts>` ids to records without identity and normalizes provenance.
+- Backup import **preserves a valid existing `reviewEventId`** (validated as untrusted input:
+  string, trimmed, ≤128 chars, safe character set) so same-millisecond events keep distinct
+  identities across export → import. Missing or malformed ids fall back to `legacy-<ts>` with a
+  bounded warning. Duplicate explicit ids never silently overwrite: exact duplicates are skipped
+  with a warning, and an id reused with different content is deterministically disambiguated
+  (`-dup2`, `-dup3`, …) so both events survive. Round-trip proof:
+  `tests/unit/backupReviewIdentity.test.ts` and `evidence.json → backupRoundTripSameMs`
+  (before = 2, after = 2, identitiesPreserved = true).
 
 ## Persistence failure / retry lifecycle
 

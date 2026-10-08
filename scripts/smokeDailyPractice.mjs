@@ -447,30 +447,68 @@ try {
   // Unlock the audio context (pointer gesture) so rhythm families become eligible in the pool.
   await cdp.evaluate(`window.dispatchEvent(new Event('pointerdown'))`);
   await delay(600);
-  const stripAudit = async (width) => cdp.evaluate(`(() => {
+  const stripAudit = async () => cdp.evaluate(`(() => {
     const element = document.querySelector('.session-strip .session-meta b');
-    if (!element) return null;
-    const style = getComputedStyle(element);
+    const strip = document.querySelector('.session-strip');
+    if (!element || !strip) return null;
+    const rect = element.getBoundingClientRect();
+    const stripRect = strip.getBoundingClientRect();
+    let ancestorClippedBy = null;
+    let ancestor = element.parentElement;
+    while (ancestor && ancestor !== document.body) {
+      const style = getComputedStyle(ancestor);
+      if (/(hidden|clip)/.test(style.overflowY)) {
+        const ancestorRect = ancestor.getBoundingClientRect();
+        if (rect.bottom > ancestorRect.bottom + 0.5 || rect.top < ancestorRect.top - 0.5) {
+          ancestorClippedBy = ancestor.className || ancestor.tagName;
+          break;
+        }
+      }
+      ancestor = ancestor.parentElement;
+    }
+    const progress = document.querySelector('.session-strip .session-progress')?.getBoundingClientRect() ?? null;
+    const finish = document.querySelector('.session-strip .end-session-btn')?.getBoundingClientRect() ?? null;
+    const keyboard = document.querySelector('.keyboard-card, .keyboard')?.getBoundingClientRect() ?? null;
     return {
       text: element.textContent.trim(),
-      truncatedVisually: element.scrollWidth > element.clientWidth + 1,
-      textOverflow: style.textOverflow,
-      overflowWrap: style.overflowWrap
+      titleClippedByStrip: rect.bottom > stripRect.bottom + 0.5 || rect.top < stripRect.top - 0.5,
+      ancestorClippedBy,
+      horizontalClip: element.scrollWidth > element.clientWidth + 1,
+      textOverflow: getComputedStyle(element).textOverflow,
+      progressVisible: progress ? progress.bottom <= window.innerHeight + 1 && progress.top >= -1 : false,
+      finishVisible: finish ? finish.bottom <= window.innerHeight + 1 && finish.top >= -1 : false,
+      keyboardDocked: keyboard ? keyboard.bottom <= window.innerHeight + 1 : null,
+      documentScrollable: document.scrollingElement.scrollHeight > window.innerHeight + 1
     };
   })()`);
-  const strip1440 = await stripAudit(1440);
-  assert(strip1440 && strip1440.text.length > 3, `Session title missing: ${JSON.stringify(strip1440)}`);
-  assert(strip1440.truncatedVisually === false, `Session title is clipped at 1440: ${JSON.stringify(strip1440)}`);
-  assert(!strip1440.text.endsWith('...') && !strip1440.text.endsWith('…'), `Session title ellipsized at 1440: ${JSON.stringify(strip1440)}`);
-  screenshots.push(await saveScreenshot(cdp, '01-session-strip-1440.png'));
-
-  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1024, height: 900, deviceScaleFactor: 1, mobile: false });
-  await delay(400);
-  const strip1024 = await stripAudit(1024);
-  assert(strip1024 && strip1024.truncatedVisually === false, `Session title is clipped at 1024: ${JSON.stringify(strip1024)}`);
+  const widths = [
+    [1440, 1000, '01-session-strip-1440.png'],
+    [1280, 800, '02-session-strip-1280.png'],
+    [1024, 900, '03-session-strip-1024.png']
+  ];
+  const stripAudits = [];
+  for (const [width, height, fileName] of widths) {
+    await cdp.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+    await delay(450);
+    const audit = await stripAudit();
+    assert(audit && audit.text.length > 3, `Session title missing at ${width}x${height}: ${JSON.stringify(audit)}`);
+    assert(audit.titleClippedByStrip === false, `Session title is vertically clipped by the strip at ${width}x${height}: ${JSON.stringify(audit)}`);
+    assert(audit.ancestorClippedBy === null, `Session title is clipped by an ancestor (${audit.ancestorClippedBy}) at ${width}x${height}: ${JSON.stringify(audit)}`);
+    assert(audit.horizontalClip === false, `Session title is horizontally clipped at ${width}x${height}: ${JSON.stringify(audit)}`);
+    assert(!audit.text.endsWith('...') && !audit.text.endsWith('…'), `Session title ellipsized at ${width}x${height}: ${JSON.stringify(audit)}`);
+    assert(audit.progressVisible, `Session progress is not usable at ${width}x${height}: ${JSON.stringify(audit)}`);
+    assert(audit.finishVisible, `Session Finish button is not usable at ${width}x${height}: ${JSON.stringify(audit)}`);
+    assert(audit.keyboardDocked !== false, `Piano keyboard is not docked at ${width}x${height}: ${JSON.stringify(audit)}`);
+    assert(audit.documentScrollable === false, `Unexpected page scrolling at ${width}x${height}: ${JSON.stringify(audit)}`);
+    stripAudits.push({ width, height, ...audit });
+    screenshots.push(await saveScreenshot(cdp, fileName));
+  }
   const stableTitle = text => text.replace(/\s·\s\d+:\d+.*$/, '').trim();
-  assert(stableTitle(strip1024.text) === stableTitle(strip1440.text), `Session title changed between widths: ${strip1024.text} vs ${strip1440.text}`);
-  screenshots.push(await saveScreenshot(cdp, '02-session-strip-1024.png'));
+  assert(stripAudits.every(audit => stableTitle(audit.text) === stableTitle(stripAudits[0].text)),
+    `Session title changed between widths: ${JSON.stringify(stripAudits.map(a => a.text))}`);
+  evidence.sessionStrip = stripAudits.map(({ width, height, titleClippedByStrip, ancestorClippedBy, horizontalClip, progressVisible, finishVisible, keyboardDocked, documentScrollable }) => ({
+    width, height, titleClippedByStrip, ancestorClippedBy, horizontalClip, progressVisible, finishVisible, keyboardDocked, documentScrollable
+  }));
   await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
   await delay(250);
 
@@ -691,7 +729,7 @@ try {
   };
   assert(snapshot.dailyPractice.totalSessions >= 1, 'Daily Practice sessions were not recorded in diagnostics.');
   assert(snapshot.dailyPractice.recentTasks.length > 0, 'Daily Practice tasks missing from diagnostics.');
-  screenshots.push(await saveScreenshot(cdp, '03-diagnostics-clean.png'));
+  screenshots.push(await saveScreenshot(cdp, '04-diagnostics-clean.png'));
 
   const runtimeExceptions = cdp.runtimeExceptions;
   const consoleErrors = cdp.consoleErrors.filter(message => !message.includes('favicon'));

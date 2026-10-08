@@ -4534,3 +4534,15 @@ body::before{opacity:.9}
 
 /* Checkpoint C: practice grid row follows the auto-height SessionStrip */
 .workspace-page[data-page="practice"]{grid-template-rows:auto minmax(0,1fr)!important}
+
+/* Checkpoint C Rev1: desktop SessionStrip row follows the wrapped title (no vertical clipping) */
+@media(min-width:1261px){
+  .workspace-page[data-page="practice"].active{grid-template-rows:minmax(46px,auto) minmax(0,1fr) var(--keyboard-dock-height,252px)!important}
+  .workspace-page[data-page="practice"] > .session-strip{
+    height:auto!important;min-height:54px!important;max-height:none!important;
+    overflow:visible!important;
+    padding:7px 12px!important;
+    grid-template-columns:minmax(0,1fr) minmax(140px,260px) auto!important;
+  }
+  .workspace-page[data-page="practice"] > .session-strip .session-meta{overflow:visible!important}
+}

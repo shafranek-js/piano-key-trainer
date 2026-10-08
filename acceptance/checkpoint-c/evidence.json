@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-08T10:56:02.445Z",
+  "generatedAt": "2026-10-08T12:24:41.024Z",
   "smoke": "smoke:daily-practice",
   "dailyPracticeTaskCount": 70,
   "uniqueSkills": [
@@ -44,6 +44,41 @@
     "chordRhythmPattern"
   ],
   "divisionFallback": null,
+  "sessionStrip": [
+    {
+      "width": 1440,
+      "height": 1000,
+      "titleClippedByStrip": false,
+      "ancestorClippedBy": null,
+      "horizontalClip": false,
+      "progressVisible": true,
+      "finishVisible": true,
+      "keyboardDocked": true,
+      "documentScrollable": false
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "titleClippedByStrip": false,
+      "ancestorClippedBy": null,
+      "horizontalClip": false,
+      "progressVisible": true,
+      "finishVisible": true,
+      "keyboardDocked": true,
+      "documentScrollable": false
+    },
+    {
+      "width": 1024,
+      "height": 900,
+      "titleClippedByStrip": false,
+      "ancestorClippedBy": null,
+      "horizontalClip": false,
+      "progressVisible": true,
+      "finishVisible": true,
+      "keyboardDocked": true,
+      "documentScrollable": false
+    }
+  ],
   "diagnosticsSchemaVersion": 3,
   "storageVersion": 4,
   "knownSkillsCount": 19,

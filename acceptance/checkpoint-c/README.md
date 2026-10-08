@@ -22,10 +22,16 @@ Machine-readable `evidence.json` (written by `npm run smoke:daily-practice`):
 
 Screenshots (production preview, isolated Chrome profile):
 
-1. `01-session-strip-1440.png` — full session title at 1440 (no ellipsis/clipping).
-2. `02-session-strip-1024.png` — full session title at 1024 with relocated progress.
-3. `03-diagnostics-clean.png` — Diagnostics page after the run: 11/11 roadmap, M3K module,
+1. `01-session-strip-1440.png` — full session title at 1440×1000 (no ellipsis/vertical clipping).
+2. `02-session-strip-1280.png` — full session title at 1280×800 with relocated progress.
+3. `03-session-strip-1024.png` — full session title at 1024×900.
+4. `04-diagnostics-clean.png` — Diagnostics page after the run: 11/11 roadmap, M3K module,
    IndexedDB schema v4, `reviewLogEvents`/`reviewEventId`, zero unknown skills.
+
+The smoke asserts per width that the title bounding rect fits inside the SessionStrip and inside
+every `overflow-y: hidden/clip` ancestor (vertical-clipping guard), that progress and «Завершить»
+are usable, that the piano keyboard stays docked and that the document is not scrollable; the
+audit matrix is stored in `evidence.json → sessionStrip`.
 
 Related gates: `npm run verify` (tsc 0, svelte-check 0/0, 604 tests / 39 files, production build)
 and `smoke:scheduler-integrity`, `smoke:m3i`, `smoke:m3j`, `smoke:m3k`, `smoke:cold-test`,

@@ -82,7 +82,10 @@ export const DISPLAY_NAMES: Record<NoteName, string> = {
   'C-G/B-Am-F': 'C → G/B → Am → F',
   pulse: 'Пульс аккордов',
   'change-timing': 'Смена аккорда на сильную долю',
-  'rhythm-pattern': 'Ритмический рисунок аккорда'
+  'rhythm-pattern': 'Ритмический рисунок аккорда',
+  'bass-sequence': 'Бас левой рукой',
+  'together-sequence': 'Две руки вместе',
+  'alternating-sequence': 'Бас и аккорд по долям'
 };
 
 export const SHORT_NAMES: Record<NoteName, string> = {
@@ -116,7 +119,10 @@ export const SHORT_NAMES: Record<NoteName, string> = {
   'C-G/B-Am-F': 'C–G/B–Am–F',
   pulse: 'Пульс',
   'change-timing': 'Смена',
-  'rhythm-pattern': 'Ритм'
+  'rhythm-pattern': 'Ритм',
+  'bass-sequence': 'Бас ЛР',
+  'together-sequence': 'Вместе',
+  'alternating-sequence': 'По долям'
 };
 
 export const GRADE_NAMES: Record<Grade, string> = {

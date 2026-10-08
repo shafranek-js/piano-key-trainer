@@ -705,7 +705,7 @@ try {
   assert(snapshot, 'Diagnostics snapshot hook is unavailable.');
   assert(snapshot.storageConsistency.checks.unknownSkillIds.length === 0,
     `Unknown skills in diagnostics: ${JSON.stringify(snapshot.storageConsistency.checks.unknownSkillIds)}`);
-  assert(snapshot.roadmap.totalStages === 11 && snapshot.roadmap.completedStages === 11,
+  assert(snapshot.roadmap.totalStages === 12 && snapshot.roadmap.completedStages === 11,
     `Roadmap snapshot wrong: ${JSON.stringify({ total: snapshot.roadmap.totalStages, completed: snapshot.roadmap.completedStages })}`);
   assert(snapshot.meta.storageSchemaVersion >= 4, `Storage schema version not reported: ${snapshot.meta.storageSchemaVersion}`);
   assert(snapshot.meta.diagnosticsSchemaVersion === 3, `Diagnostics schema version wrong: ${snapshot.meta.diagnosticsSchemaVersion}`);

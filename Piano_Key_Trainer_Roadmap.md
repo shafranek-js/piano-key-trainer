@@ -18,26 +18,28 @@
 - **Cold Test Progression + Displayed Item Integrity:** accepted; all 19 task families advance through the central completion contract, and the displayed `Cold Test · N/20` follows the rendered question.
 - **FSRS & Persistence Integrity (Checkpoint B):** accepted; canonical FSRS-6 parity (pinned `py-fsrs` 6.3.2), latency provenance, identity-keyed review events (schema v4), recoverable persistence retry, atomic migrator.
 - **Scheduler Integrity:** accepted baseline; active questions cannot be replaced by refresh, and persistence completes before the next scheduler decision.
+- **M3L — Two-Hand Accompaniment I:** implemented (pending acceptance); left-hand bass + right-hand chords over `C → G/B → Am → F`, 4/4 at 60 BPM, guided stages through a bounded 12-trial assessment, three Daily Practice skills, `smoke:m3l`. Physical-MIDI user acceptance is not tested.
 
-## Current checkpoint: Daily Practice & Diagnostics Hardening (Checkpoint C, pending independent acceptance)
+## Current checkpoint: Milestone 3L — Two-Hand Accompaniment I (pending independent acceptance)
 
-Stabilization-only work aligning Daily Practice, Diagnostics and storage normalization with the existing 11/11 roadmap and the Checkpoint B persistence model:
+M3L adds the first two-hand module on top of the accepted Checkpoint C baseline:
 
-- one canonical FSRS skill registry shared by diagnostics validation, scheduler metadata and display names, with a completeness test over curriculum/UI producers;
-- diagnostics schema v3: real IndexedDB storage version (from the canonical DB definition), separated `appVersion` / `buildVersion` / `diagnosticsSchemaVersion` / `backupSchemaVersion` / `storageSchemaVersion`, canonical 11-stage roadmap snapshot, M3K module snapshot, persistence/latency-provenance section, no false "unknown skill" warnings;
-- heterogeneous deterministic `smoke:daily-practice`: all advanced families plus 40+ completed tasks/2 sessions, one-grade invariant, diversity and reload evidence;
-- SessionStrip title priority across 1440/1280/1024 (secondary metadata may wrap or hide; the session title never becomes an ellipsis);
-- storage normalization: `card.stats` guard and NaN/Infinity handling for untrusted/legacy data, with invalid `dueAt` treated as the canonical unscheduled state.
+- canonical voicings: LH bass one octave below the Harmony bass (G/B → B2), RH triads unchanged;
+- eight learner stages plus a deterministic 12-trial assessment (80% first-attempt threshold) and at most three remediation cycles with a terminal bound;
+- M3K timing windows preserved (±140/±300 ms) plus a ±200 ms beginner hand-sync window;
+- three new FSRS skills (`twoHandBass`, `twoHandTogether`, `twoHandAlternating`) in the canonical registry (22 total); the Cold Test stays curated at 19 families;
+- roadmap stage #12 «Игра двумя руками» after «Ритм аккордов», diagnostics snapshot row, reload-safe `twoHandSnapshot` persistence;
+- `npm run smoke:m3l` with 4 acceptance screenshots in `acceptance/m3l/`.
 
-M3L, new curriculum content, rhythm patterns, MusicXML/repertoire, AudioEngine strategy, MIDI redesign, `App.svelte` decomposition, and FSRS formula retuning remain out of scope.
+Daily Practice, new curriculum content beyond M3L, new rhythm patterns, MusicXML/repertoire, AudioEngine strategy, MIDI redesign, `App.svelte` decomposition, and FSRS formula retuning remain out of scope.
 
-The learner-facing roadmap has **11/11 stages complete** («Ритм аккордов» is #11). M3L starts only after this checkpoint is accepted.
+The learner-facing roadmap offers **12 stages** («Ритм аккордов» is #11, «Игра двумя руками» is #12).
 
 ## Next educational direction
 
-- **After this stabilization checkpoint is accepted:** M3L Two-Hand Accompaniment (a separate course milestone with its own acceptance).
-- Rhythm scoring beyond M3K and two-hand accompaniment remain future work.
-- In the learner-facing Learning Roadmap the title is **#11 «Ритм аккордов»**. It becomes available after #10, and the UI does not expose internal milestone IDs.
+- **After M3L acceptance:** next course milestone following the same acceptance discipline.
+- Rhythm scoring beyond M3K and richer accompaniment patterns remain future work.
+- In the learner-facing Learning Roadmap the titles are **#11 «Ритм аккордов»** and **#12 «Игра двумя руками»**. Stage #12 becomes available after #11, and the UI does not expose internal milestone IDs.
 
 ## Verification commands
 

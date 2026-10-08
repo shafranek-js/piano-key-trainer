@@ -15,7 +15,8 @@ function allStates(): Record<AdvancedModuleId, FakeState | null> {
     triads: { id: 'triads' },
     inversions: { id: 'inversions' },
     harmony: { id: 'harmony' },
-    chordRhythm: { id: 'chordRhythm' }
+    chordRhythm: { id: 'chordRhythm' },
+    twoHand: { id: 'twoHand' }
   };
 }
 

@@ -10,7 +10,8 @@ export type AdvancedModuleId =
   | 'triads'
   | 'inversions'
   | 'harmony'
-  | 'chordRhythm';
+  | 'chordRhythm'
+  | 'twoHand';
 
 export const ADVANCED_MODULE_IDS: readonly AdvancedModuleId[] = [
   'bassGrandStaff',
@@ -18,7 +19,8 @@ export const ADVANCED_MODULE_IDS: readonly AdvancedModuleId[] = [
   'triads',
   'inversions',
   'harmony',
-  'chordRhythm'
+  'chordRhythm',
+  'twoHand'
 ];
 
 /**
@@ -40,3 +42,5 @@ export function resetAdvancedModuleStates<T extends Record<AdvancedModuleId, unk
 export function hasSingleActiveModule(states: Readonly<Record<AdvancedModuleId, unknown | null>>): boolean {
   return ADVANCED_MODULE_IDS.filter(id => states[id] != null).length <= 1;
 }
+
+

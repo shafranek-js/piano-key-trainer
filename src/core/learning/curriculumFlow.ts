@@ -42,6 +42,7 @@ import {
 } from './types';
 import { harmonyCardGateSatisfied } from './harmony';
 import { chordRhythmCardGateSatisfied } from './chordRhythm';
+import { twoHandCardGateSatisfied } from './twoHand';
 import {
   ALL_WHITE_CURRICULUM_NOTES,
   CURRICULUM_ACQUISITION_ORDER,
@@ -616,6 +617,10 @@ export function isCurriculumCardActive(
 
   if (skill === 'chordPulse' || skill === 'chordChangeTiming' || skill === 'chordRhythmPattern') {
     return chordRhythmCardGateSatisfied(skill, note, progressMap);
+  }
+
+  if (skill === 'twoHandBass' || skill === 'twoHandTogether' || skill === 'twoHandAlternating') {
+    return twoHandCardGateSatisfied(skill, progressMap);
   }
 
   const isWhite = (ALL_WHITE_CURRICULUM_NOTES as readonly string[]).includes(note);

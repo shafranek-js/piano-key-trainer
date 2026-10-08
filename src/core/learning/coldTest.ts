@@ -1,14 +1,34 @@
 import type { Skill } from '../fsrs/types';
-import { FSRS_SKILLS } from '../fsrs/skills';
 
 export const COLD_TEST_TARGET_TRIALS = 20;
 
 /**
- * Canonical skill families that may appear in the Cold Test queue
- * (`buildColdQueue` cycles through the families present in the card pool).
- * Shares the canonical FSRS skill registry.
+ * Curated Cold Test skill families (accepted 19-family coverage).
+ * Deliberately decoupled from the global FSRS registry: adding new modules
+ * (e.g. M3L two-hand skills) must not silently change the Cold Test.
+ * Extending this set requires its own approval.
  */
-export const COLD_TEST_SKILLS: readonly Skill[] = FSRS_SKILLS;
+export const COLD_TEST_SKILLS: readonly Skill[] = [
+  'find',
+  'identify',
+  'patternIdentify',
+  'notationToKey',
+  'soundToKey',
+  'notationBassToKey',
+  'intervalBuild',
+  'intervalIdentify',
+  'triadBuild',
+  'triadIdentify',
+  'triadInversionBuild',
+  'triadInversionIdentify',
+  'chordSymbolRead',
+  'harmonyFunctionIdentify',
+  'harmonyNextChord',
+  'harmonyProgressionPlay',
+  'chordPulse',
+  'chordChangeTiming',
+  'chordRhythmPattern'
+];
 
 export interface ColdTestProgress {
   queueLength: number;

@@ -20,6 +20,7 @@ import {
   harmonyCardNotes
 } from '../learning/harmony';
 import { CHORD_RHYTHM_ITEM_IDS } from '../learning/chordRhythm';
+import { TWO_HAND_ITEM_IDS } from '../learning/twoHand';
 import { buildLearningRoadmap } from '../curriculum/learningRoadmap';
 import { resolveReviewEventId } from '../fsrs/reviewEventId';
 import { resolveResponseTimingSource } from '../fsrs/responseTiming';
@@ -289,6 +290,21 @@ export function buildDiagnosticSnapshot(params: BuildDiagnosticSnapshotParams): 
         status: resolvedModules.chordRhythm.progressStatus
       },
       fsrsCards: rhythmCards
+    },
+    twoHand: {
+      id: 'twoHand',
+      title: 'Игра двумя руками (Milestone 3L)',
+      status: resolvedModules.twoHand.state,
+      available: resolvedModules.twoHand.available,
+      activeStep: advModStatus.twoHandActiveStep,
+      trialsCompleted: lpMap.get(TWO_HAND_ITEM_IDS.SESSION)?.twoHandSnapshot?.assessment?.trialsCompleted ?? 0,
+      trialsTotal: undefined,
+      accuracy: null,
+      transferPhase: lpMap.get(TWO_HAND_ITEM_IDS.SESSION)?.twoHandSnapshot?.assessment?.phase ?? null,
+      transferBlockKind: lpMap.get(TWO_HAND_ITEM_IDS.SESSION)?.twoHandSnapshot?.assessment?.blockKind ?? null,
+      learningGates: {
+        status: resolvedModules.twoHand.progressStatus
+      }
     }
   };
 
@@ -313,7 +329,9 @@ export function buildDiagnosticSnapshot(params: BuildDiagnosticSnapshotParams): 
     harmonyStatus: resolvedModules.harmony.progressStatus,
     isHarmonyAvailable: resolvedModules.harmony.available,
     chordRhythmStatus: resolvedModules.chordRhythm.progressStatus,
-    isChordRhythmAvailable: resolvedModules.chordRhythm.available
+    isChordRhythmAvailable: resolvedModules.chordRhythm.available,
+    twoHandStatus: resolvedModules.twoHand.progressStatus,
+    isTwoHandAvailable: resolvedModules.twoHand.available
   });
   const roadmap: RoadmapDiagnosticState = {
     totalStages: roadmapStages.length,

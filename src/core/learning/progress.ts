@@ -6,6 +6,7 @@ import {
   type LearningProgressRecord
 } from './types';
 import { normalizeChordRhythmSnapshot } from './chordRhythm';
+import { normalizeTwoHandSnapshot } from './twoHand';
 
 /**
  * Creates a fresh `LearningProgressRecord` in the `'unseen'` acquisition state.
@@ -295,6 +296,7 @@ export function normalizeBackupLearningProgress(
         : undefined,
       harmonySnapshot: normalizeHarmonySnapshot(rec.harmonySnapshot),
       chordRhythmSnapshot: normalizeChordRhythmSnapshot(rec.chordRhythmSnapshot),
+      twoHandSnapshot: normalizeTwoHandSnapshot(rec.twoHandSnapshot),
       currentHintLevel: ([0, 1, 2, 3] as HintLevel[]).includes(rec.currentHintLevel as HintLevel)
         ? rec.currentHintLevel as HintLevel
         : HINT_LEVEL.NONE,
@@ -331,3 +333,4 @@ function normalizeHarmonySnapshot(value: unknown): LearningProgressRecord['harmo
     trialHadWrong: raw.trialHadWrong === true
   };
 }
+

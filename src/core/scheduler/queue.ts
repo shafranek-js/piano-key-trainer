@@ -28,7 +28,10 @@ export function rankNew(a: Card, b: Card): number {
     harmonyProgressionPlay: 15,
     chordPulse: 16,
     chordChangeTiming: 17,
-    chordRhythmPattern: 18
+    chordRhythmPattern: 18,
+    twoHandBass: 19,
+    twoHandTogether: 20,
+    twoHandAlternating: 21
   };
   return (order[a.skill] ?? 9) - (order[b.skill] ?? 9);
 }
@@ -172,7 +175,10 @@ export function buildColdQueue(
     harmonyProgressionPlay: shuffleCopy(pool.filter(c => c.skill === 'harmonyProgressionPlay')),
     chordPulse: shuffleCopy(pool.filter(c => c.skill === 'chordPulse')),
     chordChangeTiming: shuffleCopy(pool.filter(c => c.skill === 'chordChangeTiming')),
-    chordRhythmPattern: shuffleCopy(pool.filter(c => c.skill === 'chordRhythmPattern'))
+    chordRhythmPattern: shuffleCopy(pool.filter(c => c.skill === 'chordRhythmPattern')),
+    twoHandBass: shuffleCopy(pool.filter(c => c.skill === 'twoHandBass')),
+    twoHandTogether: shuffleCopy(pool.filter(c => c.skill === 'twoHandTogether')),
+    twoHandAlternating: shuffleCopy(pool.filter(c => c.skill === 'twoHandAlternating'))
   };
 
   const skills: Skill[] = COLD_TEST_SKILLS.filter(s => bySkill[s].length > 0);

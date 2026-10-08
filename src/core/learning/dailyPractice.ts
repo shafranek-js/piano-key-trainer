@@ -202,6 +202,9 @@ export function buildDailyPracticePool(input: {
           c.skill === 'harmonyFunctionIdentify' ||
           c.skill === 'harmonyNextChord' ||
           c.skill === 'harmonyProgressionPlay' ||
+          c.skill === 'twoHandBass' ||
+          c.skill === 'twoHandTogether' ||
+          c.skill === 'twoHandAlternating' ||
           ((c.skill === 'chordPulse' || c.skill === 'chordChangeTiming' || c.skill === 'chordRhythmPattern') && input.audioAvailable === true)
         );
 
@@ -643,6 +646,16 @@ export function resolveCardVisualConfig(
   }
 
   if (card.skill === 'chordPulse' || card.skill === 'chordChangeTiming' || card.skill === 'chordRhythmPattern') {
+    return {
+      targetKeyId: '',
+      targetKeyIds: [],
+      structuralGuideKeyIds: [],
+      clef: 'auto',
+      isGrandStaff: false
+    };
+  }
+
+  if (card.skill === 'twoHandBass' || card.skill === 'twoHandTogether' || card.skill === 'twoHandAlternating') {
     return {
       targetKeyId: '',
       targetKeyIds: [],

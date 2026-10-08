@@ -22,6 +22,8 @@
     "smoke:cold-test": "node scripts/smokeColdTest.mjs",
     "smoke:persistence-integrity": "node scripts/smokePersistenceIntegrity.mjs",
     "smoke:daily-practice": "node scripts/smokeDailyPractice.mjs",
+    "smoke:m3l": "node scripts/smokeM3l.mjs",
+    "package:m3l": "node scripts/buildM3lArchive.mjs",
     "evidence:fsrs-persistence": "node scripts/generateFsrsPersistenceEvidence.mjs",
     "package:fsrs-persistence-integrity": "node scripts/buildFsrsPersistenceIntegrityArchive.mjs",
     "package:fsrs-persistence-integrity-rev1": "node scripts/buildFsrsPersistenceIntegrityRev1Archive.mjs",

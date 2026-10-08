@@ -50,8 +50,8 @@ async function collectSourceFiles(): Promise<Array<[string, string]>> {
 
 describe('Canonical FSRS skill registry', () => {
   it('has a single registration for every skill with usable metadata', () => {
-    expect(FSRS_SKILLS).toHaveLength(19);
-    expect(new Set(FSRS_SKILLS).size).toBe(19);
+    expect(FSRS_SKILLS).toHaveLength(22);
+    expect(new Set(FSRS_SKILLS).size).toBe(22);
     expect(Object.keys(SKILL_REGISTRY).sort()).toEqual([...FSRS_SKILLS].sort());
     expect(Object.keys(SKILL_NAMES).sort()).toEqual([...FSRS_SKILLS].sort());
     for (const skill of FSRS_SKILLS) {
@@ -59,16 +59,22 @@ describe('Canonical FSRS skill registry', () => {
       expect(registration.id).toBe(skill);
       expect(registration.displayName.trim().length).toBeGreaterThan(0);
       expect(skillDisplayName(skill)).toBe(registration.displayName);
-      expect(['keyboard', 'notation', 'ear', 'interval', 'triad', 'harmony', 'rhythm']).toContain(registration.group);
+      expect(['keyboard', 'notation', 'ear', 'interval', 'triad', 'harmony', 'rhythm', 'twohand']).toContain(registration.group);
       expect(isFsrsSkill(skill)).toBe(true);
     }
     expect(isFsrsSkill('unknownSkill')).toBe(false);
     expect(isFsrsSkill(42)).toBe(false);
   });
 
-  it('shares the registry with the Cold Test queue families', () => {
-    expect(COLD_TEST_SKILLS).toEqual(FSRS_SKILLS);
-    const queue = buildColdQueue(FSRS_SKILLS.map(skill => makeCard(skill, 'C')), 20);
+  it('keeps the Cold Test curated at 19 families while the registry holds all 22 skills', () => {
+    expect(COLD_TEST_SKILLS).toHaveLength(19);
+    for (const skill of COLD_TEST_SKILLS) {
+      expect(FSRS_SKILL_SET.has(skill)).toBe(true);
+    }
+    for (const skill of ['twoHandBass', 'twoHandTogether', 'twoHandAlternating']) {
+      expect(COLD_TEST_SKILLS).not.toContain(skill);
+    }
+    const queue = buildColdQueue(COLD_TEST_SKILLS.map(skill => makeCard(skill, 'C')), 20);
     expect(queue).toHaveLength(20);
     for (const cardId of queue) {
       expect(isFsrsSkill(cardId.split(':')[0])).toBe(true);

@@ -21,6 +21,7 @@ import {
 } from './chordInversions';
 import { getHarmonyModuleStatus, isHarmonyModuleAvailable } from './harmony';
 import { getChordRhythmModuleStatus } from './chordRhythm';
+import { getTwoHandModuleStatus } from './twoHand';
 import type { ProgressCollectionInput } from './curriculumFlow';
 import type { LearningProgressRecord } from './types';
 
@@ -70,6 +71,7 @@ export function resolveAdvancedModuleStates(input: AdvancedModuleStateInput): {
   chordInversions: ResolvedAdvancedModuleState;
   harmony: ResolvedAdvancedModuleState;
   chordRhythm: ResolvedAdvancedModuleState;
+  twoHand: ResolvedAdvancedModuleState;
 } {
   const learningProgress = input.learningProgress as
     | ProgressCollectionInput
@@ -96,6 +98,8 @@ export function resolveAdvancedModuleStates(input: AdvancedModuleStateInput): {
   const harmonyAvailable = isHarmonyModuleAvailable({ inversionComplete });
   const rhythmStatus = getChordRhythmModuleStatus(learningProgress);
   const rhythmAvailable = harmonyStatus === 'completed';
+  const twoHandStatus = getTwoHandModuleStatus(learningProgress);
+  const twoHandAvailable = rhythmStatus === 'completed';
 
   return {
     bassGrandStaff: resolveState(bassComplete ? 'completed' : bassStatus, bassAvailable),
@@ -109,6 +113,7 @@ export function resolveAdvancedModuleStates(input: AdvancedModuleStateInput): {
       harmonyStatus === 'completed' ? 'completed' : harmonyStatus,
       harmonyAvailable
     ),
-    chordRhythm: resolveState(rhythmStatus, rhythmAvailable)
+    chordRhythm: resolveState(rhythmStatus, rhythmAvailable),
+    twoHand: resolveState(twoHandStatus, twoHandAvailable)
   };
 }

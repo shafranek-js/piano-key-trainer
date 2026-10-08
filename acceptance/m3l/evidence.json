@@ -1,0 +1,63 @@
+{
+  "generatedAt": "2026-10-08T00:00:00.000Z",
+  "checkpoint": "Milestone 3L - Two-Hand Accompaniment I",
+  "baseline": "a8a549f (daily diagnostics hardening Rev1)",
+  "branch": "stabilization/m3k-audit-remediation",
+  "smoke": "smoke:m3l",
+  "smokeScenarios": [
+    "M3L-01 module unlock, orientation and MIDI notice",
+    "M3L-02 guided left hand follows the four-voicing sequence including G/B bass B2",
+    "M3L-03 simultaneous run records one persisted attempt",
+    "M3L-04 reload resumes alternating stage from snapshot",
+    "M3L-05 bass on beat 1 and chord on beat 3 stay within M3K windows",
+    "M3L-06 assessment failure opens bounded remediation and returns to retry block",
+    "M3L-07 passed assessment completes the module and enables daily practice gate",
+    "M3L-08 no runtime exceptions, duplicate events or console errors"
+  ],
+  "voicings": {
+    "C": { "bass": "C3", "triad": ["C4", "E4", "G4"] },
+    "G/B": { "bass": "B2", "triad": ["B3", "D4", "G4"] },
+    "Am": { "bass": "A2", "triad": ["A3", "C4", "E4"] },
+    "F": { "bass": "F2", "triad": ["F3", "A3", "C4"] }
+  },
+  "bpm": 60,
+  "timeSignature": "4/4",
+  "timingWindowsMs": {
+    "onTime": 140,
+    "accepted": 300,
+    "handSync": 200,
+    "chordAssembly": 200
+  },
+  "assessment": {
+    "trials": 12,
+    "requiredAccuracy": 0.8,
+    "maxRemediationCycles": 3,
+    "retryBlocksBounded": true,
+    "firstAttemptIntegrityPreservedAfterCorrective": true
+  },
+  "skillsRegistered": ["twoHandBass", "twoHandTogether", "twoHandAlternating"],
+  "skillRegistryTotal": 22,
+  "coldTestFamilies": 19,
+  "roadmapStages": 12,
+  "twoHandStageOrder": 12,
+  "unitTests": {
+    "files": 40,
+    "total": 620,
+    "newFile": "tests/unit/twoHandAccompaniment.test.ts",
+    "newTests": 16
+  },
+  "verification": {
+    "typecheck": "clean",
+    "svelteCheck": "0 errors / 0 warnings",
+    "build": "clean",
+    "regressionSmokes": ["smoke:m3k", "smoke:cold-test", "smoke:persistence-integrity", "smoke:daily-practice"]
+  },
+  "physicalMidi": "NOT TESTED",
+  "screenshots": [
+    "acceptance/m3l/screenshots/01-m3l-hand-orientation.png",
+    "acceptance/m3l/screenshots/02-m3l-simultaneous-play.png",
+    "acceptance/m3l/screenshots/03-m3l-bass-beat1-chord-beat3.png",
+    "acceptance/m3l/screenshots/04-m3l-assessment.png"
+  ],
+  "archive": "piano-key-trainer-m3l-two-hand-accompaniment.zip"
+}

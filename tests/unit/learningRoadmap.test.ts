@@ -19,7 +19,7 @@ function createMockPhases(completedIds: string[] = []): CurriculumPhase[] {
 }
 
 describe('Learning Roadmap Model', () => {
-  it('defines exactly 11 stages in the specified educational sequence', () => {
+  it('defines exactly 12 stages in the specified educational sequence', () => {
     const expectedSequence: RoadmapStageId[] = [
       'keys',
       'white_notes',
@@ -31,13 +31,14 @@ describe('Learning Roadmap Model', () => {
       'triads',
       'inversions',
       'harmony',
-      'chord_rhythm'
+      'chord_rhythm',
+      'two_hand'
     ];
 
-    expect(ROADMAP_DEFINITIONS).toHaveLength(11);
+    expect(ROADMAP_DEFINITIONS).toHaveLength(12);
     expect(ROADMAP_DEFINITIONS.map((s) => s.id)).toEqual(expectedSequence);
 
-    // Verify ordering sequence 1..11
+    // Verify ordering sequence 1..12
     ROADMAP_DEFINITIONS.forEach((def, index) => {
       expect(def.order).toBe(index + 1);
     });
@@ -54,8 +55,8 @@ describe('Learning Roadmap Model', () => {
 
     // 5 core learning areas covering the 6 phases (anchors, neighbors+remaining, black, notation, sound)
     expect(coreStages).toHaveLength(5);
-    // 6 standalone advanced modules, with Harmony locked until Inversions and Chord Rhythm after Harmony
-    expect(advancedStages).toHaveLength(6);
+    // 7 standalone advanced modules, with Harmony locked until Inversions and Chord Rhythm after Harmony
+    expect(advancedStages).toHaveLength(7);
     expect(plannedStages).toHaveLength(0);
   });
 
@@ -84,6 +85,11 @@ describe('Learning Roadmap Model', () => {
     expect(roadmap[10].id).toBe('chord_rhythm');
     expect(roadmap[10].status).toBe('planned');
     expect(roadmap[10].statusLabelRu).toBe('Запланировано');
+
+    // Two-Hand Accompaniment is the 12th stage and remains planned behind Chord Rhythm.
+    expect(roadmap[11].id).toBe('two_hand');
+    expect(roadmap[11].status).toBe('planned');
+    expect(roadmap[11].statusLabelRu).toBe('Запланировано');
   });
 
   it('advances current stage as core phases are completed', () => {
@@ -274,9 +280,45 @@ describe('Learning Roadmap Model', () => {
     });
     expect(chordRhythmInProgress[10].status).toBe('in_progress');
     expect(chordRhythmInProgress[10].isCurrent).toBe(true);
+
+    // Once Chord Rhythm is completed, Two-Hand Accompaniment (stage 12) becomes available.
+    const twoHandAvailable = buildLearningRoadmap({
+      phases: allPhases,
+      bassGrandStatus: 'completed',
+      intervalStatus: 'completed',
+      triadStatus: 'completed',
+      inversionStatus: 'completed',
+      harmonyStatus: 'completed',
+      chordRhythmStatus: 'completed',
+      twoHandStatus: 'not_started',
+      isInversionAvailable: true,
+      isHarmonyAvailable: true,
+      isChordRhythmAvailable: true,
+      isTwoHandAvailable: true
+    });
+    expect(twoHandAvailable[11].status).toBe('available');
+    expect(twoHandAvailable[11].isCurrent).toBe(true);
+
+    // Studying Two-Hand Accompaniment marks stage 12 current and in progress.
+    const twoHandInProgress = buildLearningRoadmap({
+      phases: allPhases,
+      bassGrandStatus: 'completed',
+      intervalStatus: 'completed',
+      triadStatus: 'completed',
+      inversionStatus: 'completed',
+      harmonyStatus: 'completed',
+      chordRhythmStatus: 'completed',
+      twoHandStatus: 'in_progress',
+      isInversionAvailable: true,
+      isHarmonyAvailable: true,
+      isChordRhythmAvailable: true,
+      isTwoHandAvailable: true
+    });
+    expect(twoHandInProgress[11].status).toBe('in_progress');
+    expect(twoHandInProgress[11].isCurrent).toBe(true);
   });
 
-  it('clears currentStageId when all 11 stages are completed', () => {
+  it('clears currentStageId when all 12 stages are completed', () => {
     const allPhases = createMockPhases(['anchors', 'neighbors', 'remaining', 'black', 'notation', 'sound']);
     const roadmap = buildLearningRoadmap({
       phases: allPhases,
@@ -286,14 +328,16 @@ describe('Learning Roadmap Model', () => {
       inversionStatus: 'completed',
       harmonyStatus: 'completed',
       chordRhythmStatus: 'completed',
+      twoHandStatus: 'completed',
       isIntervalAvailable: true,
       isTriadAvailable: true,
       isInversionAvailable: true,
       isHarmonyAvailable: true,
-      isChordRhythmAvailable: true
+      isChordRhythmAvailable: true,
+      isTwoHandAvailable: true
     });
 
-    expect(roadmap).toHaveLength(11);
+    expect(roadmap).toHaveLength(12);
     expect(roadmap.every((stage) => stage.status === 'completed')).toBe(true);
     expect(roadmap.every((stage) => stage.isCurrent === false)).toBe(true);
   });

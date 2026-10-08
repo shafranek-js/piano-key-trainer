@@ -19,7 +19,10 @@ export type Skill =
   | 'harmonyProgressionPlay'
   | 'chordPulse'
   | 'chordChangeTiming'
-  | 'chordRhythmPattern';
+  | 'chordRhythmPattern'
+  | 'twoHandBass'
+  | 'twoHandTogether'
+  | 'twoHandAlternating';
 
 export type PracticeActivity =
   | 'standard'
@@ -44,6 +47,7 @@ export type HarmonyFunctionId = 'I' | 'V' | 'vi' | 'IV';
 export type HarmonyNextChordItemId = 'I-V-vi-IV';
 export type HarmonyProgressionItemId = 'C-G/B-Am-F';
 export type ChordRhythmItemId = 'pulse' | 'change-timing' | 'rhythm-pattern';
+export type TwoHandItemId = 'bass-sequence' | 'together-sequence' | 'alternating-sequence';
 
 export type NoteName =
   | PitchClass
@@ -53,7 +57,8 @@ export type NoteName =
   | HarmonyFunctionId
   | HarmonyNextChordItemId
   | HarmonyProgressionItemId
-  | ChordRhythmItemId;
+  | ChordRhythmItemId
+  | TwoHandItemId;
 
 export type NaturalNoteName = 'C' | 'D' | 'E' | 'F' | 'G' | 'A' | 'B';
 

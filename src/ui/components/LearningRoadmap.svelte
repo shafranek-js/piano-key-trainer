@@ -19,12 +19,15 @@
     isHarmonyAvailable = false,
     chordRhythmStatus = 'not_started',
     isChordRhythmAvailable = false,
+    twoHandStatus = 'not_started',
+    isTwoHandAvailable = false,
     onStartBassGrandModule,
     onStartIntervalModule,
     onStartTriadModule,
     onStartInversionModule,
     onStartHarmonyModule,
-    onStartChordRhythmModule
+    onStartChordRhythmModule,
+    onStartTwoHandModule
   }: BuildRoadmapParams & {
     onStartBassGrandModule?: () => void;
     onStartIntervalModule?: () => void;
@@ -32,6 +35,7 @@
     onStartInversionModule?: () => void;
     onStartHarmonyModule?: () => void;
     onStartChordRhythmModule?: () => void;
+    onStartTwoHandModule?: () => void;
   } = $props();
 
   const stages = $derived(
@@ -47,7 +51,9 @@
       harmonyStatus,
       isHarmonyAvailable,
       chordRhythmStatus,
-      isChordRhythmAvailable
+      isChordRhythmAvailable,
+      twoHandStatus,
+      isTwoHandAvailable
     })
   );
 
@@ -102,6 +108,7 @@
     else if (stageId === 'inversions') onStartInversionModule?.();
     else if (stageId === 'harmony') onStartHarmonyModule?.();
     else if (stageId === 'chord_rhythm') onStartChordRhythmModule?.();
+    else if (stageId === 'two_hand') onStartTwoHandModule?.();
   }
 </script>
 

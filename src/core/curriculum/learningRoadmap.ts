@@ -11,7 +11,8 @@ export type RoadmapStageId =
   | 'triads'
   | 'inversions'
   | 'harmony'
-  | 'chord_rhythm';
+  | 'chord_rhythm'
+  | 'two_hand';
 
 export type RoadmapStageStatus =
   | 'completed'    // ✓ Пройдено
@@ -48,6 +49,8 @@ export interface BuildRoadmapParams {
   isHarmonyAvailable?: boolean;
   chordRhythmStatus?: ModuleProgressStatus;
   isChordRhythmAvailable?: boolean;
+  twoHandStatus?: ModuleProgressStatus;
+  isTwoHandAvailable?: boolean;
 }
 
 export const ROADMAP_DEFINITIONS: readonly {
@@ -157,6 +160,15 @@ export const ROADMAP_DEFINITIONS: readonly {
     categoryLabelRu: 'Дополнительный модуль',
     description: 'Пульс в размере 4/4, смена аккорда на первую долю и простой рисунок на долях 1 и 3 в темпе 60 BPM.',
     defaultSummary: '4/4 · 60 BPM · C → G/B → Am → F'
+  },
+  {
+    id: 'two_hand',
+    order: 12,
+    title: 'Игра двумя руками',
+    category: 'advanced',
+    categoryLabelRu: 'Дополнительный модуль',
+    description: 'Левая рука играет бас, правая — аккорд: сначала по отдельности, затем вместе и по долям.',
+    defaultSummary: 'Бас левой · аккорд правой · C → G/B → Am → F'
   }
 ];
 
@@ -185,7 +197,9 @@ export function buildLearningRoadmap(params: BuildRoadmapParams = {}): readonly 
     harmonyStatus = 'not_started',
     isHarmonyAvailable = false,
     chordRhythmStatus = 'not_started',
-    isChordRhythmAvailable = false
+    isChordRhythmAvailable = false,
+    twoHandStatus = 'not_started',
+    isTwoHandAvailable = false
   } = params;
 
   // Resolve core phase completion status after sequential normalization
@@ -217,7 +231,8 @@ export function buildLearningRoadmap(params: BuildRoadmapParams = {}): readonly 
     triads: 'locked',
     inversions: 'locked',
     harmony: 'planned',
-    chord_rhythm: 'planned'
+    chord_rhythm: 'planned',
+    two_hand: 'planned'
   };
 
   // 1. Keys (Anchors)
@@ -328,6 +343,16 @@ export function buildLearningRoadmap(params: BuildRoadmapParams = {}): readonly 
     statuses.chord_rhythm = 'planned';
   }
 
+  if (twoHandStatus === 'completed') {
+    statuses.two_hand = 'completed';
+  } else if (twoHandStatus === 'in_progress') {
+    statuses.two_hand = 'in_progress';
+  } else if (isTwoHandAvailable && statuses.chord_rhythm === 'completed') {
+    statuses.two_hand = 'available';
+  } else {
+    statuses.two_hand = 'planned';
+  }
+
   // Determine current stage
   // Order of priority:
   // 1) First stage that is 'in_progress'
@@ -346,7 +371,8 @@ export function buildLearningRoadmap(params: BuildRoadmapParams = {}): readonly 
     'triads',
     'inversions',
     'harmony',
-    'chord_rhythm'
+    'chord_rhythm',
+    'two_hand'
   ];
 
   for (const id of stageOrder) {
@@ -394,3 +420,4 @@ export function buildLearningRoadmap(params: BuildRoadmapParams = {}): readonly 
     };
   });
 }
+

@@ -136,6 +136,15 @@ export const SKILL_INPUT_POLICY: Readonly<Record<Skill, SkillInputPolicy>> = {
   },
   chordRhythmPattern: {
     pcNote: false, answerButton: false, pianoKey: true, midi: true, requiresExactOctave: true
+  },
+  twoHandBass: {
+    pcNote: false, answerButton: false, pianoKey: true, midi: true, requiresExactOctave: true
+  },
+  twoHandTogether: {
+    pcNote: false, answerButton: false, pianoKey: true, midi: true, requiresExactOctave: true
+  },
+  twoHandAlternating: {
+    pcNote: false, answerButton: false, pianoKey: true, midi: true, requiresExactOctave: true
   }
 };
 
@@ -201,7 +210,10 @@ export const SKILL_INSTRUCTIONS: Readonly<Record<Skill, string>> = {
   harmonyProgressionPlay: 'Сыграйте три ноты текущего аккорда вместе; после отпускания всех нот появится следующий аккорд.',
   chordPulse: 'Подготовьте аккорд и сыграйте его на первую долю такта.',
   chordChangeTiming: 'Подготовьте следующий аккорд заранее и сыграйте его на следующую первую долю.',
-  chordRhythmPattern: 'Подготовьте аккорд и сыграйте его на долях 1 и 3.'
+  chordRhythmPattern: 'Подготовьте аккорд и сыграйте его на долях 1 и 3.',
+  twoHandBass: 'Сыграйте бас левой рукой в указанном регистре одним нажатием.',
+  twoHandTogether: 'На первую долю нажмите одновременно бас левой рукой и три ноты аккорда правой.',
+  twoHandAlternating: 'На первую долю сыграйте бас левой рукой, на третью долю — аккорд правой.'
 };
 
 export function getSkillInstruction(skill: Skill, kind?: ReviewKind): string {

@@ -141,8 +141,8 @@ describe('Diagnostic Data Export', () => {
     expect(snapshot.summary).toBeDefined();
     expect(snapshot.curriculum).toBeDefined();
     expect(snapshot.roadmap).toBeDefined();
-    expect(snapshot.roadmap.totalStages).toBe(11);
-    expect(snapshot.roadmap.stages).toHaveLength(11);
+    expect(snapshot.roadmap.totalStages).toBe(12);
+    expect(snapshot.roadmap.stages).toHaveLength(12);
     expect(snapshot.learningProgress).toBeDefined();
     expect(snapshot.fsrs).toBeDefined();
     expect(snapshot.dailyPractice).toBeDefined();

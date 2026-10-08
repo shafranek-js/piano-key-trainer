@@ -442,6 +442,8 @@ export interface BuildDiagnosticSnapshotParams {
     harmonyActiveStep?: string;
     chordRhythmStatus?: 'not_started' | 'in_progress' | 'completed';
     chordRhythmActiveStep?: string;
+    twoHandStatus?: 'not_started' | 'in_progress' | 'completed';
+    twoHandActiveStep?: string;
   };
   advancedModuleAvailability?: {
     bassGrandStaff?: boolean;
@@ -450,5 +452,6 @@ export interface BuildDiagnosticSnapshotParams {
     chordInversions?: boolean;
     harmony?: boolean;
     chordRhythm?: boolean;
+    twoHand?: boolean;
   };
 }

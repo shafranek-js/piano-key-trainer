@@ -12,5 +12,7 @@ export * from './triads';
 export * from './chordInversions';
 export * from './harmony';
 export * from './chordRhythm';
+export * from './twoHand';
 export * from './coldTest';
 export * from './moduleLifecycle';
+

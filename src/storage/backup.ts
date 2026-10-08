@@ -28,7 +28,8 @@ const NOTE_NAMES: readonly NoteName[] = [
   'root', 'first', 'second', 'slash',
   'I', 'V', 'vi', 'IV',
   'I-V-vi-IV', 'C-G/B-Am-F',
-  'pulse', 'change-timing', 'rhythm-pattern'
+  'pulse', 'change-timing', 'rhythm-pattern',
+  'bass-sequence', 'together-sequence', 'alternating-sequence'
 ];
 
 const MEMORY_STATES: readonly MemoryState[] = ['new', 'learning', 'review', 'relearning'];

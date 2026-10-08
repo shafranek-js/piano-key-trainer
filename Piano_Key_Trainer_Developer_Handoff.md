@@ -12,7 +12,7 @@
 > [!NOTE]
 > **Milestone Progression Status (`3B (complete) → 3B.5A (complete) → 3B.5B (COMPLETE) → 3C (COMPLETE) → 3D (COMPLETE) → 3E (COMPLETE) → 3F (COMPLETE) → 3G (COMPLETE) → 3H (COMPLETE) → 3I (ACCEPTED) → 3J (ACCEPTED) → 3K (ACCEPTED) → Cold Test Display (ACCEPTED) → FSRS & Persistence Integrity, Checkpoint B (pending acceptance)`)**
 >
-> **Learner roadmap: 11/11 stages complete.** Next product work is this stabilization checkpoint; M3L (Two-Hand Accompaniment) starts only after its independent acceptance.
+> **Learner roadmap: 12 stages available (#11 «Ритм аккордов», #12 «Игра двумя руками»).** Next product work after Checkpoint C acceptance was M3L; M3L itself is implemented and awaits its own independent acceptance (physical MIDI not tested).
 >
 > - **Milestone 3A — Learning State Foundation:** complete (`src/core/learning/types.ts`, `trialPolicy.ts`, `progress.ts`).
 > - **Milestone 3B — First-Run C/F Guided Learning:** complete (`src/core/learning/firstRunCf.ts`, `src/ui/components/FirstRunStage.svelte`). Brand-new learners enter the 11-step C/F guided flow on the **Training** screen before any unscaffolded FSRS trials.
@@ -29,7 +29,8 @@
 > - **Milestone 3K — Chord Rhythm & Pulse I (`ACCEPTED`):** 4/4 pulse at 60 BPM, the two-bar `C → G/B` change, two-strike patterns on beats 1 and 3, bounded assessment/remediation, reload-safe corrective state, and Daily Practice integration. Beginner timing tolerance, hands-free MIDI start, Rev1 timing/cue fixes and the physical-MIDI user test passed; see section 3.17.
 > - **Cold Test Progression + Displayed Item Integrity (`ACCEPTED`):** all 19 task families advance through the central `completeColdTestItem` contract; the displayed `Cold Test · N/20` follows the rendered question, and the completion pointer stays separate (`coldIndex` vs `activeColdItemIndex`).
 > - **FSRS & Persistence Integrity (Checkpoint B, `ACCEPTED`; Rev1/Rev2 backup-identity fixes included):** canonical FSRS-6 parity against pinned `py-fsrs` 6.3.2, latency provenance, stable `reviewEventId` identity with schema v3→v4 migration, recoverable persistence retry, atomic legacy migrator.
-> - **Daily Practice & Diagnostics Hardening (Checkpoint C, implemented, pending acceptance):** canonical skill registry; diagnostics schema v3 with real storage schema, 11-stage roadmap and M3K snapshot; heterogeneous `smoke:daily-practice`; SessionStrip title priority; `card.stats`/NaN normalization. Next product work is **M3L** after acceptance; M3L is not started.
+> - **Daily Practice & Diagnostics Hardening (Checkpoint C, implemented, pending acceptance):** canonical skill registry; diagnostics schema v3 with real storage schema, 12-stage roadmap and M3K snapshot; heterogeneous `smoke:daily-practice`; SessionStrip title priority; `card.stats`/NaN normalization.
+> - **M3L — Two-Hand Accompaniment I (implemented, pending acceptance):** LH bass + RH chords over `C → G/B → Am → F` at 60 BPM, guided stages, ±200 ms hand-sync window, bounded 12-trial assessment with terminal remediation limit, three new skills (registry 22, Cold Test still 19), roadmap stage #12, `smoke:m3l`; see `M3L_TWO_HAND_ACCOMPANIMENT_REPORT.md`. Physical-MIDI user acceptance is **not tested**.
 
 
 ---

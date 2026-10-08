@@ -109,6 +109,34 @@ export interface ChordRhythmModuleSnapshot {
   assessment?: ChordRhythmAssessmentSnapshot;
 }
 
+export interface TwoHandAssessmentSnapshotData {
+  blockKind: 'initial' | 'retry';
+  phase: 'active' | 'result' | 'remediation' | 'passed' | 'failed';
+  trialIndex: number;
+  trialsCompleted: number;
+  correctFirstAttempts: number;
+  failedTrialIndexes: number[];
+  remediationTrialIndexes: number[];
+  remediationIndex: number;
+  remediationUsed: number;
+  pendingCorrective: boolean;
+}
+
+/** Persisted teaching position for Milestone 3L (two-hand accompaniment). */
+export interface TwoHandModuleSnapshot {
+  stage: string;
+  chordIndex: number;
+  leftIndex: number;
+  rightIndex: number;
+  simultaneousIndex: number;
+  alternatingIndex: number;
+  barsPassed: number;
+  independentPassed: boolean;
+  awaitingCorrective: boolean;
+  trialHadWrong: boolean;
+  assessment?: TwoHandAssessmentSnapshotData;
+}
+
 export interface LearningProgressRecord {
   id: string;
   itemId: string;
@@ -133,6 +161,8 @@ export interface LearningProgressRecord {
   };
   /** Persisted teaching position for Milestone 3K; active timed runs restart with a count-in. */
   chordRhythmSnapshot?: ChordRhythmModuleSnapshot;
+  /** Persisted teaching position for Milestone 3L; active timed runs restart with a count-in. */
+  twoHandSnapshot?: TwoHandModuleSnapshot;
   currentHintLevel: HintLevel;
   introducedAt?: number;
   mixReadyAt?: number;

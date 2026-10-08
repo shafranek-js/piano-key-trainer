@@ -28,6 +28,7 @@ import { TRIAD_ITEM_IDS } from '../../src/core/learning/triads';
 import { INVERSION_ITEM_IDS } from '../../src/core/learning/chordInversions';
 import { HARMONY_ITEM_IDS } from '../../src/core/learning/harmony';
 import { CHORD_RHYTHM_ITEM_IDS } from '../../src/core/learning/chordRhythm';
+import { TWO_HAND_ITEM_IDS } from '../../src/core/learning/twoHand';
 import { DEFAULT_SETTINGS } from '../../src/core/fsrs/constants';
 import type { Card, ReviewLogEvent, Skill } from '../../src/core/fsrs/types';
 
@@ -65,7 +66,8 @@ function fullCompletedProgress(): Map<string, LearningProgressRecord> {
   markDone(TRIAD_ITEM_IDS.COMPLETE);
   markDone(INVERSION_ITEM_IDS.COMPLETE);
   markDone(HARMONY_ITEM_IDS.COMPLETE);
-  markDone(CHORD_RHYTHM_ITEM_IDS.COMPLETE);
+      markDone(CHORD_RHYTHM_ITEM_IDS.COMPLETE);
+      markDone(TWO_HAND_ITEM_IDS.COMPLETE);
   return map;
 }
 
@@ -156,9 +158,9 @@ describe('Diagnostics consistency on a complete synthetic profile', () => {
     expect(snapshot.storageConsistency.warnings).toEqual([]);
   });
 
-  it('reflects the canonical roadmap with all 11 stages completed', () => {
-    expect(snapshot.roadmap.totalStages).toBe(11);
-    expect(snapshot.roadmap.completedStages).toBe(11);
+  it('reflects the canonical roadmap with all 12 stages completed', () => {
+    expect(snapshot.roadmap.totalStages).toBe(12);
+    expect(snapshot.roadmap.completedStages).toBe(12);
     expect(snapshot.roadmap.currentStageId).toBeNull();
     expect(snapshot.roadmap.stages.map(stage => stage.id)).toEqual([
       'keys',
@@ -171,7 +173,8 @@ describe('Diagnostics consistency on a complete synthetic profile', () => {
       'triads',
       'inversions',
       'harmony',
-      'chord_rhythm'
+      'chord_rhythm',
+      'two_hand'
     ]);
     for (const stage of snapshot.roadmap.stages) {
       expect(stage.status).toBe('completed');

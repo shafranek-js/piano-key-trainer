@@ -1,0 +1,12 @@
+{
+  "scenarios": [
+    "M3L-01 module unlock, orientation and MIDI notice",
+    "M3L-02 guided left hand follows the four-voicing sequence including G/B bass B2",
+    "M3L-03 simultaneous run records one persisted attempt",
+    "M3L-04 reload resumes alternating stage from snapshot",
+    "M3L-05 bass on beat 1 and chord on beat 3 stay within M3K windows",
+    "M3L-06 assessment failure opens bounded remediation and returns to retry block",
+    "M3L-07 passed assessment completes the module and enables daily practice gate",
+    "M3L-08 no runtime exceptions, duplicate events or console errors"
+  ]
+}

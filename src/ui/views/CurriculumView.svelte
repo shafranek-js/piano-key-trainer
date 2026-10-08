@@ -23,7 +23,10 @@
     onStartHarmonyModule,
     chordRhythmStatus = 'not_started' as 'not_started' | 'in_progress' | 'completed',
     isChordRhythmAvailable = false,
-    onStartChordRhythmModule
+    onStartChordRhythmModule,
+    twoHandStatus = 'not_started' as 'not_started' | 'in_progress' | 'completed',
+    isTwoHandAvailable = false,
+    onStartTwoHandModule
   }: {
     phases?: CurriculumPhase[];
     currentPhaseDetails?: PhaseProgressDetails | null;
@@ -45,6 +48,9 @@
     chordRhythmStatus?: 'not_started' | 'in_progress' | 'completed';
     isChordRhythmAvailable?: boolean;
     onStartChordRhythmModule?: () => void;
+    twoHandStatus?: 'not_started' | 'in_progress' | 'completed';
+    isTwoHandAvailable?: boolean;
+    onStartTwoHandModule?: () => void;
   } = $props();
 
   const completedCount = $derived(phases.filter(p => p.done || p.skipped).length);
@@ -73,12 +79,15 @@
     {isHarmonyAvailable}
     {chordRhythmStatus}
     {isChordRhythmAvailable}
+    {twoHandStatus}
+    {isTwoHandAvailable}
     {onStartBassGrandModule}
     {onStartIntervalModule}
     {onStartTriadModule}
     {onStartInversionModule}
     {onStartHarmonyModule}
     {onStartChordRhythmModule}
+    {onStartTwoHandModule}
   />
 </section>
 

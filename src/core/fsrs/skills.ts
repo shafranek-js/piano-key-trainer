@@ -25,7 +25,10 @@ export const FSRS_SKILLS: readonly Skill[] = [
   'harmonyProgressionPlay',
   'chordPulse',
   'chordChangeTiming',
-  'chordRhythmPattern'
+  'chordRhythmPattern',
+  'twoHandBass',
+  'twoHandTogether',
+  'twoHandAlternating'
 ];
 
 export type SkillGroup =
@@ -35,7 +38,8 @@ export type SkillGroup =
   | 'interval'
   | 'triad'
   | 'harmony'
-  | 'rhythm';
+  | 'rhythm'
+  | 'twohand';
 
 export interface SkillRegistration {
   id: Skill;
@@ -63,7 +67,10 @@ const REGISTRATIONS: readonly SkillRegistration[] = [
   { id: 'harmonyProgressionPlay', displayName: 'сыграть последовательность', group: 'harmony' },
   { id: 'chordPulse', displayName: 'держать пульс', group: 'rhythm' },
   { id: 'chordChangeTiming', displayName: 'сменить аккорд вовремя', group: 'rhythm' },
-  { id: 'chordRhythmPattern', displayName: 'сыграть ритмический рисунок', group: 'rhythm' }
+  { id: 'chordRhythmPattern', displayName: 'сыграть ритмический рисунок', group: 'rhythm' },
+  { id: 'twoHandBass', displayName: 'бас левой рукой', group: 'twohand' },
+  { id: 'twoHandTogether', displayName: 'две руки вместе', group: 'twohand' },
+  { id: 'twoHandAlternating', displayName: 'бас и аккорд по долям', group: 'twohand' }
 ];
 
 export const SKILL_REGISTRY: Readonly<Record<Skill, SkillRegistration>> = Object.fromEntries(

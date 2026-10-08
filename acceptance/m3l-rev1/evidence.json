@@ -1,0 +1,93 @@
+{
+  "generatedAt": "2026-10-08T00:00:00.000Z",
+  "checkpoint": "Milestone 3L Rev1 - Two-Hand Accompaniment: Assessment & MIDI Integrity",
+  "baseline": "0acb9b6 (M3L initial submission, HOLD)",
+  "branch": "stabilization/m3k-audit-remediation",
+  "smoke": "smoke:m3l",
+  "smokeScenarios": [
+    "M3L-P0-A wrong right-hand triad via MIDI then correct chord advances exactly once",
+    "M3L-P0-B on-screen wrong triad then correct chord and a fresh correct first attempt",
+    "M3L-01 four bars play continuously after one count-in",
+    "M3L-02 independent phrase hides note hints and stays continuous",
+    "M3L-03 complete 12 assessment trials through the real MIDI pipeline",
+    "M3L-04 wrong LH bass is classified as wrong bass, not missing left hand",
+    "M3L-05 delayed extra note cannot receive false success",
+    "M3L-06 MIDI disconnect cancels the attempt without grading",
+    "M3L-07 failed assessment returns to learning with history preserved",
+    "M3L-08 remediation gate blocks Next after a wrong item and maps failed trial positions",
+    "M3L-09 shared metronome count-in 4-3-2-1, play cue and restart integrity",
+    "M3L-10 integrity: no duplicate events, exceptions or console errors"
+  ],
+  "reviewerBlockers": {
+    "failedAssessmentRecovery": {
+      "status": "fixed",
+      "detail": "retryAssessment on phase=failed returns to the simultaneous learning stage, resets progress without false completion, preserves historical trial outcomes in the snapshot."
+    },
+    "remediationIntegrity": {
+      "status": "fixed",
+      "detail": "Next is hidden until the current item is corrected (state.remediationCorrected), advance is blocked while awaitingCorrective or uncorrected, remediation positions map to the actual failed trial indexes."
+    },
+    "continuousFourBars": {
+      "status": "fixed",
+      "detail": "one count-in then four contiguous 60 BPM bars with automatic C -> G/B -> Am -> F changes, no start click between bars; independent uses the same continuous structure."
+    },
+    "independentHintPolicy": {
+      "status": "fixed",
+      "detail": "App passes showHints=twoHandHintsVisible(state); independent/assessment instructions and hand panels omit explicit note lists while retaining chord symbols, hand roles and beats."
+    },
+    "midiCaptureCorrectness": {
+      "status": "fixed",
+      "detail": "classifyTwoHandCapture keeps wrong bass notes, wrong octaves and extra notes; success is finalized only after the input-assembly window (+300 ms accept + 200 ms assembly) and held-note/duplicate protection is preserved."
+    },
+    "midiDisconnect": {
+      "status": "fixed",
+      "detail": "MidiController counts only connected inputs; App cancels the run on disconnect and applies inputInterrupted without grading."
+    },
+    "tests": {
+      "status": "fixed",
+      "detail": "failing-first unit regressions for classification, remediation gating/mapping, failed recovery, continuous bars, play cue; smoke drives genuine synthetic MIDI Note On/Off through MidiController and completes the 12-trial assessment without seeded pass snapshots."
+    }
+  },
+  "p0RightHandCorrection": {
+    "midi": "wrong C-major triad released, correct C4-E4-G4 captured, corrected, advanced exactly once (rightIndex 1 persisted)",
+    "screen": "same flow on the on-screen piano (rightIndex 2), then fresh first attempts to rightIndex 4",
+    "persistence": "guided corrections created no review-log entries (one-grade policy unchanged)"
+  },
+  "metronome": {
+    "clock": "shared MetronomeClock (no second metronome)",
+    "countInValues": [4, 3, 2, 1],
+    "countInBeatsOccupied": "one full 60 BPM beat each",
+    "firstPlayableBeatAccented": true,
+    "playCue": "visible ИГРАЙТЕ! cue on the first playable beat",
+    "countInInputGraded": false,
+    "lateAttemptOutcome": "timing_failed",
+    "restartDuplicates": 0,
+    "timerCancellation": "clock.stop() on cancel/navigation/disconnect/grade"
+  },
+  "timingWindowsMs": {
+    "onTime": 140,
+    "accepted": 300,
+    "handSync": 200,
+    "chordAssembly": 200
+  },
+  "unitTests": {
+    "files": 40,
+    "total": 632,
+    "twoHandAccompaniment": 26,
+    "metronomeClock": 6
+  },
+  "verification": {
+    "typecheck": "clean",
+    "svelteCheck": "0 errors / 0 warnings",
+    "build": "clean",
+    "regressionSmokes": ["smoke:m3k", "smoke:cold-test", "smoke:persistence-integrity", "smoke:daily-practice"]
+  },
+  "physicalMidi": "user-reported blocker; fixed in source; physical re-test pending user acceptance",
+  "screenshots": [
+    "acceptance/m3l-rev1/screenshots/01-m3l-rev1-four-bar-continuous.png",
+    "acceptance/m3l-rev1/screenshots/02-m3l-rev1-independent-no-hints.png",
+    "acceptance/m3l-rev1/screenshots/03-m3l-rev1-assessment-midi.png",
+    "acceptance/m3l-rev1/screenshots/04-m3l-rev1-remediation-gate.png"
+  ],
+  "archive": "piano-key-trainer-m3l-two-hand-accompaniment-rev1.zip"
+}

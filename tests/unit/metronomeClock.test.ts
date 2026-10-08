@@ -67,6 +67,54 @@ describe('MetronomeClock — injectable timing', () => {
     expect(clock.running).toBe(false);
   });
 
+  it('provides the M3L 60 BPM count-in 4-3-2-1 with an accented first playable beat', () => {
+    const fake = createFakePort();
+    const clock = new MetronomeClock(fake.port);
+    const trace: { index: number; beat: number; countIn: boolean; accent: boolean; countInValue: number | null }[] = [];
+
+    const onsets = clock.startSequence({
+      bpm: 60,
+      beats: 4,
+      countInBeats: 4,
+      onBeat: beat => trace.push({
+        index: beat.index,
+        beat: beat.beat,
+        countIn: beat.countIn,
+        accent: beat.isAccent,
+        countInValue: beat.countIn ? Math.max(1, 4 - beat.index) : null
+      })
+    });
+
+    expect(onsets).toHaveLength(8);
+    expect(onsets[1] - onsets[0]).toBe(1000);
+    expect(fake.clicks).toHaveLength(8);
+    expect(fake.clicks.map(click => click.accent)).toEqual([true, false, false, false, true, false, false, false]);
+    expect(fake.clicks[4].at - fake.clicks[0].at).toBe(4000);
+
+    fake.advance(10_000);
+    expect(trace.slice(0, 4).map(item => item.countInValue)).toEqual([4, 3, 2, 1]);
+    expect(trace.slice(0, 4).every(item => item.countIn)).toBe(true);
+    expect(trace[4]).toMatchObject({ countIn: false, beat: 0, accent: true, countInValue: null });
+    expect(trace.filter(item => !item.countIn)).toHaveLength(4);
+  });
+
+  it('stops cleanly so restarting the M3L run never duplicates clicks or beats', () => {
+    const fake = createFakePort();
+    const clock = new MetronomeClock(fake.port);
+    const first: number[] = [];
+    const second: number[] = [];
+
+    clock.startSequence({ bpm: 60, beats: 4, countInBeats: 4, onBeat: beat => first.push(beat.index) });
+    clock.stop();
+    clock.startSequence({ bpm: 60, beats: 4, countInBeats: 4, onBeat: beat => second.push(beat.index) });
+    fake.advance(12_000);
+
+    expect(first).toEqual([]);
+    expect(second).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+    expect(fake.clicks.filter(click => !click.cancelled)).toHaveLength(8);
+    expect(clock.running).toBe(false);
+  });
+
   it('stays stopped for an empty sequence', () => {
     const fake = createFakePort();
     const clock = new MetronomeClock(fake.port);

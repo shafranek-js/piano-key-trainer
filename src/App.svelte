@@ -178,8 +178,10 @@ import { getCurriculumPhases } from './core/curriculum/curriculum';
     type RhythmTimingOutcome,
     TWO_HAND_ITEM_IDS,
     TWO_HAND_SEQUENCE,
+    TWO_HAND_ACCEPT_WINDOW_MS,
     TWO_HAND_VOICINGS,
     createTwoHandModuleState,
+    classifyTwoHandCapture,
     evaluateTwoHandAttempt,
     isTwoHandSkill,
     reduceTwoHandState,
@@ -585,9 +587,11 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   const isTwoHandActive = $derived(twoHandState !== null && !twoHandDailyMode);
   const isTwoHandAvailable = $derived(advancedModuleStates.twoHand.available);
   const twoHandStatus = $derived(advancedModuleStates.twoHand.progressStatus);
-  let twoHandPending: { bass: TwoHandCaptureNote | null; chord: TwoHandCaptureNote[]; graded: boolean } = { bass: null, chord: [], graded: false };
+  let twoHandPending: { notes: TwoHandCaptureNote[]; graded: boolean } = { notes: [], graded: false };
   let twoHandHeldKeyIds = new Set<string>();
   let twoHandTargets: number[] = [];
+  let twoHandPhraseTargets: Array<{ onset: number; chordOnset: number; chordId: HarmonyChordId; barIndex: number }> = [];
+  let twoHandPlayableAt = 0;
   let twoHandTimers: number[] = [];
   let twoHandRunGeneration = 0;
   let chordRhythmDiagnostics = $state<{
@@ -3946,11 +3950,18 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
 
   function cancelTwoHandRun() {
     twoHandRunGeneration += 1;
+    rhythmClock.stop();
     for (const timer of twoHandTimers) window.clearTimeout(timer);
     twoHandTimers = [];
     twoHandTargets = [];
-    twoHandPending = { bass: null, chord: [], graded: false };
+    twoHandPhraseTargets = [];
+    twoHandPlayableAt = 0;
+    twoHandPending = { notes: [], graded: false };
     twoHandHeldKeyIds.clear();
+    if (typeof window !== 'undefined') {
+      (window as unknown as { __m3lTimingTarget?: unknown }).__m3lTimingTarget = null;
+      (window as unknown as { __m3lPhraseTargets?: unknown }).__m3lPhraseTargets = null;
+    }
   }
 
   function twoHandTimer(callback: () => void, delayMs: number) {
@@ -3959,44 +3970,91 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
 
   function startTwoHandRun() {
     if (!twoHandState || twoHandState.stage === 'transferResult' || twoHandState.stage === 'moduleComplete') return;
-    const generation = ++twoHandRunGeneration;
-    for (const timer of twoHandTimers) window.clearTimeout(timer);
-    twoHandTimers = [];
-    twoHandPending = { bass: null, chord: [], graded: false };
-    twoHandHeldKeyIds.clear();
+    cancelTwoHandRun();
+    const generation = twoHandRunGeneration;
     const next = reduceTwoHandState(twoHandState, { type: 'startRun' });
     twoHandState = next;
-    const beatMs = 60000 / 60;
+    const phrase = next.stage === 'fourBar' || next.stage === 'independent';
+    const chordId = twoHandTargetChord(next);
+    const pattern = twoHandPattern(next);
     const countInBeats = 4;
-    let beats = twoHandTargetBeats(next);
-    if (!beats.length) beats = [0];
-    const startedAt = performance.now();
-    for (let index = 0; index < countInBeats; index++) {
-      twoHandTimer(() => {
-        if (generation !== twoHandRunGeneration) return;
-        updateTwoHandState({ type: 'clockBeat', beat: 0, countInValue: countInBeats - index }, false);
-      }, (index + 1) * beatMs);
+    const playableBeats = phrase ? 16 : 4;
+    const beatTargets = phrase ? [] : (twoHandTargetBeats(next).length ? twoHandTargetBeats(next) : [0]);
+    if (typeof window !== 'undefined') {
+      (window as unknown as { __m3lClockTrace?: unknown }).__m3lClockTrace = [];
+      (window as unknown as { __m3lAttemptCount?: number }).__m3lAttemptCount = 0;
     }
-    const barStartMs = countInBeats * beatMs;
-    twoHandTargets = beats.map(beat => startedAt + barStartMs + beat * beatMs);
-    beats.forEach(beat => {
+    const expectedOnsets = rhythmClock.startSequence({
+      bpm: 60,
+      countInBeats,
+      beats: playableBeats,
+      onBeat: beat => {
+        if (generation !== twoHandRunGeneration || !twoHandState?.isRunning) return;
+        const countInValue = beat.countIn ? Math.max(1, 4 - beat.index) : null;
+        const playableOffset = beat.index - countInBeats;
+        const chordIndex = phrase && !beat.countIn ? Math.min(TWO_HAND_SEQUENCE.length - 1, Math.floor(playableOffset / 4)) : undefined;
+        updateTwoHandState({ type: 'clockBeat', beat: beat.beat, countInValue, chordIndex }, false);
+        if (typeof window !== 'undefined') {
+          const trace = (window as unknown as { __m3lClockTrace?: unknown[] }).__m3lClockTrace ?? [];
+          trace.push({
+            index: beat.index,
+            beat: beat.beat,
+            countIn: beat.countIn,
+            countInValue,
+            accent: beat.isAccent,
+            expectedOnsetMs: Math.round(beat.expectedOnsetMs),
+            nowMs: Math.round(performance.now()),
+            playable: !beat.countIn
+          });
+          (window as unknown as { __m3lClockTrace?: unknown[] }).__m3lClockTrace = trace;
+        }
+      }
+    });
+    twoHandPlayableAt = expectedOnsets[countInBeats] ?? 0;
+    if (phrase) {
+      const barMs = 4 * 1000;
+      const phraseStart = expectedOnsets[countInBeats] ?? 0;
+      twoHandPhraseTargets = TWO_HAND_SEQUENCE.map((phraseChord, barIndex) => ({
+        onset: phraseStart + barIndex * barMs,
+        chordOnset: phraseStart + barIndex * barMs + 2 * 1000,
+        chordId: phraseChord,
+        barIndex
+      }));
+      twoHandTargets = twoHandPhraseTargets.map(target => target.onset);
+      if (typeof window !== 'undefined') {
+        (window as unknown as { __m3lPhraseTargets?: unknown }).__m3lPhraseTargets = twoHandPhraseTargets.map(target => ({ ...target }));
+        (window as unknown as { __m3lTimingTarget?: unknown }).__m3lTimingTarget = null;
+      }
+      const phraseEnd = twoHandPhraseTargets[twoHandPhraseTargets.length - 1]?.chordOnset ?? phraseStart;
       twoHandTimer(() => {
         if (generation !== twoHandRunGeneration) return;
-        updateTwoHandState({ type: 'clockBeat', beat: beat % 4, countInValue: null }, false);
-      }, barStartMs + beat * beatMs);
-    });
-    const lastTarget = twoHandTargets[twoHandTargets.length - 1] ?? startedAt + barStartMs;
-    const elapsed = () => performance.now() - startedAt;
-    const flushDelay = Math.max(0, (lastTarget + 300 + 30) - performance.now());
+        flushTwoHandAttempt();
+      }, Math.max(0, (phraseEnd + 300 + 200 + 30) - performance.now()));
+      twoHandTimer(() => {
+        if (generation !== twoHandRunGeneration) return;
+        flushTwoHandAttempt();
+      }, Math.max(0, (phraseEnd + 1200) - performance.now()));
+      return;
+    }
+    twoHandTargets = beatTargets.map(beat => expectedOnsets[countInBeats + beat] ?? 0);
+    if (typeof window !== 'undefined') {
+      (window as unknown as { __m3lPhraseTargets?: unknown }).__m3lPhraseTargets = null;
+      (window as unknown as { __m3lTimingTarget?: unknown }).__m3lTimingTarget = {
+        onset: twoHandTargets[0] ?? null,
+        chordOnset: twoHandTargets[1] ?? null,
+        chordId,
+        pattern
+      };
+    }
+    const lastTarget = twoHandTargets[twoHandTargets.length - 1] ?? twoHandPlayableAt;
     twoHandTimer(() => {
       if (generation !== twoHandRunGeneration) return;
       flushTwoHandAttempt();
-    }, flushDelay);
+    }, Math.max(0, (lastTarget + 300 + 200 + 30) - performance.now()));
     twoHandTimer(() => {
       if (generation !== twoHandRunGeneration) return;
       flushTwoHandAttempt();
-    }, Math.max(0, (lastTarget + 900) - performance.now()));
-    void elapsed;
+    }, Math.max(0, (lastTarget + 1200) - performance.now()));
   }
 
   function handleTwoHandNoteInput(keyId: string, midi: number, at: number) {
@@ -4022,34 +4080,117 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       return;
     }
     if (!state.isRunning || twoHandPending.graded) return;
-    if (state.stage === 'simultaneous' || state.stage === 'transferAssessment' || state.stage === 'transferRemediation') {
-      if (keyId === voicing.bassKeyId) {
-        if (!twoHandPending.bass) twoHandPending.bass = { keyId, midi, at };
-      } else if (voicing.triadKeyIds.includes(keyId)) {
-        if (!twoHandPending.chord.some(note => note.keyId === keyId)) twoHandPending.chord.push({ keyId, midi, at });
-      } else if (!twoHandPending.chord.some(note => note.keyId === keyId)) {
-        twoHandPending.chord.push({ keyId, midi, at });
-      }
-    } else {
-      const bassTarget = twoHandTargets[0];
-      const chordTarget = twoHandTargets[1];
-      if (keyId === voicing.bassKeyId && (!twoHandPending.bass || Math.abs(at - (bassTarget ?? at)) <= Math.abs(twoHandPending.bass.at - (bassTarget ?? at)))) {
-        twoHandPending.bass = { keyId, midi, at };
-      } else if (voicing.triadKeyIds.includes(keyId)) {
-        if (!twoHandPending.chord.some(note => note.keyId === keyId)) twoHandPending.chord.push({ keyId, midi, at });
-      } else if (!twoHandPending.chord.some(note => note.keyId === keyId)) {
-        twoHandPending.chord.push({ keyId, midi, at });
-      }
-      if (twoHandPending.bass && twoHandPending.chord.length >= 3) {
-        if (chordTarget != null && Math.abs(chordTarget - at) > 200 || bassTarget != null && twoHandPending.bass.at > bassTarget + 300) {
-          flushTwoHandAttempt();
-        }
-      }
+    // The count-in never grades: only the playable window (accept window opens
+    // 300 ms before the first playable beat) may contribute to timing.
+    if (!twoHandPlayableAt || at < twoHandPlayableAt - TWO_HAND_ACCEPT_WINDOW_MS) return;
+    const phraseMode = state.stage === 'fourBar' || state.stage === 'independent';
+    const barIndex = phraseMode ? twoHandPhraseBarIndex(at) : null;
+    const duplicate = phraseMode
+      ? twoHandPending.notes.some(note => note.keyId === keyId && twoHandPhraseBarIndex(note.at) === barIndex)
+      : twoHandPending.notes.some(note => note.keyId === keyId);
+    if (duplicate) return;
+    twoHandPending.notes.push({ keyId, midi, at });
+  }
+
+  function twoHandPhraseBarIndex(at: number): number {
+    if (!twoHandPhraseTargets.length) return 0;
+    const phraseStart = twoHandPhraseTargets[0].onset;
+    return Math.min(twoHandPhraseTargets.length - 1, Math.max(0, Math.floor((at - phraseStart + 500) / 4000)));
+  }
+
+  function twoHandCaptureResult(state: TwoHandModuleState): TwoHandAttemptResult {
+    const chordId = twoHandTargetChord(state);
+    const pattern = twoHandPattern(state);
+    const bassTarget = twoHandTargets[0] ?? null;
+    const chordTarget = pattern === 'simultaneous' ? (twoHandTargets[0] ?? null) : (twoHandTargets[1] ?? null);
+    const classification = classifyTwoHandCapture(chordId, twoHandPending.notes, { bassTargetOnset: bassTarget });
+    return evaluateTwoHandAttempt({
+      chordId,
+      pattern,
+      bass: classification.bass,
+      chordNotes: classification.chordNotes,
+      bassTargetOnset: bassTarget,
+      chordTargetOnset: chordTarget
+    });
+  }
+
+  function setTwoHandLastAttempt(result: TwoHandAttemptResult | null) {
+    if (typeof window === 'undefined') return;
+    (window as unknown as { __m3lLastAttempt?: unknown }).__m3lLastAttempt = result
+      ? { outcome: result.outcome, correct: result.correct, bassCorrect: result.bassCorrect, chordCorrect: result.chordCorrect, syncMs: result.syncMs, timing: result.timing }
+      : null;
+  }
+
+  function flushTwoHandAttempt() {
+    const state = twoHandState;
+    if (!state || twoHandPending.graded) return;
+    twoHandPending.graded = true;
+    if (typeof window !== 'undefined') {
+      (window as unknown as { __m3lAttemptCount?: number }).__m3lAttemptCount = ((window as unknown as { __m3lAttemptCount?: number }).__m3lAttemptCount ?? 0) + 1;
     }
-    const expectedChordCount = 3;
-    if ((state.stage === 'simultaneous' || state.stage === 'transferAssessment' || state.stage === 'transferRemediation') && twoHandPending.bass && twoHandPending.chord.length >= expectedChordCount) {
-      flushTwoHandAttempt();
+    if (state.stage === 'fourBar' || state.stage === 'independent') {
+      if (!twoHandPhraseTargets.length) {
+        cancelTwoHandRun();
+        return;
+      }
+      const results: TwoHandAttemptResult[] = [];
+      for (const target of twoHandPhraseTargets) {
+        const notes = twoHandPending.notes.filter(note => twoHandPhraseBarIndex(note.at) === target.barIndex);
+        const classification = classifyTwoHandCapture(target.chordId, notes, { bassTargetOnset: target.onset });
+        results.push(evaluateTwoHandAttempt({
+          chordId: target.chordId,
+          pattern: 'alternating',
+          bass: classification.bass,
+          chordNotes: classification.chordNotes,
+          bassTargetOnset: target.onset,
+          chordTargetOnset: target.chordOnset
+        }));
+      }
+      setTwoHandLastAttempt(results[results.length - 1] ?? null);
+      if (typeof window !== 'undefined') {
+        (window as unknown as { __m3lPhraseResults?: unknown }).__m3lPhraseResults = results.map(result => ({ outcome: result.outcome, correct: result.correct, timing: result.timing, syncMs: result.syncMs }));
+      }
+      cancelTwoHandRun();
+      for (const result of results) {
+        updateTwoHandState({ type: 'gradeAttempt', result }, false);
+        if (!result.correct) break;
+      }
+      if (twoHandState) void persistTwoHandState(twoHandState);
+      if (twoHandState) twoHandState = { ...twoHandState, activeBeat: -1, playCue: false };
+      return;
     }
+    if (twoHandDailyMode && currentCard?.skill === 'twoHandBass') {
+      const voicing = twoHandVoicingOf(state);
+      const bassTarget = twoHandTargets[0] ?? null;
+      const classification = classifyTwoHandCapture(twoHandTargetChord(state), twoHandPending.notes, { bassTargetOnset: bassTarget });
+      const bass = classification.bass;
+      const timing = bass && bassTarget != null ? twoHandTimingBand(bass.at, bassTarget) : null;
+      const bassCorrect = Boolean(bass && bass.keyId === voicing.bassKeyId);
+      const correct = bassCorrect && timing?.accepted !== false;
+      const result: TwoHandAttemptResult = {
+        outcome: correct ? 'correct' : bass ? (bassCorrect ? 'timing_failed' : 'wrong_bass') : 'missing_left',
+        correct,
+        bassCorrect,
+        chordCorrect: true,
+        syncMs: null,
+        timing: timing?.band ?? null,
+        feedbackText: correct ? `Верно: ${voicing.bassKeyId} левой рукой.` : bass ? `Неверный бас. Нужна ${voicing.bassKeyId} левой рукой.` : 'Левая рука не сыграла бас.'
+      };
+      setTwoHandLastAttempt(result);
+      cancelTwoHandRun();
+      if (twoHandState) twoHandState = { ...twoHandState, activeBeat: -1, playCue: false };
+      commitTwoHandDailyResult(result);
+      return;
+    }
+    const result = twoHandCaptureResult(state);
+    setTwoHandLastAttempt(result);
+    cancelTwoHandRun();
+    if (twoHandDailyMode) {
+      commitTwoHandDailyResult(result);
+      return;
+    }
+    updateTwoHandState({ type: 'gradeAttempt', result });
+    if (twoHandState) twoHandState = { ...twoHandState, activeBeat: -1, playCue: false };
   }
 
   function commitTwoHandDailyResult(result: TwoHandAttemptResult) {
@@ -4085,47 +4226,6 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     }
   }
 
-  function flushTwoHandAttempt() {
-    const state = twoHandState;
-    if (!state || twoHandPending.graded) return;
-    twoHandPending.graded = true;
-    const voicing = twoHandVoicingOf(state);
-    const pattern = twoHandPattern(state);
-    const bassTarget = twoHandTargets[0] ?? null;
-    const chordTarget = pattern === 'simultaneous' ? (twoHandTargets[0] ?? null) : (twoHandTargets[1] ?? null);
-    if (twoHandDailyMode && currentCard?.skill === 'twoHandBass') {
-      const bass = twoHandPending.bass;
-      const timing = bass && bassTarget != null ? twoHandTimingBand(bass.at, bassTarget) : null;
-      const bassCorrect = Boolean(bass && bass.keyId === voicing.bassKeyId);
-      const correct = bassCorrect && timing?.accepted !== false;
-      const result: TwoHandAttemptResult = {
-        outcome: correct ? 'correct' : bass ? 'wrong_bass' : 'missing_left',
-        correct,
-        bassCorrect,
-        chordCorrect: true,
-        syncMs: null,
-        timing: timing?.band ?? null,
-        feedbackText: correct ? `Верно: ${voicing.bassKeyId} левой рукой.` : bass ? `Неверный бас. Нужна ${voicing.bassKeyId} левой рукой.` : 'Левая рука не сыграла бас.'
-      };
-      cancelTwoHandRun();
-      commitTwoHandDailyResult(result);
-      return;
-    }
-    const result = evaluateTwoHandAttempt({
-      chordId: twoHandTargetChord(state),
-      pattern,
-      bass: twoHandPending.bass,
-      chordNotes: twoHandPending.chord,
-      bassTargetOnset: bassTarget,
-      chordTargetOnset: chordTarget
-    });
-    cancelTwoHandRun();
-    if (twoHandDailyMode) {
-      commitTwoHandDailyResult(result);
-      return;
-    }
-    updateTwoHandState({ type: 'gradeAttempt', result });
-  }
 
   function advanceDailyTwoHandQuestion() {
     cancelTwoHandRun();
@@ -6467,8 +6567,14 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
 
     const midi = MidiController.getInstance();
     const unsubscribeMidiStatus = midi.onStatusChange((st) => {
+      const wasReady = midiReady;
       midiStatus = st.message;
       midiReady = st.connected;
+      if (wasReady && !st.connected && twoHandState?.isRunning) {
+        // A disconnected input device must never grade an incomplete gesture.
+        cancelTwoHandRun();
+        updateTwoHandState({ type: 'inputInterrupted' }, false);
+      }
     });
     const unsubscribeMidiNoteOn = midi.onNoteOn((ev: MidiNoteOnEvent) => {
       if (!isActivePracticeSession(currentSessionId)) return;
@@ -7198,6 +7304,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
             <div class="first-run-stage-wrap advanced-learning-stage-wrap two-hand-stage-wrap" data-testid="m3l-module-stage">
               <TwoHandStage
                 state={twoHandState}
+                showHints={twoHandHintsVisible(twoHandState)}
                 midiConnected={midiReady}
                 onContinue={() => updateTwoHandState({ type: 'continueStage' })}
                 onStartRun={startTwoHandRun}

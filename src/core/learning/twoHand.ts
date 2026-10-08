@@ -100,9 +100,11 @@ export interface TwoHandModuleState {
   selectedKeyIds: string[];
   awaitingCorrective: boolean;
   trialHadWrong: boolean;
+  remediationCorrected: boolean;
   isRunning: boolean;
   countInValue: number | null;
   activeBeat: number;
+  playCue: boolean;
   expectedOnset: number | null;
   feedbackText: string;
   feedbackTone: 'good' | 'warn' | 'bad' | '';
@@ -115,8 +117,9 @@ export type TwoHandAction =
   | { type: 'clearSelection' }
   | { type: 'guidedResult'; correct: boolean; octaveMismatch?: boolean }
   | { type: 'startRun' }
-  | { type: 'clockBeat'; beat: number; countInValue: number | null }
+  | { type: 'clockBeat'; beat: number; countInValue: number | null; chordIndex?: number }
   | { type: 'cancel' }
+  | { type: 'inputInterrupted' }
   | { type: 'gradeAttempt'; result: TwoHandAttemptResult }
   | { type: 'advance' }
   | { type: 'startRemediation' }
@@ -186,9 +189,11 @@ export function createTwoHandModuleState(progress?: ReadonlyMap<string, { state?
     selectedKeyIds: [],
     awaitingCorrective: false,
     trialHadWrong: false,
+    remediationCorrected: false,
     isRunning: false,
     countInValue: null,
     activeBeat: 0,
+    playCue: false,
     expectedOnset: null,
     feedbackText: '',
     feedbackTone: '',
@@ -382,6 +387,46 @@ function pitchClass(keyId: string): string {
   return keyId.replace(/\d/g, '');
 }
 
+export interface TwoHandCaptureClassification {
+  bass: TwoHandCaptureNote | null;
+  chordNotes: TwoHandCaptureNote[];
+}
+
+/**
+ * Classifies raw captured note-ons into a left-hand bass candidate and right-hand
+ * chord notes without losing musically meaningful errors:
+ * - the exact bass wins;
+ * - a wrong octave of the bass pitch class is kept as the bass so it can be classified;
+ * - any other non-triad note played near the bass target is kept as the bass candidate
+ *   (so "wrong bass" is not reported as "left hand did not play");
+ * - remaining non-triad notes stay in the chord list so extra notes are detectable.
+ */
+export function classifyTwoHandCapture(
+  chordId: HarmonyChordId,
+  notes: readonly TwoHandCaptureNote[],
+  options: { bassTargetOnset?: number | null } = {}
+): TwoHandCaptureClassification {
+  const voicing = TWO_HAND_VOICINGS[chordId];
+  const triadSet = new Set<string>(voicing.triadKeyIds);
+  const bassPitchClass = pitchClass(voicing.bassKeyId);
+  const exactBass = notes.find(note => note.keyId === voicing.bassKeyId) ?? null;
+  const octaveCandidate = notes.find(note => note.keyId !== voicing.bassKeyId && !triadSet.has(note.keyId) && pitchClass(note.keyId) === bassPitchClass) ?? null;
+  const otherCandidates = notes.filter(note =>
+    !triadSet.has(note.keyId) &&
+    note.keyId !== voicing.bassKeyId &&
+    pitchClass(note.keyId) !== bassPitchClass
+  );
+  const target = options.bassTargetOnset ?? null;
+  const nearestToTarget = [...otherCandidates].sort((left, right) => {
+    if (target != null) return Math.abs(left.at - target) - Math.abs(right.at - target);
+    return left.midi - right.midi;
+  })[0] ?? null;
+  const bass = exactBass ?? octaveCandidate ?? nearestToTarget;
+  const chordNotes = notes.filter(note => triadSet.has(note.keyId));
+  const extraNotes = notes.filter(note => !triadSet.has(note.keyId) && note !== bass && !(bass !== null && note.keyId === bass.keyId));
+  return { bass, chordNotes: [...chordNotes, ...extraNotes] };
+}
+
 export function evaluateTwoHandAttempt(input: TwoHandAttemptInput): TwoHandAttemptResult {
   const voicing = TWO_HAND_VOICINGS[input.chordId];
   const chordKeyIds = input.chordNotes.map(note => note.keyId);
@@ -474,9 +519,12 @@ function recordTwoHandAttempt(state: TwoHandModuleState, result: TwoHandAttemptR
   if (assessment.phase === 'remediation') {
     return {
       ...state,
-      awaitingCorrective: false,
-      trialHadWrong: false,
+      awaitingCorrective: !result.correct,
+      remediationCorrected: result.correct,
+      trialHadWrong: result.correct ? state.trialHadWrong : true,
       isRunning: false,
+      activeBeat: -1,
+      playCue: false,
       expectedOnset: null,
       feedbackText: result.correct
         ? 'Исправлено. Продолжаем короткую коррекцию.'
@@ -502,6 +550,8 @@ function recordTwoHandAttempt(state: TwoHandModuleState, result: TwoHandAttemptR
           assessment.remediationTrialIndexes = failed.length ? failed : Array.from({ length: TWO_HAND_MAX_REMEDIATION }, (_, index) => index);
           assessment.remediationIndex = 0;
           assessment.remediationUsed += 1;
+          // The first remediation item must target the actual failed trial position.
+          assessment.trialIndex = assessment.remediationTrialIndexes[0] ?? 0;
         }
       }
     }
@@ -513,8 +563,11 @@ function recordTwoHandAttempt(state: TwoHandModuleState, result: TwoHandAttemptR
     ...state,
     assessment,
     awaitingCorrective: !result.correct,
+    remediationCorrected: false,
     trialHadWrong: result.correct ? false : true,
     isRunning: false,
+    activeBeat: -1,
+    playCue: false,
     expectedOnset: null,
     feedbackText: result.feedbackText,
     feedbackTone: result.correct ? 'good' : 'bad',
@@ -528,7 +581,11 @@ export function reduceTwoHandState(state: TwoHandModuleState, action: TwoHandAct
       if (state.stage === 'handOrientation') return { ...state, stage: 'leftHand', feedbackText: '', feedbackTone: '' };
       return state;
     case 'selectKey':
-      if (state.isRunning || state.awaitingCorrective) return state;
+      // Corrective input must stay enabled after a wrong guided attempt; only an
+      // active timed run blocks selection. Progress/navigation invariants are guarded
+      // by guidedResult (one index increment per accepted correction) and by the
+      // awaitingCorrective checks on advance/startRun.
+      if (state.isRunning) return state;
       return { ...state, selectedKeyIds: state.selectedKeyIds.includes(action.keyId)
         ? state.selectedKeyIds.filter(keyId => keyId !== action.keyId)
         : [...state.selectedKeyIds, action.keyId].slice(0, 4) };
@@ -573,29 +630,53 @@ export function reduceTwoHandState(state: TwoHandModuleState, action: TwoHandAct
       };
     }
     case 'startRun':
-      return { ...state, isRunning: true, countInValue: 4, activeBeat: 0, expectedOnset: null, awaitingCorrective: false, selectedKeyIds: [], feedbackText: '', feedbackTone: '' };
+      return { ...state, isRunning: true, countInValue: 4, activeBeat: -1, playCue: false, expectedOnset: null, awaitingCorrective: false, remediationCorrected: false, selectedKeyIds: [], feedbackText: '', feedbackTone: '' };
     case 'clockBeat':
-      return { ...state, countInValue: action.countInValue, activeBeat: action.beat };
+      return {
+        ...state,
+        countInValue: action.countInValue,
+        activeBeat: action.beat,
+        playCue: action.countInValue == null && action.beat === 0,
+        chordIndex: action.chordIndex != null ? action.chordIndex : state.chordIndex
+      };
     case 'cancel':
-      return { ...state, isRunning: false, countInValue: null, expectedOnset: null };
+      return { ...state, isRunning: false, countInValue: null, activeBeat: -1, playCue: false, expectedOnset: null };
+    case 'inputInterrupted':
+      return {
+        ...state,
+        isRunning: false,
+        countInValue: null,
+        activeBeat: -1,
+        playCue: false,
+        expectedOnset: null,
+        awaitingCorrective: false,
+        feedbackText: 'Ввод MIDI прерван: подключите инструмент и начните отсчёт заново. Ответ не засчитан.',
+        feedbackTone: 'warn'
+      };
     case 'gradeAttempt': {
       if (state.stage === 'fourBar' || state.stage === 'independent') {
         if (!action.result.correct) {
-          return { ...state, isRunning: false, expectedOnset: null, awaitingCorrective: true, feedbackText: action.result.feedbackText, feedbackTone: 'bad' };
+          return { ...state, isRunning: false, activeBeat: -1, playCue: false, expectedOnset: null, awaitingCorrective: true, feedbackText: action.result.feedbackText, feedbackTone: 'bad' };
         }
         const progress = { ...state.progress, barsPassed: state.progress.barsPassed + 1 };
         const chordIndex = (state.chordIndex + 1) % TWO_HAND_SEQUENCE.length;
         if (progress.barsPassed >= TWO_HAND_SEQUENCE.length) {
           if (state.stage === 'independent') {
-            return { ...state, progress: { ...progress, independentPassed: true }, stage: 'transferAssessment', chordIndex: 0, isRunning: false, expectedOnset: null, feedbackText: 'Четыре такта сыграны самостоятельно! Переходим к проверке навыка.', feedbackTone: 'good', trialHadWrong: false, awaitingCorrective: false };
+            const isFreshFirstBlock = state.assessment.phase === 'active' &&
+              state.assessment.blockKind === 'initial' &&
+              state.assessment.trialsCompleted === 0;
+            const assessment = isFreshFirstBlock
+              ? state.assessment
+              : { ...freshAssessment('retry'), remediationUsed: state.assessment.remediationUsed };
+            return { ...state, progress: { ...progress, independentPassed: true }, assessment, stage: 'transferAssessment', chordIndex: 0, isRunning: false, activeBeat: -1, playCue: false, expectedOnset: null, feedbackText: 'Четыре такта сыграны самостоятельно! Переходим к проверке навыка.', feedbackTone: 'good', trialHadWrong: false, awaitingCorrective: false };
           }
-          return { ...state, progress: { ...progress, barsPassed: 0 }, stage: 'independent', chordIndex: 0, isRunning: false, expectedOnset: null, feedbackText: 'Четыре такта двумя руками получились! Теперь играем без подсказок.', feedbackTone: 'good', awaitingCorrective: false };
+          return { ...state, progress: { ...progress, barsPassed: 0 }, stage: 'independent', chordIndex: 0, isRunning: false, activeBeat: -1, playCue: false, expectedOnset: null, feedbackText: 'Четыре такта двумя руками получились! Теперь играем без подсказок.', feedbackTone: 'good', awaitingCorrective: false };
         }
-        return { ...state, progress, chordIndex, isRunning: false, expectedOnset: null, feedbackText: `Такт ${state.chordIndex + 1} верно. Следующий: ${TWO_HAND_VOICINGS[TWO_HAND_SEQUENCE[chordIndex]].symbol}`, feedbackTone: 'good', awaitingCorrective: false };
+        return { ...state, progress, chordIndex, isRunning: false, activeBeat: -1, playCue: false, expectedOnset: null, feedbackText: `Такт ${state.chordIndex + 1} верно. Следующий: ${TWO_HAND_VOICINGS[TWO_HAND_SEQUENCE[chordIndex]].symbol}`, feedbackTone: 'good', awaitingCorrective: false };
       }
       if (state.stage === 'simultaneous' || state.stage === 'alternating') {
         if (!action.result.correct) {
-          return { ...state, isRunning: false, expectedOnset: null, awaitingCorrective: true, feedbackText: action.result.feedbackText, feedbackTone: 'bad' };
+          return { ...state, isRunning: false, activeBeat: -1, playCue: false, expectedOnset: null, awaitingCorrective: true, feedbackText: action.result.feedbackText, feedbackTone: 'bad' };
         }
         const progress = { ...state.progress };
         const done = state.stage === 'simultaneous'
@@ -623,15 +704,17 @@ export function reduceTwoHandState(state: TwoHandModuleState, action: TwoHandAct
       return state;
     }
     case 'advance': {
+      if (state.awaitingCorrective) return state;
+      if (state.stage === 'transferRemediation' && !state.remediationCorrected) return state;
       if (state.stage === 'transferRemediation') {
         const assessment = { ...state.assessment };
         assessment.remediationIndex += 1;
         assessment.pendingCorrective = false;
-        assessment.trialIndex = assessment.remediationIndex;
         if (assessment.remediationIndex >= assessment.remediationTrialIndexes.length) {
-          return { ...state, assessment: { ...assessment, phase: 'active', blockKind: 'retry', trialIndex: 0, trialsCompleted: 0, correctFirstAttempts: 0, failedTrialIndexes: [], remediationTrialIndexes: [], remediationIndex: 0 }, stage: 'transferAssessment', awaitingCorrective: false, trialHadWrong: false, feedbackText: 'Короткая коррекция завершена. Новая проверка: 12 заданий.', feedbackTone: '' };
+          return { ...state, assessment: { ...assessment, phase: 'active', blockKind: 'retry', trialIndex: 0, trialsCompleted: 0, correctFirstAttempts: 0, failedTrialIndexes: [], remediationTrialIndexes: [], remediationIndex: 0 }, stage: 'transferAssessment', awaitingCorrective: false, remediationCorrected: false, trialHadWrong: false, feedbackText: 'Короткая коррекция завершена. Новая проверка: 12 заданий.', feedbackTone: '' };
         }
-        return { ...state, assessment, awaitingCorrective: false, trialHadWrong: false, feedbackText: 'Следующее задание коррекции.', feedbackTone: '' };
+        assessment.trialIndex = assessment.remediationTrialIndexes[assessment.remediationIndex] ?? 0;
+        return { ...state, assessment, awaitingCorrective: false, remediationCorrected: false, trialHadWrong: false, feedbackText: 'Следующее задание коррекции.', feedbackTone: '' };
       }
       if (state.stage === 'transferResult') {
         if (state.assessment.phase === 'failed' || (state.assessment.phase === 'remediation' && state.assessment.remediationUsed > TWO_HAND_MAX_REMEDIATION)) {
@@ -648,11 +731,30 @@ export function reduceTwoHandState(state: TwoHandModuleState, action: TwoHandAct
         stage: 'transferRemediation',
         assessment: { ...state.assessment, trialIndex: state.assessment.remediationTrialIndexes[0] ?? 0, remediationIndex: 0, pendingCorrective: false },
         awaitingCorrective: false,
+        remediationCorrected: false,
         feedbackText: 'Разберите проблемные места и повторите.',
         feedbackTone: ''
       };
     case 'retryAssessment':
-      if (state.stage !== 'transferResult' || state.assessment.phase !== 'remediation') return state;
+      if (state.stage !== 'transferResult') return state;
+      if (state.assessment.phase === 'failed') {
+        return {
+          ...state,
+          stage: 'simultaneous',
+          progress: { ...state.progress, simultaneousIndex: 0, alternatingIndex: 0, barsPassed: 0, independentPassed: false },
+          chordIndex: 0,
+          isRunning: false,
+          activeBeat: -1,
+          playCue: false,
+          countInValue: null,
+          expectedOnset: null,
+          awaitingCorrective: false,
+          trialHadWrong: false,
+          feedbackText: 'Возвращаемся к учебным шагам: повторите игру двумя руками, затем проверка начнётся заново. История проверки сохранена.',
+          feedbackTone: ''
+        };
+      }
+      if (state.assessment.phase !== 'remediation') return state;
       if (state.assessment.blockKind === 'retry' || state.assessment.remediationUsed > TWO_HAND_MAX_REMEDIATION) {
         return { ...state, assessment: { ...state.assessment, phase: 'failed' } };
       }
@@ -660,6 +762,10 @@ export function reduceTwoHandState(state: TwoHandModuleState, action: TwoHandAct
         ...state,
         stage: 'transferAssessment',
         assessment: { ...freshAssessment('retry'), remediationUsed: state.assessment.remediationUsed },
+        isRunning: false,
+        activeBeat: -1,
+        playCue: false,
+        countInValue: null,
         awaitingCorrective: false,
         trialHadWrong: false,
         feedbackText: 'Новая проверка: 12 заданий.',
@@ -723,3 +829,4 @@ export function twoHandSkillInstruction(skill: TwoHandSkill): string {
 export function isTwoHandSkill(skill: string): skill is TwoHandSkill {
   return skill === 'twoHandBass' || skill === 'twoHandTogether' || skill === 'twoHandAlternating';
 }
+

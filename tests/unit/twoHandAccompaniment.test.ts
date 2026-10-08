@@ -8,6 +8,7 @@ import {
   TWO_HAND_SYNC_WINDOW_MS,
   TWO_HAND_VOICINGS,
   createTwoHandModuleState,
+  classifyTwoHandCapture,
   evaluateTwoHandAttempt,
   getTwoHandModuleStatus,
   isTwoHandSkill,
@@ -81,6 +82,12 @@ function runStage(state: TwoHandModuleState, count: number): TwoHandModuleState 
 function advanceToSimultaneous(): TwoHandModuleState {
   let next = reduceTwoHandState(createTwoHandModuleState(), { type: 'continueStage' });
   for (let index = 0; index < SEQ.length; index++) next = reduceTwoHandState(next, { type: 'guidedResult', correct: true });
+  for (let index = 0; index < SEQ.length; index++) next = reduceTwoHandState(next, { type: 'guidedResult', correct: true });
+  return next;
+}
+
+function advanceToRightHand(): TwoHandModuleState {
+  let next = reduceTwoHandState(createTwoHandModuleState(), { type: 'continueStage' });
   for (let index = 0; index < SEQ.length; index++) next = reduceTwoHandState(next, { type: 'guidedResult', correct: true });
   return next;
 }
@@ -271,6 +278,28 @@ describe('M3L attempt evaluation', () => {
 });
 
 describe('M3L stage machine', () => {
+  it('drives the play cue and beat highlight from the shared clock', () => {
+    let state = advanceToSimultaneous();
+    state = reduceTwoHandState(state, { type: 'startRun' });
+    expect(state.activeBeat).toBe(-1);
+    expect(state.playCue).toBe(false);
+    state = reduceTwoHandState(state, { type: 'clockBeat', beat: 0, countInValue: 3 });
+    expect(state.activeBeat).toBe(0);
+    expect(state.countInValue).toBe(3);
+    expect(state.playCue).toBe(false);
+    state = reduceTwoHandState(state, { type: 'clockBeat', beat: 0, countInValue: null });
+    expect(state.playCue).toBe(true);
+    state = reduceTwoHandState(state, { type: 'clockBeat', beat: 2, countInValue: null });
+    expect(state.activeBeat).toBe(2);
+    expect(state.playCue).toBe(false);
+    const cancelled = reduceTwoHandState(state, { type: 'cancel' });
+    expect(cancelled.activeBeat).toBe(-1);
+    expect(cancelled.playCue).toBe(false);
+    const interrupted = reduceTwoHandState(state, { type: 'inputInterrupted' });
+    expect(interrupted.activeBeat).toBe(-1);
+    expect(interrupted.playCue).toBe(false);
+  });
+
   it('walks orientation → left hand → right hand → simultaneous', () => {
     let state = createTwoHandModuleState();
     expect(state.stage).toBe('handOrientation');
@@ -356,6 +385,250 @@ describe('M3L assessment, remediation and fail bound', () => {
     expect(state.assessment.phase).toBe('failed');
     expect(state.stage).toBe('transferResult');
     expect(reduceTwoHandState(state, { type: 'completeModule' }).stage).toBe('transferResult');
+  });
+});
+
+describe('M3L Rev1 capture classification and error integrity', () => {
+  const note = (keyId: string, at: number, midi = 60) => ({ keyId, midi, at });
+
+  it('keeps a wrong LH bass note as the bass candidate instead of reporting a missing left hand', () => {
+    const classification = classifyTwoHandCapture('C', [
+      note('D3', 1_000, 50),
+      note('C4', 1_010, 60),
+      note('E4', 1_012, 64),
+      note('G4', 1_014, 67)
+    ], { bassTargetOnset: 1_000 });
+    expect(classification.bass?.keyId).toBe('D3');
+    const result = evaluateTwoHandAttempt({
+      chordId: 'C',
+      pattern: 'simultaneous',
+      bass: classification.bass,
+      chordNotes: classification.chordNotes,
+      bassTargetOnset: 1_000,
+      chordTargetOnset: 1_000
+    });
+    expect(result.outcome).toBe('wrong_bass');
+    expect(result.bassCorrect).toBe(false);
+  });
+
+  it('classifies a wrong bass octave and keeps extra notes detectable', () => {
+    const octave = classifyTwoHandCapture('C', [
+      note('C2', 1_000, 36),
+      note('C4', 1_005, 60),
+      note('E4', 1_006, 64),
+      note('G4', 1_007, 67)
+    ], { bassTargetOnset: 1_000 });
+    const octaveResult = evaluateTwoHandAttempt({
+      chordId: 'C',
+      pattern: 'simultaneous',
+      bass: octave.bass,
+      chordNotes: octave.chordNotes,
+      bassTargetOnset: 1_000,
+      chordTargetOnset: 1_000
+    });
+    expect(octaveResult.outcome).toBe('wrong_bass_octave');
+
+    const extra = classifyTwoHandCapture('C', [
+      note('C3', 0, 48),
+      note('C4', 4, 60),
+      note('E4', 5, 64),
+      note('G4', 6, 67),
+      note('C5', 250, 72)
+    ], { bassTargetOnset: 0 });
+    expect(extra.bass?.keyId).toBe('C3');
+    expect(extra.chordNotes.length).toBe(4);
+    const extraResult = evaluateTwoHandAttempt({
+      chordId: 'C',
+      pattern: 'simultaneous',
+      bass: extra.bass,
+      chordNotes: extra.chordNotes,
+      bassTargetOnset: 0,
+      chordTargetOnset: 0
+    });
+    expect(extraResult.outcome).toBe('extra_note');
+    expect(extraResult.correct).toBe(false);
+  });
+
+  it('reports a genuinely missing left hand only when no bass candidate exists', () => {
+    const classification = classifyTwoHandCapture('C', [
+      note('C4', 0, 60),
+      note('E4', 1, 64),
+      note('G4', 2, 67)
+    ], { bassTargetOnset: 0 });
+    expect(classification.bass).toBeNull();
+    const result = evaluateTwoHandAttempt({
+      chordId: 'C',
+      pattern: 'simultaneous',
+      bass: classification.bass,
+      chordNotes: classification.chordNotes,
+      bassTargetOnset: 0,
+      chordTargetOnset: 0
+    });
+    expect(result.outcome).toBe('missing_left');
+  });
+});
+
+describe('M3L Rev1 remediation integrity and stage recovery', () => {
+  it('blocks advance until the current remediation item is corrected and maps positions to failed trial indexes', () => {
+    let state = advanceToAssessment();
+    state = failAssessmentBlock(state);
+    expect(state.stage).toBe('transferRemediation');
+    expect(state.assessment.remediationTrialIndexes).toEqual([0, 1, 2]);
+    expect(state.assessment.trialIndex).toBe(0);
+    expect(state.remediationCorrected).toBe(false);
+    const blockedUncorrected = reduceTwoHandState(state, { type: 'advance' });
+    expect(blockedUncorrected).toBe(state);
+
+    state = reduceTwoHandState(state, { type: 'startRun' });
+    state = reduceTwoHandState(state, { type: 'gradeAttempt', result: wrongAttempt(state) });
+    expect(state.awaitingCorrective).toBe(true);
+    expect(state.remediationCorrected).toBe(false);
+    const blocked = reduceTwoHandState(state, { type: 'advance' });
+    expect(blocked).toBe(state);
+    expect(blocked.assessment.remediationIndex).toBe(0);
+
+    state = reduceTwoHandState(state, { type: 'startRun' });
+    state = reduceTwoHandState(state, { type: 'gradeAttempt', result: correctAttempt(state) });
+    expect(state.awaitingCorrective).toBe(false);
+    expect(state.remediationCorrected).toBe(true);
+    state = reduceTwoHandState(state, { type: 'advance' });
+    expect(state.assessment.remediationIndex).toBe(1);
+    expect(state.assessment.trialIndex).toBe(1);
+    expect(state.remediationCorrected).toBe(false);
+
+    state = reduceTwoHandState(state, { type: 'startRun' });
+    state = reduceTwoHandState(state, { type: 'gradeAttempt', result: correctAttempt(state) });
+    state = reduceTwoHandState(state, { type: 'advance' });
+    expect(state.assessment.trialIndex).toBe(2);
+
+    state = reduceTwoHandState(state, { type: 'startRun' });
+    state = reduceTwoHandState(state, { type: 'gradeAttempt', result: correctAttempt(state) });
+    state = reduceTwoHandState(state, { type: 'advance' });
+    expect(state.stage).toBe('transferAssessment');
+    expect(state.assessment.blockKind).toBe('retry');
+    expect(state.assessment.remediationUsed).toBe(1);
+  });
+
+  it('returns to learning after a terminal failure without false completion and preserves history', () => {
+    let state = advanceToAssessment();
+    state = failAssessmentBlock(state);
+    state = completeRemediation(state);
+    state = failAssessmentBlock(state);
+    state = completeRemediation(state);
+    state = failAssessmentBlock(state);
+    state = completeRemediation(state);
+    state = failAssessmentBlock(state);
+    expect(state.assessment.phase).toBe('failed');
+    expect(state.stage).toBe('transferResult');
+
+    const recovered = reduceTwoHandState(state, { type: 'retryAssessment' });
+    expect(recovered.stage).toBe('simultaneous');
+    expect(recovered.assessment.phase).toBe('failed');
+    expect(recovered.assessment.trialsCompleted).toBe(TWO_HAND_ASSESSMENT_TRIALS);
+    expect(recovered.progress.simultaneousIndex).toBe(0);
+    expect(recovered.progress.independentPassed).toBe(false);
+    expect(reduceTwoHandState(recovered, { type: 'completeModule' }).stage).toBe('simultaneous');
+
+    const backToIndependent = {
+      ...recovered,
+      stage: 'independent' as const,
+      progress: { ...recovered.progress, barsPassed: TWO_HAND_SEQUENCE.length - 1 }
+    };
+    const enteringAssessment = reduceTwoHandState(backToIndependent, { type: 'gradeAttempt', result: correctAttempt(backToIndependent) });
+    expect(enteringAssessment.stage).toBe('transferAssessment');
+    expect(enteringAssessment.assessment.blockKind).toBe('retry');
+    expect(enteringAssessment.assessment.trialsCompleted).toBe(0);
+    expect(enteringAssessment.assessment.remediationUsed).toBe(3);
+  });
+
+  it('advances continuous bars by chord index and cancels safely on input interruption', () => {
+    let state = advanceToSimultaneous();
+    state = runStage(state, TWO_HAND_SEQUENCE.length);
+    state = runStage(state, TWO_HAND_SEQUENCE.length);
+    expect(state.stage).toBe('fourBar');
+    state = reduceTwoHandState(state, { type: 'clockBeat', beat: 0, countInValue: null, chordIndex: 2 });
+    expect(twoHandTargetChord(state)).toBe('Am');
+    state = reduceTwoHandState(state, { type: 'startRun' });
+    const interrupted = reduceTwoHandState(state, { type: 'inputInterrupted' });
+    expect(interrupted.isRunning).toBe(false);
+    expect(interrupted.awaitingCorrective).toBe(false);
+    expect(interrupted.feedbackTone).toBe('warn');
+    expect(interrupted.assessment.trialsCompleted).toBe(0);
+  });
+
+  it('plays all four bars of the phrase with one run and one chord change per bar', () => {
+    let state = advanceToSimultaneous();
+    state = runStage(state, TWO_HAND_SEQUENCE.length);
+    state = runStage(state, TWO_HAND_SEQUENCE.length);
+    expect(state.stage).toBe('fourBar');
+    state = reduceTwoHandState(state, { type: 'startRun' });
+    const barResults = TWO_HAND_SEQUENCE.map((chordId, barIndex) => {
+      const voicing = TWO_HAND_VOICINGS[chordId];
+      const onset = 10_000 + barIndex * 4_000;
+      return evaluateTwoHandAttempt({
+        chordId,
+        pattern: 'alternating',
+        bass: { keyId: voicing.bassKeyId, midi: 40, at: onset },
+        chordNotes: voicing.triadKeyIds.map((keyId, index) => ({ keyId, midi: 60 + index, at: onset + 1_200 })),
+        bassTargetOnset: onset,
+        chordTargetOnset: onset + 1_200
+      });
+    });
+    for (const result of barResults) {
+      state = reduceTwoHandState(state, { type: 'gradeAttempt', result });
+    }
+    expect(state.stage).toBe('independent');
+    expect(state.progress.barsPassed).toBe(0);
+    expect(state.progress.independentPassed).toBe(false);
+  });
+});
+
+describe('M3L P0 right-hand guided correction', () => {
+  it('keeps corrective selection enabled after a wrong guided chord and advances exactly once', () => {
+    let state = advanceToRightHand();
+    expect(state.stage).toBe('rightHand');
+    expect(state.progress.rightIndex).toBe(0);
+
+    for (const keyId of ['F4', 'A4', 'C5']) state = reduceTwoHandState(state, { type: 'selectKey', keyId });
+    expect(state.selectedKeyIds).toEqual(['F4', 'A4', 'C5']);
+    state = reduceTwoHandState(state, { type: 'clearSelection' });
+    state = reduceTwoHandState(state, { type: 'guidedResult', correct: false });
+    expect(state.awaitingCorrective).toBe(true);
+    expect(state.feedbackTone).toBe('bad');
+    expect(state.progress.rightIndex).toBe(0);
+
+    // P0: corrective input must not be rejected by awaitingCorrective.
+    for (const keyId of ['C4', 'E4', 'G4']) {
+      const next = reduceTwoHandState(state, { type: 'selectKey', keyId });
+      expect(next.selectedKeyIds).toContain(keyId);
+      state = next;
+    }
+    expect(state.selectedKeyIds).toEqual(['C4', 'E4', 'G4']);
+    state = reduceTwoHandState(state, { type: 'clearSelection' });
+    state = reduceTwoHandState(state, { type: 'guidedResult', correct: true });
+    expect(state.awaitingCorrective).toBe(false);
+    expect(state.feedbackTone).toBe('good');
+    expect(state.feedbackText).toBe('Верно!');
+    expect(state.progress.rightIndex).toBe(1);
+    expect(state.selectedKeyIds).toEqual([]);
+  });
+
+  it('still blocks selection during an active timed run and keeps a fresh first attempt clean', () => {
+    let state = advanceToRightHand();
+    for (let index = 0; index < SEQ.length; index++) state = reduceTwoHandState(state, { type: 'guidedResult', correct: true });
+    expect(state.stage).toBe('simultaneous');
+    const running = reduceTwoHandState(state, { type: 'startRun' });
+    const rejected = reduceTwoHandState(running, { type: 'selectKey', keyId: 'C4' });
+    expect(rejected).toBe(running);
+    expect(rejected.selectedKeyIds).toEqual([]);
+
+    let fresh = advanceToRightHand();
+    for (const keyId of ['C4', 'E4', 'G4']) fresh = reduceTwoHandState(fresh, { type: 'selectKey', keyId });
+    fresh = reduceTwoHandState(fresh, { type: 'clearSelection' });
+    fresh = reduceTwoHandState(fresh, { type: 'guidedResult', correct: true });
+    expect(fresh.progress.rightIndex).toBe(1);
+    expect(fresh.awaitingCorrective).toBe(false);
+    expect(fresh.feedbackTone).toBe('good');
   });
 });
 

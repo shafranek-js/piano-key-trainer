@@ -99,6 +99,7 @@ export class MidiController {
     let count = 0;
 
     this.midiAccess.inputs.forEach(input => {
+      if (input.state !== 'connected') return;
       count++;
       if (input.name) names.push(input.name);
       input.onmidimessage = (e: MIDIMessageEvent) => this.handleMidiMessage(e);

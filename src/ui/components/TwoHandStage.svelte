@@ -82,13 +82,23 @@
       case 'rightHand':
         return `Сыграйте аккорд правой рукой: ${voicing.symbol} — ${voicing.triadKeyIds.join('–')}. Нужны все три ноты.`;
       case 'simultaneous':
-        return `На первую долю нажмите одновременно ${voicing.bassKeyId} левой рукой и ${voicing.triadKeyIds.join('–')} правой.`;
+        return showHints
+          ? `На первую долю нажмите одновременно ${voicing.bassKeyId} левой рукой и ${voicing.triadKeyIds.join('–')} правой.`
+          : `На первую долю нажмите бас левой рукой и аккорд ${voicing.symbol} правой одновременно.`;
       case 'alternating':
       case 'fourBar':
+        return showHints
+          ? `На первую долю сыграйте ${voicing.bassKeyId} левой рукой. На третью долю сыграйте ${voicing.triadKeyIds.join('–')} правой.`
+          : `На первую долю — бас левой рукой, на третью — аккорд ${voicing.symbol} правой.`;
       case 'independent':
-        return `На первую долю сыграйте ${voicing.bassKeyId} левой рукой. На третью долю сыграйте ${voicing.triadKeyIds.join('–')} правой.`;
+        return `На первую долю — бас левой рукой, на третью — аккорд ${voicing.symbol} правой. Играйте без подсказок.`;
       case 'transferAssessment':
       case 'transferRemediation':
+        if (!showHints) {
+          return trial?.kind === 'simultaneous'
+            ? `Задание ${state.assessment.trialsCompleted + 1} из 12: обе руки вместе на первую долю, аккорд ${voicing.symbol}.`
+            : `Задание ${state.assessment.trialsCompleted + 1} из 12: бас на первую долю, аккорд ${voicing.symbol} на третью.`;
+        }
         return trial?.kind === 'simultaneous'
           ? `Задание ${state.assessment.trialsCompleted + 1} из 12. На первую долю нажмите одновременно ${voicing.bassKeyId} левой рукой и ${voicing.triadKeyIds.join('–')} правой.`
           : `Задание ${state.assessment.trialsCompleted + 1} из 12. На первую долю — ${voicing.bassKeyId} левой рукой, на третью — ${voicing.triadKeyIds.join('–')} правой.`;
@@ -98,7 +108,7 @@
   }
 </script>
 
-<section class="two-hand-stage" data-testid="two-hand-stage" data-two-hand-stage={state.stage} data-two-hand-pattern={pattern} data-two-hand-chord={chordId} data-two-hand-running={state.isRunning} data-two-hand-count-in={state.countInValue ?? ''} data-two-hand-beat={state.activeBeat}>
+<section class="two-hand-stage" data-testid="two-hand-stage" data-two-hand-stage={state.stage} data-two-hand-pattern={pattern} data-two-hand-chord={chordId} data-two-hand-running={state.isRunning} data-two-hand-count-in={state.countInValue ?? ''} data-two-hand-beat={state.activeBeat} data-two-hand-bar={state.chordIndex} data-two-hand-hints={showHints} data-two-hand-awaiting={state.awaitingCorrective} data-two-hand-corrected={state.remediationCorrected} data-two-hand-feedback-tone={state.feedbackTone} data-two-hand-running-label={state.isRunning ? 'running' : 'idle'}>
   <div class="two-hand-card">
     <div class="two-hand-eyebrow">ДОПОЛНИТЕЛЬНЫЙ МОДУЛЬ · ИГРА ДВУМЯ РУКАМИ · 4/4 · 60 BPM</div>
     <h2>{stageTitle()}</h2>
@@ -133,13 +143,16 @@
     {#if isTimed && !dailyMode && state.stage !== 'transferResult'}
       <div class="two-hand-status" data-testid="two-hand-timing-state">
         {#if state.countInValue != null}
-          Приготовьтесь: <strong>{state.countInValue}</strong> · 3 · 2 · 1
+          Отсчёт: <strong>{state.countInValue}</strong> · 4 · 3 · 2 · 1
         {:else if state.isRunning}
           Играйте: {pattern === 'simultaneous' ? 'обе руки вместе на первую долю' : 'бас на 1, аккорд на 3'}
         {:else}
           Нажмите «Начать отсчёт». Синхронизация рук — до {TWO_HAND_SYNC_WINDOW_MS} мс.
         {/if}
       </div>
+      {#if state.playCue}
+        <div class="two-hand-play-cue" data-testid="two-hand-play-cue" role="status">ИГРАЙТЕ!</div>
+      {/if}
     {/if}
 
     <p class="two-hand-selection" data-testid="two-hand-selected-count">
@@ -173,7 +186,7 @@
         {#if !state.isRunning}
           <button class="btn btn-primary" data-testid="two-hand-start-run" onclick={onStartRun}>{state.awaitingCorrective ? 'Сыграть исправление' : 'Начать отсчёт'}</button>
         {/if}
-        {#if state.stage === 'transferRemediation' && !state.awaitingCorrective}
+        {#if state.stage === 'transferRemediation' && state.remediationCorrected && !state.awaitingCorrective}
           <button class="btn btn-secondary" data-testid="two-hand-remediation-next" onclick={onNext}>Следующее задание</button>
         {/if}
       {:else if canCheckScreen}
@@ -208,6 +221,17 @@
   .two-hand-beats span.strong { border-color: #f4d36c; color: #f4d36c; }
   .two-hand-beats span.active { background: #38bdf8; color: #06121f; border-color: #7dd3fc; }
   .two-hand-status { color: #cbd5e1; margin: 8px 0; }
+.two-hand-play-cue {
+  display: inline-block;
+  margin: 4px 0 8px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(74, 222, 128, 0.18);
+  border: 1px solid rgba(74, 222, 128, 0.5);
+  color: #86efac;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
   .two-hand-selection { color: #9fadc2; font-size: .85rem; }
   .two-hand-selection small { margin-left: 6px; }
   .two-hand-feedback { margin: 10px auto; max-width: 720px; padding: 8px 12px; border-radius: 10px; }

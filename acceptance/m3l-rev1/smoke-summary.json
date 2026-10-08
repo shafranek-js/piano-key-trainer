@@ -1,0 +1,39 @@
+{
+  "scenarios": [
+    "M3L-P0-A wrong right-hand triad via MIDI then correct chord advances exactly once",
+    "M3L-P0-B on-screen wrong triad then correct chord and a fresh correct first attempt",
+    "M3L-01 four bars play continuously after one count-in",
+    "M3L-02 independent phrase hides note hints and stays continuous",
+    "M3L-03 complete 12 assessment trials through the real MIDI pipeline",
+    "M3L-04 wrong LH bass is classified as wrong bass, not missing left hand",
+    "M3L-05 delayed extra note cannot receive false success",
+    "M3L-06 MIDI disconnect cancels the attempt without grading",
+    "M3L-07 failed assessment returns to learning with history preserved",
+    "M3L-08 remediation gate blocks Next after a wrong item and maps failed trial positions",
+    "M3L-09 shared metronome count-in 4-3-2-1, play cue and restart integrity",
+    "M3L-10 integrity: no duplicate events, exceptions or console errors"
+  ],
+  "evidence": {
+    "failedAssessmentReturnToLearning": true,
+    "wrongRemediationNextBlocked": true,
+    "correctRemediationNextAvailable": true,
+    "fourBarsOneCountInContinuous": true,
+    "independentNoNoteHints": true,
+    "wrongBassClassification": true,
+    "delayedExtraNoteNoFalseSuccess": true,
+    "midiDisconnectSafeCancel": true,
+    "assessmentTwelveTrialsRealInput": true,
+    "p0RightHandCorrectionMidi": true,
+    "p0RightHandCorrectionScreen": true,
+    "p0FreshCorrectFirstAttempt": true,
+    "p0PersistenceUnchanged": true,
+    "metronomeCountInValues": [
+      4,
+      3,
+      2,
+      1
+    ],
+    "metronomeFirstPlayableAccent": true,
+    "metronomeLateRejected": "timing_failed"
+  }
+}

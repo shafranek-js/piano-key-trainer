@@ -9,7 +9,7 @@
 - **Cold Test Progression + Displayed Item Integrity: accepted** — all 19 task families use the central completion contract, and the displayed `Cold Test · N/20` number follows the question actually on screen.
 - **FSRS & Persistence Integrity (Checkpoint B): accepted** — canonical FSRS-6 parity vs pinned `py-fsrs` 6.3.2, latency provenance, identity-keyed `reviewLogEvents`, recoverable persistence retry, atomic migrator.
 - **Daily Practice & Diagnostics Hardening (Checkpoint C): implemented** (pending acceptance) — canonical skill registry, diagnostics v3 (real storage schema, 12-stage roadmap, M3K snapshot, persistence section), heterogeneous `smoke:daily-practice`, SessionStrip title priority, `card.stats`/NaN normalization.
-- **M3L (Two-Hand Accompaniment I): implemented** (pending acceptance) — left-hand bass + right-hand chords over C → G/B → Am → F at 60 BPM, guided stages through a bounded 12-trial assessment, three new Daily Practice skills, `smoke:m3l`; physical-MIDI user acceptance is **not tested** (manual plan in `M3L_TWO_HAND_ACCOMPANIMENT_REPORT.md`).
+- **M3L (Two-Hand Accompaniment I): implemented, Rev1 pending acceptance** — left-hand bass + right-hand chords over C → G/B → Am → F at 60 BPM, guided stages through a bounded 12-trial assessment, three Daily Practice skills, `smoke:m3l`. Rev1 fixes the reviewer blockers (assessment recovery, remediation integrity, continuous four-bar progression, hint policy, MIDI capture/disconnect) and the physical P0s (right-hand corrective input deadlock, shared-metronome 4→3→2→1 count-in with accented «ИГРАЙТЕ!» beat). Physical-MIDI re-test is pending (`M3L_TWO_HAND_ACCOMPANIMENT_REV1_REPORT.md`).
 
 ---
 

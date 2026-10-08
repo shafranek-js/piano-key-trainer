@@ -2,6 +2,7 @@ import { DAY_MS } from './constants';
 import { applyFsrsReview, retrievability, type FsrsReviewResult } from './fsrs6';
 import { determineGrade } from './latencyGrading';
 import { createReviewEventId } from './reviewEventId';
+import { ensureCardStats } from './cardState';
 import {
   createLegacyTrialContext,
   createTrialContext,
@@ -80,20 +81,6 @@ export function computeElapsedDays(
     return 0;
   }
   return Math.max(0, (reviewedAt - preReviewLastReviewAt) / DAY_MS);
-}
-
-function ensureCardStats(card: Card): void {
-  if (!card.stats) {
-    card.stats = {
-      trials: 0,
-      firstCorrect: 0,
-      firstWrong: 0,
-      hints: 0,
-      recentScheduledSuccesses: 0,
-      scheduledSuccesses: 0,
-      practiceTrials: 0
-    };
-  }
 }
 
 function resolveCanonicalSessionId(

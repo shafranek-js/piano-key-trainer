@@ -16,21 +16,22 @@
 - **3J — Harmony and Accompaniment I:** accepted baseline; I–V–vi–IV functions, root-position and smooth-bass progressions, bounded transfer with focused remediation, and Daily Practice integration.
 - **3K — Chord Rhythm & Pulse I:** accepted baseline; 4/4 pulse, two-bar `C → G/B` change, two-strike patterns, bounded assessment/remediation, and Daily Practice integration. Physical-MIDI user acceptance passed.
 - **Cold Test Progression + Displayed Item Integrity:** accepted; all 19 task families advance through the central completion contract, and the displayed `Cold Test · N/20` follows the rendered question.
+- **FSRS & Persistence Integrity (Checkpoint B):** accepted; canonical FSRS-6 parity (pinned `py-fsrs` 6.3.2), latency provenance, identity-keyed review events (schema v4), recoverable persistence retry, atomic migrator.
 - **Scheduler Integrity:** accepted baseline; active questions cannot be replaced by refresh, and persistence completes before the next scheduler decision.
 
-## Current checkpoint: FSRS & Persistence Integrity (Checkpoint B, pending independent acceptance)
+## Current checkpoint: Daily Practice & Diagnostics Hardening (Checkpoint C, pending independent acceptance)
 
-Stabilization-only work on the layer that stores and schedules every exercise; no new curriculum milestone:
+Stabilization-only work aligning Daily Practice, Diagnostics and storage normalization with the existing 11/11 roadmap and the Checkpoint B persistence model:
 
-- FSRS-6 policy review against the pinned canonical reference (`py-fsrs` 6.3.2) with golden parity vectors; corrections apply to future reviews only and never rewrite historical card state.
-- Latency provenance (`measured` / `not_measured` / `legacy_unknown`): synthetic module transitions no longer fabricate `responseMs`, and adaptive P30/P85 uses measured samples only.
-- Review events get a stable `reviewEventId` identity (Dexie schema v3→v4) with a copy-style migration that preserves every legacy log; retried persistence reuses the same id.
-- Failed review commits are recoverable: the scheduler is blocked until «Повторить сохранение» succeeds, with bounded diagnostics; Cold Test/lesson statistics writes are guarded.
-- The legacy localStorage migrator writes in one atomic transaction and only marks completion after verification.
+- one canonical FSRS skill registry shared by diagnostics validation, scheduler metadata and display names, with a completeness test over curriculum/UI producers;
+- diagnostics schema v3: real IndexedDB storage version (from the canonical DB definition), separated `appVersion` / `buildVersion` / `diagnosticsSchemaVersion` / `backupSchemaVersion` / `storageSchemaVersion`, canonical 11-stage roadmap snapshot, M3K module snapshot, persistence/latency-provenance section, no false "unknown skill" warnings;
+- heterogeneous deterministic `smoke:daily-practice`: all advanced families plus 40+ completed tasks/2 sessions, one-grade invariant, diversity and reload evidence;
+- SessionStrip title priority across 1440/1280/1024 (secondary metadata may wrap or hide; the session title never becomes an ellipsis);
+- storage normalization: `card.stats` guard and NaN/Infinity handling for untrusted/legacy data, with invalid `dueAt` treated as the canonical unscheduled state.
 
-M3L, two-hand accompaniment, new rhythm patterns/BPM, MusicXML/repertoire, AudioEngine strategy, MIDI redesign, `App.svelte` decomposition, and Supabase cleanup remain out of scope.
+M3L, new curriculum content, rhythm patterns, MusicXML/repertoire, AudioEngine strategy, MIDI redesign, `App.svelte` decomposition, and FSRS formula retuning remain out of scope.
 
-The learner-facing roadmap has **11/11 stages complete** («Ритм аккордов» is #11). M3L is **not started**.
+The learner-facing roadmap has **11/11 stages complete** («Ритм аккордов» is #11). M3L starts only after this checkpoint is accepted.
 
 ## Next educational direction
 
@@ -52,4 +53,5 @@ npm run smoke:m3j
 npm run smoke:m3k
 npm run smoke:cold-test
 npm run smoke:persistence-integrity
+npm run smoke:daily-practice
 ```

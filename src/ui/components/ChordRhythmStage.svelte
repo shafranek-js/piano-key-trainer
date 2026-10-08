@@ -70,6 +70,9 @@
     ? { title: dailySkill === 'chordPulse' ? 'Пульс аккордов' : dailySkill === 'chordChangeTiming' ? 'Смена аккорда на сильную долю' : 'Ритмический рисунок аккорда', eyebrow: 'ЕЖЕДНЕВНАЯ ПРАКТИКА' }
     : stepCopy[state.step]);
   const isAssessment = $derived(state.step === 'transferAssessment' || state.step === 'transferRemediation');
+  const showInteractiveStage = $derived(
+    Boolean(dailySkill) || !['pulseOrientation', 'transferResult', 'moduleComplete'].includes(state.step)
+  );
   const trial = $derived(currentRhythmTrial(state));
   const targetChordId = $derived.by((): HarmonyChordId => {
     if (dailySkill && dailySkill !== 'chordChangeTiming') return dailyChordId;
@@ -167,7 +170,9 @@
       {:else if state.step === 'transferRemediation'}
         <p class="rhythm-copy">Коррекция {state.assessment.remediationIndex + 1} из {state.assessment.remediationTrialIndexes.length}. Снова сыграйте <strong>{targetChordId}</strong> точно на указанную долю.</p>
       {/if}
+    {/if}
 
+    {#if showInteractiveStage}
       {#if state.step === 'fullProgression' || state.step === 'independentPlay'}
         <div class="rhythm-progression" aria-label="Последовательность аккордов">
           {#each ['C', 'G/B', 'Am', 'F'] as chord, index}

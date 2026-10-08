@@ -19,7 +19,11 @@ import {
   HARMONY_RETRY_TRIALS,
   harmonyCardNotes
 } from '../learning/harmony';
-import { APP_VERSION } from '../version';
+import { CHORD_RHYTHM_ITEM_IDS } from '../learning/chordRhythm';
+import { buildLearningRoadmap } from '../curriculum/learningRoadmap';
+import { resolveReviewEventId } from '../fsrs/reviewEventId';
+import { resolveResponseTimingSource } from '../fsrs/responseTiming';
+import { APP_VERSION, BACKUP_SCHEMA_VERSION, DB_SCHEMA_VERSION } from '../version';
 import {
   computeDiversityMetrics,
   detectBottlenecks,
@@ -38,10 +42,12 @@ import {
   type FsrsCardDiagnostic,
   type FsrsDiagnosticState,
   type LearningProgressDiagnosticState,
+  type PersistenceDiagnosticState,
   type PracticeSessionDiagnostic,
   type PracticeTaskDiagnostic,
   type ReviewEventDiagnostic,
   type ReviewHistoryDiagnosticState,
+  type RoadmapDiagnosticState,
   type SchedulerTraceDiagnosticState
 } from './diagnosticTypes';
 
@@ -129,6 +135,7 @@ export function buildDiagnosticSnapshot(params: BuildDiagnosticSnapshotParams): 
   const reviewLogs = params.reviewLogs || [];
   const reportReviewLogs = reviewLogs.filter(event => toIsoOrNull(event.ts) !== null);
   const settings = params.settings;
+  const envMeta = params.environmentMeta || {};
 
   // 1. Normalize LearningProgress to Map
   const lpMap = new Map<string, LearningProgressRecord>();
@@ -195,6 +202,27 @@ export function buildDiagnosticSnapshot(params: BuildDiagnosticSnapshotParams): 
       eligibleForDailyPractice
     };
   });
+  const rhythmSnapshot = lpMap.get(CHORD_RHYTHM_ITEM_IDS.SESSION)?.chordRhythmSnapshot;
+  const rhythmAssessment = rhythmSnapshot?.assessment;
+  const rhythmCards = cards
+    .filter(card =>
+      card.skill === 'chordPulse' ||
+      card.skill === 'chordChangeTiming' ||
+      card.skill === 'chordRhythmPattern'
+    )
+    .map(card => {
+      const eligibleForDailyPractice = isCurriculumCardActive(card, {
+        learningProgress: lpMap,
+        cards,
+        reviewLogs: reportReviewLogs,
+        level
+      });
+      return {
+        cardId: card.id,
+        lifecycleClassification: classifyFsrsCard(card, now, eligibleForDailyPractice),
+        eligibleForDailyPractice
+      };
+    });
   const advancedModules: CurriculumDiagnosticState['advancedModules'] = {
     bassGrandStaff: {
       id: 'bassGrandStaff',
@@ -243,6 +271,24 @@ export function buildDiagnosticSnapshot(params: BuildDiagnosticSnapshotParams): 
         progressionPlay: lpMap.get(HARMONY_ITEM_IDS.INDEPENDENT_PLAY)?.state ?? 'unseen'
       },
       harmonyCards
+    },
+    chordRhythm: {
+      id: 'chordRhythm',
+      title: 'Ритм аккордов (Milestone 3K)',
+      status: resolvedModules.chordRhythm.state,
+      available: resolvedModules.chordRhythm.available,
+      activeStep: advModStatus.chordRhythmActiveStep,
+      trialsCompleted: rhythmAssessment?.trialsCompleted ?? 0,
+      trialsTotal: undefined,
+      accuracy: rhythmAssessment && rhythmAssessment.trialsCompleted
+        ? rhythmAssessment.correctFirstAttempts / rhythmAssessment.trialsCompleted
+        : null,
+      transferPhase: rhythmAssessment?.phase ?? null,
+      transferBlockKind: rhythmAssessment?.blockKind ?? null,
+      learningGates: {
+        status: resolvedModules.chordRhythm.progressStatus
+      },
+      fsrsCards: rhythmCards
     }
   };
 
@@ -253,6 +299,36 @@ export function buildDiagnosticSnapshot(params: BuildDiagnosticSnapshotParams): 
     currentPhaseId,
     coreCourse: phaseDetails,
     advancedModules
+  };
+
+  const roadmapStages = buildLearningRoadmap({
+    phases: normalizedPhases,
+    bassGrandStatus: resolvedModules.bassGrandStaff.progressStatus,
+    intervalStatus: resolvedModules.intervals.progressStatus,
+    isIntervalAvailable: resolvedModules.intervals.available,
+    triadStatus: resolvedModules.triads.progressStatus,
+    isTriadAvailable: resolvedModules.triads.available,
+    inversionStatus: resolvedModules.chordInversions.progressStatus,
+    isInversionAvailable: resolvedModules.chordInversions.available,
+    harmonyStatus: resolvedModules.harmony.progressStatus,
+    isHarmonyAvailable: resolvedModules.harmony.available,
+    chordRhythmStatus: resolvedModules.chordRhythm.progressStatus,
+    isChordRhythmAvailable: resolvedModules.chordRhythm.available
+  });
+  const roadmap: RoadmapDiagnosticState = {
+    totalStages: roadmapStages.length,
+    completedStages: roadmapStages.filter(stage => stage.status === 'completed').length,
+    currentStageId: roadmapStages.find(stage => stage.isCurrent)?.id ?? null,
+    stages: roadmapStages.map(stage => ({
+      id: stage.id,
+      order: stage.order,
+      title: stage.title,
+      category: stage.category,
+      status: stage.status,
+      statusLabelRu: stage.statusLabelRu,
+      progressSummary: stage.progressSummary,
+      isCurrent: stage.isCurrent
+    }))
   };
 
   // 4. Learning Progress Diagnostic State
@@ -314,14 +390,14 @@ export function buildDiagnosticSnapshot(params: BuildDiagnosticSnapshotParams): 
       note: c.note,
       state: c.memoryState || (c.reps > 0 ? 'review' : 'new'),
       lifecycleClassification,
-      due: c.dueAt,
+      due: hasValidDueAt ? c.dueAt : 0,
       dueFormatted: hasValidDueAt ? toIsoOrNull(c.dueAt) : null,
       lastReview: hasValidLastReview ? c.lastReviewAt : null,
       lastReviewFormatted: hasValidLastReview ? toIsoOrNull(c.lastReviewAt) : null,
-      reps: c.reps || 0,
-      lapses: c.lapses || 0,
-      stability: Number((c.stability ?? 0).toFixed(2)),
-      difficulty: Number((c.difficulty ?? 0).toFixed(2)),
+      reps: Number.isFinite(c.reps) ? Math.max(0, Math.trunc(c.reps)) : 0,
+      lapses: Number.isFinite(c.lapses) ? Math.max(0, Math.trunc(c.lapses)) : 0,
+      stability: Number.isFinite(c.stability) ? Number((c.stability as number).toFixed(2)) : 0,
+      difficulty: Number.isFinite(c.difficulty) ? Number((c.difficulty as number).toFixed(2)) : 0,
       scheduledDays,
       elapsedDays,
       isDue,
@@ -422,7 +498,7 @@ export function buildDiagnosticSnapshot(params: BuildDiagnosticSnapshotParams): 
     correct: e.grade !== 1,
     grade: e.grade,
     firstAttempt: e.firstCorrect,
-    responseTimeMs: e.responseMs,
+    responseTimeMs: typeof e.responseMs === 'number' && Number.isFinite(e.responseMs) ? e.responseMs : null,
     sessionId: e.sessionId,
     chordDetails: e.skill.startsWith('triad') || e.skill === 'chordSymbolRead'
       ? {
@@ -442,6 +518,38 @@ export function buildDiagnosticSnapshot(params: BuildDiagnosticSnapshotParams): 
   const reviewHistory: ReviewHistoryDiagnosticState = {
     recentEventsCount: reviewHistoryEvents.length,
     recentEvents: reviewHistoryEvents
+  };
+
+  // 8. Persistence architecture (identity-keyed review events + latency provenance)
+  const responseTimingCounts = { measured: 0, notMeasured: 0, legacyUnknown: 0 };
+  for (const event of reportReviewLogs) {
+    const source = resolveResponseTimingSource(event);
+    if (source === 'measured') responseTimingCounts.measured++;
+    else if (source === 'not_measured') responseTimingCounts.notMeasured++;
+    else responseTimingCounts.legacyUnknown++;
+  }
+  const persistenceDiagnostics = params.persistenceDiagnostics
+    ? [...params.persistenceDiagnostics]
+    : [];
+  const persistence: PersistenceDiagnosticState = {
+    reviewLogStore: 'reviewLogEvents',
+    identityField: 'reviewEventId',
+    storageSchemaVersion: envMeta.storageSchemaVersion ?? DB_SCHEMA_VERSION,
+    totalReviewEvents: reportReviewLogs.length,
+    eventsWithGeneratedIdentity: reportReviewLogs.filter(event => {
+      const id = event.reviewEventId ?? resolveReviewEventId(event);
+      return id !== null && !id.startsWith('legacy-');
+    }).length,
+    backfilledLegacyEvents: reportReviewLogs.filter(event => {
+      const id = event.reviewEventId ?? resolveReviewEventId(event);
+      return id !== null && id.startsWith('legacy-');
+    }).length,
+    responseTiming: responseTimingCounts,
+    failedReviewCommits: persistenceDiagnostics.filter(
+      entry => entry.commitStatus === 'failed' || entry.commitStatus === 'retry_failed'
+    ).length,
+    storageWriteFailures: params.storageWriteFailures?.length ?? 0,
+    recentDiagnostics: persistenceDiagnostics.slice(-10)
   };
 
   // 8. Scheduler Traces
@@ -484,14 +592,16 @@ export function buildDiagnosticSnapshot(params: BuildDiagnosticSnapshotParams): 
     ['intervals', advModStatus.intervalStatus, resolvedModules.intervals.progressStatus],
     ['triads', advModStatus.triadStatus, resolvedModules.triads.progressStatus],
     ['chordInversions', advModStatus.inversionStatus, resolvedModules.chordInversions.progressStatus],
-    ['harmony', advModStatus.harmonyStatus, resolvedModules.harmony.progressStatus]
+    ['harmony', advModStatus.harmonyStatus, resolvedModules.harmony.progressStatus],
+    ['chordRhythm', advModStatus.chordRhythmStatus, resolvedModules.chordRhythm.progressStatus]
   ] as const;
   const availabilityComparisons = [
     ['bassGrandStaff', params.advancedModuleAvailability?.bassGrandStaff, resolvedModules.bassGrandStaff.available],
     ['intervals', params.advancedModuleAvailability?.intervals, resolvedModules.intervals.available],
     ['triads', params.advancedModuleAvailability?.triads, resolvedModules.triads.available],
     ['chordInversions', params.advancedModuleAvailability?.chordInversions, resolvedModules.chordInversions.available],
-    ['harmony', params.advancedModuleAvailability?.harmony, resolvedModules.harmony.available]
+    ['harmony', params.advancedModuleAvailability?.harmony, resolvedModules.harmony.available],
+    ['chordRhythm', params.advancedModuleAvailability?.chordRhythm, resolvedModules.chordRhythm.available]
   ] as const;
   const normalizedChanges = phaseDetails
     ? Object.values(phaseDetails)
@@ -551,17 +661,16 @@ export function buildDiagnosticSnapshot(params: BuildDiagnosticSnapshotParams): 
   };
 
   // 13. Meta
-  const envMeta = params.environmentMeta || {};
   const meta: DiagnosticMeta = {
     appVersion: `Piano Key Trainer v${APP_VERSION}`,
     buildVersion: envMeta.buildVersion || APP_VERSION,
-    schemaVersion: envMeta.schemaVersion || 1,
     diagnosticsSchemaVersion: DIAGNOSTICS_SCHEMA_VERSION,
+    backupSchemaVersion: envMeta.backupSchemaVersion ?? BACKUP_SCHEMA_VERSION,
+    storageSchemaVersion: envMeta.storageSchemaVersion ?? DB_SCHEMA_VERSION,
     exportedAt: new Date(now).toISOString(),
     browser: envMeta.browser || (typeof navigator !== 'undefined' ? navigator.userAgent : 'Node.js / Test'),
     platform: envMeta.platform || (typeof navigator !== 'undefined' ? navigator.platform : 'Unknown'),
-    screenSize: envMeta.screenSize || (typeof window !== 'undefined' ? `${window.innerWidth}x${window.innerHeight}` : '1920x1080'),
-    storageVersion: envMeta.storageVersion || 2
+    screenSize: envMeta.screenSize || (typeof window !== 'undefined' ? `${window.innerWidth}x${window.innerHeight}` : '1920x1080')
   };
 
   return {
@@ -569,10 +678,12 @@ export function buildDiagnosticSnapshot(params: BuildDiagnosticSnapshotParams): 
     meta,
     summary,
     curriculum,
+    roadmap,
     learningProgress,
     fsrs,
     dailyPractice,
     reviewHistory,
+    persistence,
     schedulerTrace,
     remediation,
     bottlenecks,
@@ -588,12 +699,14 @@ export function generateDiagnosticsMarkdownSummary(snapshot: DiagnosticExport): 
 
   lines.push(`# Диагностический отчёт Piano Key Trainer`);
   lines.push(`*Экспортировано:* ${meta.exportedAt}`);
-  lines.push(`*Версия приложения:* ${meta.appVersion} (Схема: v${meta.diagnosticsSchemaVersion})`);
+  lines.push(`*Версия приложения:* ${meta.appVersion} (Diagnostics schema: v${meta.diagnosticsSchemaVersion})`);
+  lines.push(`*IndexedDB схема:* v${meta.storageSchemaVersion} · *Backup формат:* v${meta.backupSchemaVersion}`);
   lines.push(`*Платформа:* ${meta.platform} | ${meta.screenSize}`);
   lines.push('');
 
   lines.push(`## 1. Сводка состояния`);
   lines.push(`- **Прогресс базового курса:** ${summary.coreCurriculumProgress}`);
+  lines.push(`- **Учебный план:** ${snapshot.roadmap.completedStages}/${snapshot.roadmap.totalStages} этапов завершено${snapshot.roadmap.currentStageId ? ` · текущий: ${snapshot.roadmap.currentStageId}` : ''}`);
   lines.push(`- **Текущая фаза:** ${summary.activePhase}`);
   lines.push(`- **FSRS карточки:** ${fsrs.totalCards} всего, **${fsrs.dueCount}** due, **${fsrs.overdueCount}** overdue`);
   lines.push(`- **Сессий с ReviewLog:** ${dailyPractice.totalSessions} всего`);
@@ -678,6 +791,12 @@ export function generateDiagnosticsMarkdownSummary(snapshot: DiagnosticExport): 
   lines.push(`- Применённых нормализаций программы: ${integrityChecks.curriculumNormalizationApplied.length}`);
   lines.push(`- Повторных выборов planned review без review transition: ${integrityChecks.schedulerReselectionWithoutReview.length}`);
   lines.push(`- Дублирующих активаций задания: ${integrityChecks.duplicateTaskActivation.length}`);
+  lines.push('');
+  lines.push(`## 7. Persistence (identity-keyed review events)`);
+  lines.push(`- Store: ${snapshot.persistence.reviewLogStore} · identity: ${snapshot.persistence.identityField} · IndexedDB schema: v${snapshot.persistence.storageSchemaVersion}`);
+  lines.push(`- Review events: ${snapshot.persistence.totalReviewEvents} · generated ids: ${snapshot.persistence.eventsWithGeneratedIdentity} · legacy backfilled: ${snapshot.persistence.backfilledLegacyEvents}`);
+  lines.push(`- Latency provenance: measured ${snapshot.persistence.responseTiming.measured} · not_measured ${snapshot.persistence.responseTiming.notMeasured} · legacy_unknown ${snapshot.persistence.responseTiming.legacyUnknown}`);
+  lines.push(`- Failed review commits: ${snapshot.persistence.failedReviewCommits} · statistics write failures: ${snapshot.persistence.storageWriteFailures}`);
   lines.push('');
 
   lines.push(`---`);

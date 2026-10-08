@@ -2,6 +2,7 @@ import {
   CURRICULUM_GROUPS,
   NATURAL_NOTES
 } from '../fsrs/constants';
+import { FSRS_SKILL_SET } from '../fsrs/skills';
 import type { Card, ReviewLogEvent } from '../fsrs/types';
 import { isInvalidFsrsDueTimestamp } from '../fsrs/cardClassification';
 import type { LearningProgressRecord } from '../learning/types';
@@ -28,21 +29,7 @@ import type {
   StorageConsistencyDiagnosticState
 } from './diagnosticTypes';
 
-const KNOWN_SKILLS = new Set<string>([
-  'find',
-  'identify',
-  'patternIdentify',
-  'notationToKey',
-  'soundToKey',
-  'notationBassToKey',
-  'intervalBuild',
-  'intervalIdentify',
-  'triadBuild',
-  'triadIdentify',
-  'triadInversionBuild',
-  'triadInversionIdentify',
-  'chordSymbolRead'
-]);
+const KNOWN_SKILLS: ReadonlySet<string> = FSRS_SKILL_SET;
 
 export function computeDiversityMetrics(tasks: readonly PracticeTaskDiagnostic[]): DiversityMetrics {
   if (!tasks.length) {

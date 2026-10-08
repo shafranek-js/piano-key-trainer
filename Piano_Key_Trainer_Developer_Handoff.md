@@ -28,7 +28,8 @@
 > - **Milestone 3J — Harmony & Accompaniment I (`ACCEPTED`):** I–V–vi–IV orientation, root-position and smooth-bass progressions, bounded transfer with focused remediation and fresh retry, and three gated Daily Practice card families (`src/core/learning/harmony.ts`).
 > - **Milestone 3K — Chord Rhythm & Pulse I (`ACCEPTED`):** 4/4 pulse at 60 BPM, the two-bar `C → G/B` change, two-strike patterns on beats 1 and 3, bounded assessment/remediation, reload-safe corrective state, and Daily Practice integration. Beginner timing tolerance, hands-free MIDI start, Rev1 timing/cue fixes and the physical-MIDI user test passed; see section 3.17.
 > - **Cold Test Progression + Displayed Item Integrity (`ACCEPTED`):** all 19 task families advance through the central `completeColdTestItem` contract; the displayed `Cold Test · N/20` follows the rendered question, and the completion pointer stays separate (`coldIndex` vs `activeColdItemIndex`).
-> - **FSRS & Persistence Integrity (Checkpoint B, pending independent acceptance):** canonical FSRS-6 parity against pinned `py-fsrs` 6.3.2, latency provenance, stable `reviewEventId` identity with schema v3→v4 migration, recoverable persistence retry, atomic legacy migrator. M3L is not started; next product work is stabilization before M3L.
+> - **FSRS & Persistence Integrity (Checkpoint B, `ACCEPTED`; Rev1/Rev2 backup-identity fixes included):** canonical FSRS-6 parity against pinned `py-fsrs` 6.3.2, latency provenance, stable `reviewEventId` identity with schema v3→v4 migration, recoverable persistence retry, atomic legacy migrator.
+> - **Daily Practice & Diagnostics Hardening (Checkpoint C, implemented, pending acceptance):** canonical skill registry; diagnostics schema v3 with real storage schema, 11-stage roadmap and M3K snapshot; heterogeneous `smoke:daily-practice`; SessionStrip title priority; `card.stats`/NaN normalization. Next product work is **M3L** after acceptance; M3L is not started.
 
 
 ---

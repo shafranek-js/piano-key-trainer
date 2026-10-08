@@ -14,6 +14,8 @@ import {
   clearSchedulerTraces
 } from '../../src/core/diagnostics/schedulerTracker';
 import type { Card, ReviewLogEvent } from '../../src/core/fsrs/types';
+import { DB_SCHEMA_VERSION } from '../../src/storage/db';
+import { BACKUP_SCHEMA_VERSION } from '../../src/storage/backup';
 import { createSanitizedStabilizationProfile } from '../fixtures/stabilizationProfile';
 
 describe('Diagnostic Data Export', () => {
@@ -123,7 +125,7 @@ describe('Diagnostic Data Export', () => {
       now
     });
 
-    expect(snapshot.diagnosticsSchemaVersion).toBe(2);
+    expect(snapshot.diagnosticsSchemaVersion).toBe(3);
     expect(snapshot.schedulerTrace.schemaVersion).toBe(2);
     expect(snapshot.schedulerTrace).toMatchObject({
       recentTraces: [],
@@ -133,22 +135,34 @@ describe('Diagnostic Data Export', () => {
     });
     expect(snapshot.meta).toBeDefined();
     expect(snapshot.meta.appVersion).toContain('Piano Key Trainer');
+    expect(snapshot.meta.diagnosticsSchemaVersion).toBe(3);
+    expect(snapshot.meta.storageSchemaVersion).toBe(DB_SCHEMA_VERSION);
+    expect(snapshot.meta.backupSchemaVersion).toBe(BACKUP_SCHEMA_VERSION);
     expect(snapshot.summary).toBeDefined();
     expect(snapshot.curriculum).toBeDefined();
+    expect(snapshot.roadmap).toBeDefined();
+    expect(snapshot.roadmap.totalStages).toBe(11);
+    expect(snapshot.roadmap.stages).toHaveLength(11);
     expect(snapshot.learningProgress).toBeDefined();
     expect(snapshot.fsrs).toBeDefined();
     expect(snapshot.dailyPractice).toBeDefined();
     expect(snapshot.reviewHistory).toBeDefined();
+    expect(snapshot.persistence).toBeDefined();
+    expect(snapshot.persistence.reviewLogStore).toBe('reviewLogEvents');
+    expect(snapshot.persistence.identityField).toBe('reviewEventId');
+    expect(snapshot.persistence.storageSchemaVersion).toBe(DB_SCHEMA_VERSION);
     expect(snapshot.schedulerTrace).toBeDefined();
     expect(snapshot.remediation).toBeDefined();
     expect(snapshot.bottlenecks).toBeDefined();
     expect(snapshot.storageConsistency).toBeDefined();
 
-    // Verify JSON serializability
+    // Verify JSON serializability and NaN/Infinity safety
     const jsonStr = JSON.stringify(snapshot);
     expect(jsonStr.length).toBeGreaterThan(100);
+    expect(jsonStr).not.toContain('NaN');
+    expect(jsonStr).not.toContain('Infinity');
     const parsed = JSON.parse(jsonStr);
-    expect(parsed.meta.schemaVersion).toBe(1);
+    expect(parsed.meta.backupSchemaVersion).toBe(BACKUP_SCHEMA_VERSION);
   });
 
   it('correctly computes FSRS card metrics including due and overdue status', () => {

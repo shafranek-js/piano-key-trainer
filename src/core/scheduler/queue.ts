@@ -1,4 +1,5 @@
 import type { Card, NoteName, PitchClass, Skill } from '../fsrs/types';
+import { ensureCardStats } from '../fsrs/cardState';
 import { ALL_NOTES, LEARN_ORDER } from '../fsrs/constants';
 import { COLD_TEST_SKILLS } from '../learning/coldTest';
 import { retrievability } from '../fsrs/fsrs6';
@@ -125,9 +126,10 @@ export function choosePractice(
   }
   const scored = pool
     .map(c => {
+      const stats = ensureCardStats(c);
       const r = retrievability(c, now) ?? 0.85;
-      const trials = c.stats.trials || 0;
-      const acc = trials ? c.stats.firstCorrect / trials : 0.75;
+      const trials = stats.trials || 0;
+      const acc = trials ? stats.firstCorrect / trials : 0.75;
       return { card: c, score: r * 0.6 + acc * 0.25 + diversityPenalty(c, recentCards) };
     })
     .sort((a, b) => a.score - b.score);

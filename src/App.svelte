@@ -232,7 +232,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
 
   // Storage
   import { db, type ColdTestRecord, type LessonProgressRecord } from './storage/db';
-  import { BACKUP_SCHEMA_VERSION, applyBackupAtomically, normalizeBackupCard, validateAndNormalizeBackup } from './storage/backup';
+  import { BACKUP_SCHEMA_VERSION, applyBackupAtomically, normalizeBackupCard, normalizeBackupSettings, validateAndNormalizeBackup } from './storage/backup';
   import { checkAndMigrateLocalStorage } from './storage/migrator';
 
   // Components
@@ -1014,10 +1014,12 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
         const storedSettings = await db.settings.get('userSettings');
         const localPatch = getStoredSettingsPatch();
         if (storedSettings?.value && typeof storedSettings.value === 'object') {
+          // Persisted/local settings are untrusted input: numeric values are
+          // finite-checked and clamped before they can reach scheduling math.
           settings = {
             ...DEFAULT_SETTINGS,
-            ...(storedSettings.value as Partial<UserSettings>),
-            ...localPatch
+            ...normalizeBackupSettings(storedSettings.value),
+            ...normalizeBackupSettings(localPatch)
           };
           if (settings.sessionPreset) sessionPreset = settings.sessionPreset as SessionPreset;
           const snapshot = $state.snapshot(settings);
@@ -1688,6 +1690,17 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     currentQuestionInstanceId = activatePracticeQuestion(currentSessionId);
     if (typeof window !== 'undefined') {
       (window as unknown as { __activeQuestionId?: string | null }).__activeQuestionId = currentQuestionInstanceId;
+      (window as unknown as { __activeTaskDebug?: unknown }).__activeTaskDebug = {
+        kind: params.kind,
+        skill: params.card.skill,
+        note: params.card.note,
+        targetKeyId: visualConfig.targetKeyId ?? null,
+        targetKeyIds: [...(visualConfig.targetKeyIds ?? [])],
+        triadKeyIds: [...(visualConfig.triadKeyIds ?? [])],
+        rootKeyId: visualConfig.rootKeyId ?? null,
+        symbol: visualConfig.symbol ?? null,
+        questionInstanceId: currentQuestionInstanceId
+      };
     }
     if (params.kind === 'cold') {
       // Displayed Cold Test number follows the question actually being rendered.
@@ -6276,6 +6289,43 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       (window as any).__persistenceTestHooks = {
         failNextReviewCommit: () => { failNextReviewCommit = true; }
       };
+      (window as any).__activeTaskDebug = null;
+      (window as any).__harmonyDebug = {
+        expectedAnswer: () => (
+          dailyHarmonyTask && dailyHarmonyTask.kind === 'semantic'
+            ? (dailyHarmonyTask.expectedAnswer ?? null)
+            : null
+        ),
+        expectedChordId: () => (
+          dailyHarmonyTask && dailyHarmonyTask.kind === 'progression' && dailyHarmonyTask.progression
+            ? (dailyHarmonyTask.progression[dailyHarmonyStepIndex] ?? null)
+            : null
+        ),
+        stepIndex: () => dailyHarmonyStepIndex
+      };
+      (window as any).__rhythmDebug = {
+        skill: () => rhythmDailySkill(currentCard),
+        targetChordId: () => {
+          if (!dailyRhythmViewState) return null;
+          const skill = rhythmDailySkill(currentCard);
+          if (skill && skill !== 'chordChangeTiming') return dailyRhythmChordId;
+          return resolveRhythmTargetChord(dailyRhythmViewState);
+        },
+        state: () => {
+          const s = dailyRhythmViewState;
+          if (!s) return null;
+          return {
+            step: s.step,
+            phase: s.assessment?.phase ?? null,
+            running: s.isRunning,
+            countInValue: s.countInValue,
+            selected: s.selectedKeyIds.length,
+            completed: dailyRhythmCompleted,
+            corrective: dailyRhythmCorrective,
+            feedback: s.feedbackText ?? dailyRhythmFeedback ?? null
+          };
+        }
+      };
     }
 
     window.addEventListener('keydown', handleWindowKeydown);
@@ -7111,7 +7161,9 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
             inversionStatus,
             inversionActiveStep: inversionState?.step,
             harmonyStatus,
-            harmonyActiveStep: harmonyState?.step
+            harmonyActiveStep: harmonyState?.step,
+            chordRhythmStatus,
+            chordRhythmActiveStep: chordRhythmState?.step
           }}
           advancedModuleAvailability={{
             bassGrandStaff: advancedModuleStates.bassGrandStaff.available,

@@ -13,7 +13,7 @@
 <section class="session-strip" aria-label="Текущая учебная сессия">
   <div class="session-meta">
     <span>{metaTitle}</span>
-    <b>{sessionLabel}</b>
+    <b title={sessionLabel}>{sessionLabel}</b>
     <small>{sessionDetail}</small>
   </div>
   <div class="session-progress" aria-label="Прогресс сессии">

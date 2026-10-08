@@ -1,0 +1,72 @@
+{
+  "generatedAt": "2026-10-08T10:56:02.445Z",
+  "smoke": "smoke:daily-practice",
+  "dailyPracticeTaskCount": 70,
+  "uniqueSkills": [
+    "harmonyFunctionIdentify",
+    "harmonyNextChord",
+    "harmonyProgressionPlay",
+    "chordPulse",
+    "chordChangeTiming",
+    "chordRhythmPattern",
+    "find",
+    "identify",
+    "patternIdentify",
+    "notationToKey",
+    "soundToKey",
+    "notationBassToKey",
+    "intervalBuild",
+    "intervalIdentify",
+    "triadBuild",
+    "triadIdentify",
+    "triadInversionBuild"
+  ],
+  "uniqueTaskTypes": [
+    "scheduled"
+  ],
+  "maxSameSkillStreak": 2,
+  "maxSameCardStreak": 1,
+  "reviewLogCount": 70,
+  "duplicateReviewCount": 0,
+  "uniqueQuestionInstances": 70,
+  "oneGradeInvariant": {
+    "skill": "find",
+    "reviewLogsAfterWrong": 1,
+    "reviewLogsAfterCorrective": 0,
+    "fsrsRepsDelta": 1
+  },
+  "advancedFamiliesCovered": [
+    "harmonyFunctionIdentify",
+    "harmonyNextChord",
+    "harmonyProgressionPlay",
+    "chordPulse",
+    "chordChangeTiming",
+    "chordRhythmPattern"
+  ],
+  "divisionFallback": null,
+  "diagnosticsSchemaVersion": 3,
+  "storageVersion": 4,
+  "knownSkillsCount": 19,
+  "unknownSkills": [],
+  "roadmapStages": 11,
+  "completedStages": 11,
+  "latencyProvenance": {
+    "measured": 70,
+    "notMeasured": 0,
+    "legacyUnknown": 0
+  },
+  "invalidNumericCount": 0,
+  "dailyPracticeDiagnostics": {
+    "totalSessions": 2,
+    "recentTasks": 50,
+    "diversity": {
+      "taskCount": 20,
+      "uniqueSkills": 10,
+      "uniqueTaskTypes": 1,
+      "uniqueRoots": 0,
+      "uniqueNotes": 9,
+      "maxSameSkillStreak": 1,
+      "maxSameCardStreak": 1
+    }
+  }
+}

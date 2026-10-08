@@ -13,32 +13,13 @@ import type {
 import type { LearningProgressRecord } from '../core/learning/types';
 import { normalizeBackupLearningProgress } from '../core/learning/progress';
 import { backfillReviewEventId } from '../core/fsrs/reviewEventId';
+import { isFsrsSkill } from '../core/fsrs/skills';
+import { BACKUP_SCHEMA_VERSION } from '../core/version';
 import type { ColdTestRecord, LessonProgressRecord, PianoTrainerDatabase } from './db';
 
-export const BACKUP_SCHEMA_VERSION = 1;
-export const BACKUP_APP_ID = 'piano-key-trainer';
+export { BACKUP_SCHEMA_VERSION };
 
-const SKILLS: readonly Skill[] = [
-  'find',
-  'identify',
-  'patternIdentify',
-  'notationToKey',
-  'soundToKey',
-  'notationBassToKey',
-  'intervalBuild',
-  'intervalIdentify',
-  'triadBuild',
-  'triadIdentify',
-  'triadInversionBuild',
-  'triadInversionIdentify',
-  'chordSymbolRead',
-  'harmonyFunctionIdentify',
-  'harmonyNextChord',
-  'harmonyProgressionPlay',
-  'chordPulse',
-  'chordChangeTiming',
-  'chordRhythmPattern'
-];
+export const BACKUP_APP_ID = 'piano-key-trainer';
 
 const NOTE_NAMES: readonly NoteName[] = [
   'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B',
@@ -149,7 +130,7 @@ function normalizeCardStats(raw: unknown): CardStats {
  */
 export function normalizeBackupCard(raw: unknown): Card | null {
   if (!isRecord(raw)) return null;
-  const skill = SKILLS.includes(raw.skill as Skill) ? raw.skill as Skill : null;
+  const skill = isFsrsSkill(raw.skill) ? raw.skill : null;
   const note = NOTE_NAMES.includes(raw.note as NoteName) ? raw.note as NoteName : null;
   const id = asString(raw.id, 200);
   if (!skill || !note || !id) return null;
@@ -248,7 +229,7 @@ export function normalizeBackupReviewLog(raw: unknown): ReviewLogEvent | null {
   const sessionId = asString(raw.sessionId, 200);
   const cardId = asString(raw.cardId, 200);
   if (ts == null || ts <= 0 || !sessionId || !cardId) return null;
-  if (!SKILLS.includes(raw.skill as Skill)) return null;
+  if (!isFsrsSkill(raw.skill)) return null;
   if (!NOTE_NAMES.includes(raw.note as NoteName)) return null;
   if (!REVIEW_KINDS.includes(raw.kind as ReviewKind)) return null;
   const grade = GRADES.includes(raw.grade as Grade) ? raw.grade as Grade : null;

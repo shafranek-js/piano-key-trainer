@@ -1,4 +1,4 @@
-import type { UserSettings, NoteName, NaturalNoteName, Grade, Skill } from './types';
+import type { UserSettings, NoteName, NaturalNoteName, Grade } from './types';
 
 export const DAY_MS = 86_400_000;
 
@@ -126,27 +126,7 @@ export const GRADE_NAMES: Record<Grade, string> = {
   4: 'Easy'
 };
 
-export const SKILL_NAMES: Record<Skill, string> = {
-  find: 'найти',
-  identify: 'назвать',
-  patternIdentify: 'ориентир → назвать',
-  notationToKey: 'нота → клавиша',
-  soundToKey: 'звук → клавиша',
-  notationBassToKey: 'басовая нота → клавиша',
-  intervalBuild: 'построить интервал',
-  intervalIdentify: 'назвать интервал',
-  triadBuild: 'построить трезвучие',
-  triadIdentify: 'назвать трезвучие',
-  triadInversionBuild: 'построить обращение',
-  triadInversionIdentify: 'назвать обращение',
-  chordSymbolRead: 'аккордовое обозначение',
-  harmonyFunctionIdentify: 'функция аккорда',
-  harmonyNextChord: 'следующий аккорд',
-  harmonyProgressionPlay: 'сыграть последовательность',
-  chordPulse: 'держать пульс',
-  chordChangeTiming: 'сменить аккорд вовремя',
-  chordRhythmPattern: 'сыграть ритмический рисунок'
-};
+export { SKILL_NAMES } from './skills';
 
 export const CURRICULUM_GROUPS = {
   anchors: ['C', 'F'] as NoteName[],

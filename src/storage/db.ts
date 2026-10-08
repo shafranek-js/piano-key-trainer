@@ -1,7 +1,10 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type { Card, ReviewLogEvent } from '../core/fsrs/types';
 import type { LearningProgressRecord } from '../core/learning/types';
+import { DB_SCHEMA_VERSION } from '../core/version';
 import { migrateLegacyReviewLog, REVIEW_LOGS_TABLE } from './reviewMigrations';
+
+export { DB_SCHEMA_VERSION };
 
 export interface ColdTestRecord {
   id: string;
@@ -102,7 +105,7 @@ export class PianoTrainerDatabase extends Dexie {
           await tx.table(REVIEW_LOGS_TABLE).bulkPut(legacyRows.map(migrateLegacyReviewLog));
         }
       });
-    this.version(4).stores({ reviewLogs: null });
+    this.version(DB_SCHEMA_VERSION).stores({ reviewLogs: null });
   }
 }
 

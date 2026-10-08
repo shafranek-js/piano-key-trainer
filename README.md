@@ -7,7 +7,9 @@
 - Learner roadmap: **11/11 stages complete** (core curriculum + advanced modules + #11 «Ритм аккордов»); no stage is marked current.
 - **M3K (Chord Rhythm & Pulse I): accepted** — beginner timing tolerance, hands-free MIDI start, Rev1 timing/cue fixes, and physical-MIDI user acceptance passed.
 - **Cold Test Progression + Displayed Item Integrity: accepted** — all 19 task families use the central completion contract, and the displayed `Cold Test · N/20` number follows the question actually on screen.
-- **Next product work: stabilization before M3L** (FSRS canonical parity + latency provenance + persistence integrity). **M3L Two-Hand Accompaniment is not started.**
+- **FSRS & Persistence Integrity (Checkpoint B): accepted** — canonical FSRS-6 parity vs pinned `py-fsrs` 6.3.2, latency provenance, identity-keyed `reviewLogEvents`, recoverable persistence retry, atomic migrator.
+- **Daily Practice & Diagnostics Hardening (Checkpoint C): implemented** (pending acceptance) — canonical skill registry, diagnostics v3 (real storage schema, 11-stage roadmap, M3K snapshot, persistence section), heterogeneous `smoke:daily-practice`, SessionStrip title priority, `card.stats`/NaN normalization.
+- **Next product work: M3L** (Two-Hand Accompaniment) after this stabilization checkpoint is accepted. **M3L is not started.**
 
 ---
 
@@ -191,6 +193,12 @@ Runs a production preview with an isolated Chrome profile and a synthetic profil
 npm run smoke:persistence-integrity
 ```
 Injects a synthetic persistence failure into the production preview and verifies: two reviews sharing one millisecond persist with distinct `reviewEventId`s; the scheduler does not advance while a commit is failed; «Повторить сохранение» reuses the same event id, persists exactly one event/card transition, and resumes the scheduler; reload keeps the persisted state consistent. Evidence: `acceptance/fsrs-persistence-integrity/` (up to 2 screenshots + machine-readable `persistence-evidence.json`).
+
+### 18. Production Heterogeneous Daily Practice Smoke
+```bash
+npm run smoke:daily-practice
+```
+Runs a production preview with an isolated Chrome profile and a deterministic synthetic profile (all 11 learner stages completed, every skill family due). Phase 1 covers all six advanced families (Harmony + M3K); the long run completes 70 tasks across 17 skills with the canonical one-grade invariant (wrong first attempt = exactly one ReviewLog/FSRS mutation; corrective success = none), no duplicate question activation and no scheduler advance before persistence. It also asserts the SessionStrip title is not truncated at 1440/1024 and exports a clean diagnostics snapshot (schema v3, storage schema v4, 11/11 roadmap stages, `unknownSkillIds = []`). Evidence: `acceptance/checkpoint-c/` (3 screenshots + `evidence.json`).
 
 ---
 

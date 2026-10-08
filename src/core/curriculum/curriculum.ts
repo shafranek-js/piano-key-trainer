@@ -1,4 +1,5 @@
 import type { Card, NoteName, ReviewLogEvent, Skill } from '../fsrs/types';
+import { ensureCardStats } from '../fsrs/cardState';
 import { 
   CURRICULUM_GROUPS, 
   CURRICULUM_MIN_STABILITY_DAYS, 
@@ -38,11 +39,12 @@ export function curriculumCardReady(
   card: Card | undefined,
   reviewLog: readonly ReviewLogEvent[]
 ): boolean {
+  if (!card) return false;
+  const stats = ensureCardStats(card);
   return (
-    !!card &&
     card.reps > 0 &&
     (card.stability ?? 0) >= CURRICULUM_MIN_STABILITY_DAYS &&
-    (card.stats.scheduledSuccesses ?? 0) >= 2 &&
+    stats.scheduledSuccesses >= 2 &&
     successfulScheduledSessions(card.id, reviewLog) >= 2 &&
     card.lastGrade !== 1
   );

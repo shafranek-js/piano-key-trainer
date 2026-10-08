@@ -1,18 +1,27 @@
 import type { Card, Grade, ReviewLogEvent, Skill, UserSettings } from '../fsrs/types';
 import type { LearningProgressRecord } from '../learning/types';
+import type { PersistenceDiagnosticEntry, StorageWriteFailure } from '../fsrs/persistenceDiagnostics';
 
-export const DIAGNOSTICS_SCHEMA_VERSION = 2;
+/**
+ * JSON shape version of the diagnostics export itself. Bump only when the exported
+ * structure changes incompatibly (independent from the IndexedDB schema and the
+ * backup format version).
+ */
+export const DIAGNOSTICS_SCHEMA_VERSION = 3;
 
 export interface DiagnosticMeta {
   appVersion: string;
   buildVersion: string;
-  schemaVersion: number;
+  /** JSON diagnostics export shape version. */
   diagnosticsSchemaVersion: number;
+  /** JSON backup format version (`backupSchemaVersion` inside backup files). */
+  backupSchemaVersion: number;
+  /** Actual IndexedDB (Dexie) schema version from the canonical database definition. */
+  storageSchemaVersion: number;
   exportedAt: string;
   browser: string;
   platform: string;
   screenSize: string;
-  storageVersion: number;
 }
 
 export interface DiagnosticSummary {
@@ -63,6 +72,12 @@ export interface AdvancedModuleDiagnosticDetail {
   transferBlockKind?: string | null;
   learningGates?: Record<string, string>;
   harmonyCards?: {
+    cardId: string;
+    lifecycleClassification: FsrsCardDiagnostic['lifecycleClassification'];
+    eligibleForDailyPractice: boolean;
+  }[];
+  /** Module-relevant FSRS cards (used for Chord Rhythm & Pulse I). */
+  fsrsCards?: {
     cardId: string;
     lifecycleClassification: FsrsCardDiagnostic['lifecycleClassification'];
     eligibleForDailyPractice: boolean;
@@ -268,6 +283,7 @@ export interface SchedulerTraceWarning {
 }
 
 export interface SchedulerTraceDiagnosticState {
+  /** Scheduler trace payload schema version (independent from diagnostics/backup/IndexedDB versions). */
   schemaVersion: 2;
   recentTraces: SchedulerTraceItem[];
   nextRoundEvents: SchedulerNextRoundEvent[];
@@ -321,15 +337,54 @@ export interface StorageConsistencyDiagnosticState {
   checks: StorageConsistencyChecks;
 }
 
+/** Learner roadmap snapshot built from the same model the `Program` UI uses. */
+export interface RoadmapStageDiagnostic {
+  id: string;
+  order: number;
+  title: string;
+  category: string;
+  status: string;
+  statusLabelRu: string;
+  progressSummary: string;
+  isCurrent: boolean;
+}
+
+export interface RoadmapDiagnosticState {
+  totalStages: number;
+  completedStages: number;
+  currentStageId: string | null;
+  stages: RoadmapStageDiagnostic[];
+}
+
+/** Current persistence architecture summary (identity-keyed review events + provenance). */
+export interface PersistenceDiagnosticState {
+  reviewLogStore: 'reviewLogEvents';
+  identityField: 'reviewEventId';
+  storageSchemaVersion: number;
+  totalReviewEvents: number;
+  eventsWithGeneratedIdentity: number;
+  backfilledLegacyEvents: number;
+  responseTiming: {
+    measured: number;
+    notMeasured: number;
+    legacyUnknown: number;
+  };
+  failedReviewCommits: number;
+  storageWriteFailures: number;
+  recentDiagnostics: PersistenceDiagnosticEntry[];
+}
+
 export interface DiagnosticExport {
   diagnosticsSchemaVersion: number;
   meta: DiagnosticMeta;
   summary: DiagnosticSummary;
   curriculum: CurriculumDiagnosticState;
+  roadmap: RoadmapDiagnosticState;
   learningProgress: LearningProgressDiagnosticState;
   fsrs: FsrsDiagnosticState;
   dailyPractice: DailyPracticeDiagnosticState;
   reviewHistory: ReviewHistoryDiagnosticState;
+  persistence: PersistenceDiagnosticState;
   schedulerTrace: SchedulerTraceDiagnosticState;
   remediation: RemediationDiagnosticState;
   bottlenecks: LearningBottlenecksDiagnosticState;
@@ -363,13 +418,17 @@ export interface BuildDiagnosticSnapshotParams {
     browser?: string;
     platform?: string;
     screenSize?: string;
-    schemaVersion?: number;
-    storageVersion?: number;
+    /** JSON backup format version; defaults to the canonical constant. */
+    backupSchemaVersion?: number;
+    /** Actual IndexedDB schema version; defaults to the canonical database version. */
+    storageSchemaVersion?: number;
     buildVersion?: string;
   };
   schedulerTraces?: readonly SchedulerTraceItem[];
   schedulerDiagnostics?: SchedulerTraceDiagnosticState;
   activeRemediation?: readonly ActiveRemediationState[];
+  persistenceDiagnostics?: readonly PersistenceDiagnosticEntry[];
+  storageWriteFailures?: readonly StorageWriteFailure[];
   advancedModulesStatus?: {
     bassGrandStatus?: 'not_started' | 'in_progress' | 'completed';
     bassGrandActiveStep?: string;
@@ -381,6 +440,8 @@ export interface BuildDiagnosticSnapshotParams {
     inversionActiveStep?: string;
     harmonyStatus?: 'not_started' | 'in_progress' | 'completed';
     harmonyActiveStep?: string;
+    chordRhythmStatus?: 'not_started' | 'in_progress' | 'completed';
+    chordRhythmActiveStep?: string;
   };
   advancedModuleAvailability?: {
     bassGrandStaff?: boolean;
@@ -388,5 +449,6 @@ export interface BuildDiagnosticSnapshotParams {
     triads?: boolean;
     chordInversions?: boolean;
     harmony?: boolean;
+    chordRhythm?: boolean;
   };
 }

@@ -4515,3 +4515,22 @@ body::before{opacity:.9}
 .persistence-error-banner .btn {
   flex: 0 0 auto;
 }
+
+/* ===== Checkpoint C: SessionStrip title priority ===== */
+.session-strip{grid-template-columns:minmax(0,1fr) minmax(140px,260px) auto}
+.session-strip .session-meta{min-width:0}
+.session-strip .session-meta b{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
+.session-strip .session-meta small{white-space:normal;overflow-wrap:anywhere}
+.session-strip .session-progress{min-width:120px}
+@media(max-width:1280px){.session-strip{grid-template-columns:minmax(0,1fr) auto}.session-strip .session-progress{grid-column:1/-1;min-width:0}}
+@media(max-width:1024px){.session-strip{grid-template-columns:minmax(0,1fr)}.session-strip .end-session-btn{justify-self:start}}
+
+/* Checkpoint C: practice SessionStrip grows with wrapped title instead of clipping */
+.workspace-page[data-page="practice"] > .session-strip{height:auto!important;min-height:48px!important;max-height:none!important;align-items:center!important}
+.workspace-page[data-page="practice"] > .session-strip .session-meta{overflow:visible!important}
+.workspace-page[data-page="practice"] > .session-strip .session-progress{grid-column:auto}
+@media(max-width:1280px){.workspace-page[data-page="practice"] > .session-strip .session-progress{grid-column:1/-1}}
+@media(max-width:1024px){.workspace-page[data-page="practice"] > .session-strip{grid-template-columns:minmax(0,1fr)!important}.workspace-page[data-page="practice"] > .session-strip .end-session-btn{justify-self:start}}
+
+/* Checkpoint C: practice grid row follows the auto-height SessionStrip */
+.workspace-page[data-page="practice"]{grid-template-rows:auto minmax(0,1fr)!important}

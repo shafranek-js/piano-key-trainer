@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import type { ColdTestRecord } from '../../storage/db';
   import type { ReviewLogEvent, Card, UserSettings } from '../../core/fsrs/types';
   import type { LearningProgressRecord } from '../../core/learning/types';
@@ -11,6 +12,8 @@
   import { getSchedulerDiagnostics } from '../../core/diagnostics/schedulerTracker';
   import { latencyDiagnosticsSummary } from '../../core/fsrs/responseTiming';
   import type { PersistenceDiagnosticEntry, StorageWriteFailure } from '../../core/fsrs/persistenceDiagnostics';
+  import { db, DB_SCHEMA_VERSION } from '../../storage/db';
+  import { BACKUP_SCHEMA_VERSION } from '../../storage/backup';
 
   let {
     coldTests = [] as ColdTestRecord[],
@@ -44,6 +47,12 @@
       learningProgress: learningProgressMap,
       reviewLogs,
       settings,
+      environmentMeta: {
+        storageSchemaVersion: db.verno || DB_SCHEMA_VERSION,
+        backupSchemaVersion: BACKUP_SCHEMA_VERSION
+      },
+      persistenceDiagnostics,
+      storageWriteFailures,
       advancedModulesStatus,
       advancedModuleAvailability,
       schedulerDiagnostics: getSchedulerDiagnostics()
@@ -84,8 +93,7 @@
   }
 
   // Calculate confusion pairs from review logs
-  function getConfusionStats() {
-    const matrix: Record<string, Record<string, number>> = {};
+  function getConfusionStats() {    const matrix: Record<string, Record<string, number>> = {};
     notes.forEach(p => {
       matrix[p] = {};
       notes.forEach(a => { matrix[p][a] = 0; });
@@ -101,6 +109,14 @@
   }
 
   const confusionMatrix = $derived(getConfusionStats());
+
+  onMount(() => {
+    const debugWindow = window as unknown as { __getDiagnosticsSnapshot?: () => unknown };
+    debugWindow.__getDiagnosticsSnapshot = () => createSnapshot();
+    return () => {
+      delete debugWindow.__getDiagnosticsSnapshot;
+    };
+  });
 </script>
 
 <div class="page-heading">
@@ -202,6 +218,25 @@
     </div>
   </div>
 
+  <div class="diagnostic-integrity-strip" data-testid="diagnostic-persistence-meta" aria-label="Persistence metadata">
+    <div class="diagnostic-stat-item">
+      <small>IndexedDB schema</small>
+      <b>v{liveSnapshot.meta.storageSchemaVersion} · {liveSnapshot.persistence.reviewLogStore}</b>
+    </div>
+    <div class="diagnostic-stat-item">
+      <small>Review identity</small>
+      <b>{liveSnapshot.persistence.identityField}</b>
+    </div>
+    <div class="diagnostic-stat-item">
+      <small>Review events</small>
+      <b>{liveSnapshot.persistence.totalReviewEvents} · legacy {liveSnapshot.persistence.backfilledLegacyEvents}</b>
+    </div>
+    <div class="diagnostic-stat-item">
+      <small>Backup / diagnostics schema</small>
+      <b>v{liveSnapshot.meta.backupSchemaVersion} · v{liveSnapshot.meta.diagnosticsSchemaVersion}</b>
+    </div>
+  </div>
+
   {#if persistenceDiagnostics.length > 0}
     <div class="diagnostic-module-list" data-testid="diagnostic-persistence-log">
       <h3>Последние коммиты отзывов</h3>
@@ -214,6 +249,17 @@
       {/each}
     </div>
   {/if}
+
+  <div class="diagnostic-module-list" data-testid="diagnostic-roadmap">
+    <h3>Учебный план · {liveSnapshot.roadmap.completedStages}/{liveSnapshot.roadmap.totalStages} этапов завершено</h3>
+    {#each liveSnapshot.roadmap.stages as stage (stage.id)}
+      <div class="diagnostic-module-row" data-roadmap-stage={stage.id}>
+        <strong>{stage.order}. {stage.title}</strong>
+        <span>{stage.statusLabelRu}{stage.isCurrent ? ' · текущий' : ''}</span>
+        <small>{stage.progressSummary}</small>
+      </div>
+    {/each}
+  </div>
 
   <div class="diagnostic-module-list" data-testid="diagnostic-advanced-modules">
     <h3>Продвинутые модули</h3>
@@ -230,6 +276,12 @@
           {/if}
           {#if module.harmonyCards?.length}
             <small>Состояние карточек: {module.harmonyCards.map(card => `${card.cardId}=${card.lifecycleClassification}`).join(' · ')}</small>
+          {/if}
+        {/if}
+        {#if module.id === 'chordRhythm'}
+          <small>Оценка: {module.transferPhase ?? 'не начата'} · блок {module.transferBlockKind ?? '—'} · {module.trialsCompleted ?? 0} проб · точность {module.accuracy == null ? '—' : `${Math.round(module.accuracy * 100)}%`}</small>
+          {#if module.fsrsCards?.length}
+            <small>FSRS карточки: {module.fsrsCards.map(card => `${card.cardId}=${card.lifecycleClassification}`).join(' · ')}</small>
           {/if}
         {/if}
       </div>

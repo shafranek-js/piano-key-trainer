@@ -472,7 +472,7 @@ try {
   assert(new Set(finalDueActivations.map(item => item.questionInstanceId)).size === 11, 'A question instance was reused across unanswered restarts.');
   assert(finalTrace.warnings.length === 0, `Fresh diagnostics contains scheduler warnings: ${JSON.stringify(finalTrace.warnings)}`);
   assert(finalTrace.nextRoundEvents.every(item => item.disposition === 'activated'), 'A restart round did not resolve to exactly one activation.');
-  assert(finalDiagnostics.diagnosticsSchemaVersion === 2, 'Fresh diagnostics export did not use schema v2.');
+  assert(finalDiagnostics.diagnosticsSchemaVersion === 3, 'Fresh diagnostics export did not use schema v3.');
   assert(finalDiagnostics.integrityChecks.schedulerReselectionWithoutReview.length === 0, 'Fresh diagnostics reported a scheduled reselect warning.');
   assert(finalDiagnostics.integrityChecks.duplicateTaskActivation.length === 0, 'Fresh diagnostics reported a duplicate activation warning.');
   assert(finalDiagnostics.reviewHistory.recentEventsCount === 0, 'The sanitized final profile unexpectedly contains review history.');

@@ -1,0 +1,106 @@
+{
+  "generatedAt": "2026-10-08T00:00:00.000Z",
+  "checkpoint": "Milestone 3L Rev3 - MIDI Port Isolation & Device Range Safety",
+  "baseline": "d5f662f (M3L Rev2)",
+  "branch": "stabilization/m3k-audit-remediation",
+  "smoke": "smoke:m3l",
+  "smokeScenarios": [
+    "M3L-P0-A wrong right-hand triad via MIDI then correct chord advances exactly once",
+    "M3L-P0-B on-screen wrong triad then correct chord and a fresh correct first attempt",
+    "M3L-01 four bars play continuously after one count-in",
+    "M3L-02 independent phrase hides note hints and stays continuous",
+    "M3L-03 complete 12 assessment trials through the real MIDI pipeline",
+    "M3L-04 wrong LH bass is classified as wrong bass, not missing left hand",
+    "M3L-05 delayed extra note cannot receive false success",
+    "M3L-06 MIDI disconnect cancels the attempt without grading",
+    "M3L-07 failed assessment returns to learning with history preserved",
+    "M3L-08 remediation gate blocks Next after a wrong item and maps failed trial positions",
+    "M3L-09 shared metronome count-in 4-3-2-1, play cue and restart integrity",
+    "M3L-10 device profile, calibration trace, compact range and input selection",
+    "M3L-11 port isolation: only the selected device feeds M3L",
+    "M3L-12 verified range required; C1-C3 support; stale reconfirmation and calibration isolation",
+    "M3L-13 integrity: no duplicate events, exceptions or console errors"
+  ],
+  "portIsolation": {
+    "eventsCarryPortId": true,
+    "noteOnNoteOffRawAndScoredPortTagged": true,
+    "selectedDeviceOnly": true,
+    "foreignDeviceIgnoredForCalibrationAndScoring": true,
+    "heldNoteIdentityPerPort": true,
+    "disconnectPrunesPortHeldNotes": true,
+    "duplicateNoteChannelAcrossDevicesSafe": true
+  },
+  "verifiedRange": {
+    "knownProfileFallbackIsInformationalOnly": true,
+    "physicalGradingRequiresVerifiedCalibration": true,
+    "unverifiedOrStaleNeverFallsBackToOriginalVoicings": true,
+    "unverifiedUsesExplicitSimulation": true,
+    "staleRequiresMatchingReconfirmationOrRecalibration": true,
+    "booleanResetRemoved": true
+  },
+  "outsideVirtualPiano": {
+    "supported": true,
+    "extendedRangeScopedToOpenTwoHandExercise": true,
+    "virtualKeyboardUnchanged": true,
+    "c1c3Voicings": {
+      "C": { "bass": "C2 (36)", "triad": ["E2 (40)", "G2 (43)", "C3 (48)"] },
+      "G/B": { "bass": "B1 (35)", "triad": ["D2 (38)", "G2 (43)", "B2 (47)"] },
+      "Am": { "bass": "A1 (33)", "triad": ["E2 (40)", "A2 (45)", "C3 (48)"] },
+      "F": { "bass": "F1 (29)", "triad": ["F2 (41)", "A2 (45)", "C3 (48)"] }
+    },
+    "graded": true
+  },
+  "calibrationIsolation": {
+    "allCalibrationNoteOnOffConsumed": true,
+    "lastRightmostKeyCannotEnterTask": true,
+    "calibrationDuringRunCreatesNoAttempt": true
+  },
+  "rangeSafety": {
+    "deviceSwitchDuringRunStopsWithoutGrade": true,
+    "disconnectDuringRunStopsWithoutGrade": true,
+    "restartRequiresFreshCountIn": true,
+    "noFailedGradeForEquipmentLimits": true,
+    "noDuplicateReviewLogs": true
+  },
+  "requiredRegressionTests": {
+    "twoDevicesSelectAPlayBNoInput": true,
+    "calibrationIgnoresOtherDevice": true,
+    "identicalNoteChannelTwoDevicesSafe": true,
+    "microlabUncalibratedNoIncorrectPhysicalAssessment": true,
+    "validC1C3SupportedBelowC2": true,
+    "staleRangeBlockedUntilVerified": true,
+    "lastCalibrationNoteCannotEnterTask": true,
+    "deviceSwitchOrDisconnectCancelsWithoutGrade": true,
+    "c2c4AndC3C5CompactPlayable": true,
+    "noDuplicateLogsNoM3kRegression": true
+  },
+  "compactVoicingsC3C5": {
+    "C": { "bass": "C3 (48)", "triad": ["C4 (60)", "E4 (64)", "G4 (67)"] },
+    "G/B": { "bass": "B3 (59)", "triad": ["D4 (62)", "G4 (67)", "B4 (71)"] },
+    "Am": { "bass": "A3 (57)", "triad": ["C4 (60)", "E4 (64)", "A4 (69)"] },
+    "F": { "bass": "F3 (53)", "triad": ["A3 (57)", "C4 (60)", "F4 (65)"] }
+  },
+  "continuousPhraseTrace": "acceptance/m3l-rev3/smoke-summary.json#evidence.continuousPhraseTrace",
+  "unitTests": {
+    "files": 42,
+    "total": 655,
+    "midiPortIsolation": 5,
+    "midiDeviceAwareness": 18,
+    "twoHandAccompaniment": 26,
+    "metronomeClock": 6
+  },
+  "verification": {
+    "typecheck": "clean",
+    "svelteCheck": "0 errors / 0 warnings",
+    "build": "clean",
+    "regressionSmokes": ["smoke:m3k", "smoke:cold-test", "smoke:persistence-integrity", "smoke:daily-practice"]
+  },
+  "physicalMidi": "pending final real Arturia MicroLab mk3 run (port isolation and verified-range flow now enforced)",
+  "screenshots": [
+    "acceptance/m3l-rev3/screenshots/01-m3l-rev3-device-range.png",
+    "acceptance/m3l-rev3/screenshots/02-m3l-rev3-compact-four-bars.png",
+    "acceptance/m3l-rev3/screenshots/03-m3l-rev3-assessment-midi.png",
+    "acceptance/m3l-rev3/screenshots/04-m3l-rev3-remediation-gate.png"
+  ],
+  "archive": "piano-key-trainer-m3l-two-hand-accompaniment-rev3.zip"
+}

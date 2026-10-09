@@ -84,12 +84,12 @@ function originalArrangement(rangeLo: number | null, rangeHi: number | null): Tw
   };
 }
 
-function simulationArrangement(): TwoHandArrangement {
+function simulationArrangement(reason?: string): TwoHandArrangement {
   const arrangement = originalArrangement(null, null);
   return {
     ...arrangement,
     kind: 'simulation',
-    explanation: 'Диапазон инструмента не позволяет сыграть упражнение двумя руками. Доступна экранная симуляция: она не засчитывается как физическое исполнение двумя руками.'
+    explanation: reason ?? 'Диапазон инструмента не позволяет сыграть упражнение двумя руками. Доступна экранная симуляция: она не засчитывается как физическое исполнение двумя руками.'
   };
 }
 
@@ -179,6 +179,8 @@ function compactForSequence(sequence: readonly HarmonyChordId[], lo: number, hi:
 export interface PlanTwoHandParams {
   rangeLo: number | null;
   rangeHi: number | null;
+  /** A fallback/known-device range is informational until calibration is verified. */
+  verified?: boolean;
 }
 
 /**
@@ -188,6 +190,9 @@ export interface PlanTwoHandParams {
  */
 export function planTwoHandArrangement(params: PlanTwoHandParams): TwoHandArrangement {
   const { rangeLo, rangeHi } = params;
+  if (params.verified === false) {
+    return simulationArrangement('Диапазон инструмента не подтверждён. Откалибруйте или подтвердите диапазон, чтобы играть физически. Доступна экранная симуляция: она не засчитывается как физическое исполнение двумя руками.');
+  }
   if (rangeLo == null || rangeHi == null) {
     return originalArrangement(null, null);
   }
@@ -214,3 +219,4 @@ export function arrangementFits(arrangement: TwoHandArrangement, lo: number, hi:
 export function arrangementNotes(arrangement: TwoHandArrangement): number[] {
   return Object.values(arrangement.voicings).flatMap(voicing => voicingNotes(voicing));
 }
+

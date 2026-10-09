@@ -8,13 +8,18 @@
   import { MidiController, type MidiNoteOnEvent, type MidiNoteOffEvent, type MidiInputDescriptor } from './audio/MidiController';
 import {
   applyCalibration,
+  acceptsPortEvent,
   calibrationCapability,
   calibrationRawNote,
   capabilityFromDescriptor,
+  heldNoteIdentity,
   idleCalibration,
+  isRangeVerified,
   observeTransmittedNote,
   rangeLabel,
   startCalibration,
+  startVerification,
+  verifyCapturedRange,
   type CalibrationState,
   type MidiDeviceCapability
 } from './core/midi/deviceCapability';
@@ -632,16 +637,18 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       : base;
     return midiRangeStale ? { ...calibrated, needsRevalidation: true } : calibrated;
   });
+  const twoHandRangeVerified = $derived(isRangeVerified(midiDeviceCapability, midiRangeStale));
   const twoHandArrangement = $derived(planTwoHandArrangement({
-    rangeLo: midiDeviceCapability && !midiDeviceCapability.needsRevalidation ? midiDeviceCapability.minNote : null,
-    rangeHi: midiDeviceCapability && !midiDeviceCapability.needsRevalidation ? midiDeviceCapability.maxNote : null
+    rangeLo: twoHandRangeVerified ? midiDeviceCapability?.minNote ?? null : null,
+    rangeHi: twoHandRangeVerified ? midiDeviceCapability?.maxNote ?? null : null,
+    verified: twoHandRangeVerified
   }));
   const twoHandRangeLabel = $derived(
-    midiDeviceCapability?.calibrated && !midiRangeStale
-      ? `Доступный диапазон: ${rangeLabel(midiDeviceCapability.minNote, midiDeviceCapability.maxNote)}`
-      : midiRangeStale
-        ? 'Диапазон требует повторного подтверждения.'
-        : 'Доступный диапазон не калиброван.'
+    twoHandRangeVerified
+      ? `Доступный диапазон: ${rangeLabel(midiDeviceCapability?.minNote ?? null, midiDeviceCapability?.maxNote ?? null)}`
+      : midiDeviceCapability?.calibrated && midiRangeStale
+        ? 'Диапазон не подтверждён — нажмите «Проверить диапазон».'
+        : 'Диапазон не подтверждён. Откалибруйте инструмент для физической игры.'
   );
   const twoHandArrangementNotice = $derived(
     twoHandArrangement.kind === 'original' ? '' : twoHandArrangement.explanation
@@ -822,6 +829,12 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       void persistTwoHandState(twoHandState);
     }
     publishTwoHandArrangement(arrangement);
+  });
+
+  // Validated M3L arrangements may require notes outside the virtual C2–C6 piano;
+  // the extended MIDI delivery is scoped to an open two-hand exercise.
+  $effect(() => {
+    MidiController.getInstance().setExtendedRange(twoHandState !== null);
   });
   const isDailyRhythmActive = $derived(Boolean(
     currentCard &&
@@ -4114,20 +4127,56 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     MidiController.getInstance().setCalibrationMode(true);
   }
 
+  function beginMidiRangeVerification() {
+    const saved = settings.midiCalibration;
+    if (!selectedMidiInput || !saved || saved.deviceId !== selectedMidiInput.id) {
+      beginMidiCalibration();
+      return;
+    }
+    twoHandCalibration = startVerification(
+      {
+        id: selectedMidiInput.id,
+        name: selectedMidiInput.name,
+        manufacturer: selectedMidiInput.manufacturer,
+        portName: selectedMidiInput.portName
+      },
+      { minNote: saved.minNote, maxNote: saved.maxNote }
+    );
+    MidiController.getInstance().setCalibrationMode(true);
+  }
+
   function cancelMidiCalibration() {
     MidiController.getInstance().setCalibrationMode(false);
     twoHandCalibration = idleCalibration();
   }
 
-  function confirmMidiRange() {
-    midiRangeStale = false;
-  }
-
   function handleCalibrationNote(note: number) {
-    const result = calibrationRawNote(twoHandCalibration, note);
+    const previous = twoHandCalibration;
+    const result = calibrationRawNote(previous, note);
     twoHandCalibration = result.state;
     if (result.state.step !== 'complete') return;
     MidiController.getInstance().setCalibrationMode(false);
+
+    if (previous.mode === 'verify') {
+      const expected = { minNote: previous.expectedMinNote ?? -1, maxNote: previous.expectedMaxNote ?? -1 };
+      const outcome = verifyCapturedRange(expected, { minNote: result.state.minNote, maxNote: result.state.maxNote });
+      if (outcome === 'match') {
+        midiRangeStale = false;
+        const saved = settings.midiCalibration;
+        if (saved) {
+          persistSettings({ midiCalibration: { ...saved, calibratedAt: Date.now() } });
+        }
+        twoHandCalibration = { ...result.state, message: `Диапазон подтверждён: ${rangeLabel(expected.minNote, expected.maxNote)}.` };
+      } else {
+        midiRangeStale = true;
+        twoHandCalibration = {
+          ...result.state,
+          message: `Нажатия не совпали с сохранённым диапазоном (${rangeLabel(expected.minNote, expected.maxNote)}). Откалибруйте диапазон заново.`
+        };
+      }
+      return;
+    }
+
     const base = midiDeviceCapability;
     if (!base || result.state.minNote == null || result.state.maxNote == null) return;
     const calibrated = calibrationCapability(base, result.state);
@@ -4274,6 +4323,10 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
 
   function handleTwoHandNoteInput(keyId: string, midi: number, at: number, method: 'screen' | 'midi' = 'screen') {
     if (!twoHandState) return;
+    // Calibration owns all of its input: nothing may be submitted as an exercise attempt.
+    if (twoHandCalibration.step !== 'idle') return;
+    // Physical grading requires a verified range; on-screen simulation remains available.
+    if (method === 'midi' && !twoHandRangeVerified) return;
     twoHandLastInputMode = method;
     const state = twoHandState;
     const voicing = twoHandVoicingOf(state);
@@ -4351,10 +4404,11 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
         return;
       }
       const results: TwoHandAttemptResult[] = [];
+      const phraseDebug: Array<Record<string, unknown>> = [];
       for (const target of twoHandPhraseTargets) {
         const notes = twoHandPending.notes.filter(note => twoHandPhraseBarIndex(note.at) === target.barIndex);
         const classification = classifyTwoHandCapture(target.chordId, notes, { bassTargetOnset: target.onset, voicings: state.voicings });
-        results.push(evaluateTwoHandAttempt({
+        const evaluated = evaluateTwoHandAttempt({
           chordId: target.chordId,
           pattern: 'alternating',
           bass: classification.bass,
@@ -4362,11 +4416,22 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
           bassTargetOnset: target.onset,
           chordTargetOnset: target.chordOnset,
           voicings: state.voicings
-        }));
+        });
+        results.push(evaluated);
+        phraseDebug.push({
+          bar: target.barIndex,
+          noteCount: notes.length,
+          bassKey: classification.bass?.keyId ?? null,
+          bassAt: classification.bass ? Math.round(classification.bass.at) : null,
+          targetOnset: Math.round(target.onset),
+          chordAt: classification.chordNotes[0] ? Math.round(classification.chordNotes[0].at) : null,
+          chordTarget: Math.round(target.chordOnset)
+        });
       }
       setTwoHandLastAttempt(results[results.length - 1] ?? null);
       if (typeof window !== 'undefined') {
         (window as unknown as { __m3lPhraseResults?: unknown }).__m3lPhraseResults = results.map(result => ({ outcome: result.outcome, correct: result.correct, timing: result.timing, syncMs: result.syncMs }));
+        (window as unknown as { __m3lPhraseDebug?: unknown }).__m3lPhraseDebug = phraseDebug;
       }
       cancelTwoHandRun();
       for (const result of results) {
@@ -6795,7 +6860,8 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
         updateTwoHandState({ type: 'inputInterrupted' }, false);
       }
     });
-    const unsubscribeRawMidiNotes = midi.onRawNoteOn((note) => {
+    const unsubscribeRawMidiNotes = midi.onRawNoteOn((portId, note) => {
+      if (!acceptsPortEvent(selectedMidiInputId, portId)) return;
       if (twoHandCalibration.step === 'awaiting-left' || twoHandCalibration.step === 'awaiting-right') {
         handleCalibrationNote(note);
         return;
@@ -6884,8 +6950,12 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
             });
           }
         } else if ((isTwoHandActive || isDailyTwoHandActive) && twoHandState) {
-          if (!twoHandHeldKeyIds.has(ev.keyId)) {
-            twoHandHeldKeyIds.add(ev.keyId);
+          if (!acceptsPortEvent(selectedMidiInputId, ev.portId)) return;
+          if (twoHandCalibration.step !== 'idle') return;
+          if (!twoHandRangeVerified) return;
+          const identity = heldNoteIdentity(ev.portId, ev.keyId);
+          if (!twoHandHeldKeyIds.has(identity)) {
+            twoHandHeldKeyIds.add(identity);
             handleTwoHandNoteInput(ev.keyId, ev.midi, ev.timestamp, 'midi');
           }
         } else if (isChordRhythmActive || isDailyRhythmActive) {
@@ -6963,7 +7033,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     const unsubscribeMidiNoteOff = midi.onNoteOff((ev: MidiNoteOffEvent) => {
       midiActiveKeyIds = midiActiveKeyIds.filter(id => id !== ev.keyId);
       rhythmMidiByKeyId.delete(ev.keyId);
-      twoHandHeldKeyIds.delete(ev.keyId);
+      twoHandHeldKeyIds.delete(heldNoteIdentity(ev.portId, ev.keyId));
       audioEngine.releaseVoice(ev.voiceKey, 0.12);
       midiChordTracker.handleNoteOff(ev.keyId);
       midiChordHeldKeyIds = midiChordTracker.getActiveNotes();
@@ -7562,7 +7632,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
                 onSelectMidiInput={handleSelectMidiInput}
                 onCalibrate={beginMidiCalibration}
                 onCancelCalibration={cancelMidiCalibration}
-                onConfirmRange={confirmMidiRange}
+                onVerifyRange={beginMidiRangeVerification}
                 onContinue={() => updateTwoHandState({ type: 'continueStage' })}
                 onStartRun={startTwoHandRun}
                 onCheck={() => flushTwoHandAttempt()}

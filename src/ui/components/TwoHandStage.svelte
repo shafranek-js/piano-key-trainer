@@ -32,7 +32,7 @@
     onSelectMidiInput,
     onCalibrate,
     onCancelCalibration,
-    onConfirmRange,
+    onVerifyRange,
     onContinue,
     onStartRun,
     onCheck,
@@ -63,7 +63,7 @@
     onSelectMidiInput?: (id: string) => void;
     onCalibrate?: () => void;
     onCancelCalibration?: () => void;
-    onConfirmRange?: () => void;
+    onVerifyRange?: () => void;
     onContinue: () => void;
     onStartRun: () => void;
     onCheck: () => void;
@@ -147,7 +147,7 @@
       </div>
     {/if}
     {#if rangeStale}
-      <button class="btn btn-secondary tiny" data-testid="two-hand-confirm-range" onclick={onConfirmRange}>Подтвердить диапазон</button>
+      <button class="btn btn-secondary tiny" data-testid="two-hand-verify-range" onclick={onVerifyRange}>Проверить диапазон</button>
     {/if}
     {#if arrangementNotice}
       <div class="two-hand-adaptation" data-testid="two-hand-adaptation">{arrangementNotice}</div>
@@ -314,5 +314,7 @@
     .two-hand-parts { grid-template-columns: 1fr; }
   }
 </style>
+
+
 
 

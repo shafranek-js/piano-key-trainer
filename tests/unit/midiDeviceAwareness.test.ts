@@ -7,10 +7,13 @@ import {
   capabilityFromDescriptor,
   defaultRangeForKeyCount,
   findKnownDeviceProfile,
+  isRangeVerified,
   markRangeStale,
   observeTransmittedNote,
   rangeLabel,
-  startCalibration
+  startCalibration,
+  startVerification,
+  verifyCapturedRange
 } from '../../src/core/midi/deviceCapability';
 import {
   arrangementNotes,
@@ -96,6 +99,27 @@ describe('M3L Rev2 device capability model', () => {
     expect(defaultRangeForKeyCount(61)).toEqual({ minNote: 36, maxNote: 96 });
     expect(defaultRangeForKeyCount(88)).toEqual({ minNote: 21, maxNote: 108 });
   });
+
+  it('requires reliable verification before a range can gate physical grading', () => {
+    const capability = capabilityFromDescriptor(MICROLAB);
+    expect(isRangeVerified(capability)).toBe(false);
+    expect(isRangeVerified(capability, false)).toBe(false);
+
+    const calibrated = applyCalibration(capability, { minNote: 36, maxNote: 60 });
+    expect(isRangeVerified(calibrated)).toBe(true);
+    expect(isRangeVerified(calibrated, true)).toBe(false);
+
+    const knownOnly = capabilityFromDescriptor(MICROLAB);
+    expect(isRangeVerified(knownOnly)).toBe(false);
+
+    const verification = startVerification(MICROLAB, { minNote: 36, maxNote: 60 });
+    expect(verification.step).toBe('awaiting-left');
+    const left = calibrationRawNote(verification, 36);
+    const right = calibrationRawNote(left.state, 60);
+    expect(verifyCapturedRange({ minNote: 36, maxNote: 60 }, { minNote: right.state.minNote, maxNote: right.state.maxNote })).toBe('match');
+    expect(verifyCapturedRange({ minNote: 36, maxNote: 60 }, { minNote: 48, maxNote: 72 })).toBe('mismatch');
+    expect(verifyCapturedRange({ minNote: 36, maxNote: 60 }, { minNote: null, maxNote: null })).toBe('incomplete');
+  });
 });
 
 describe('M3L Rev2 feasibility and adaptive voicings', () => {
@@ -162,6 +186,31 @@ describe('M3L Rev2 feasibility and adaptive voicings', () => {
     const simulation = planTwoHandArrangement({ rangeLo: 60, rangeHi: 64 });
     expect(simulation.kind).toBe('simulation');
     expect(simulation.explanation.length).toBeGreaterThan(0);
+  });
+
+  it('rejects unverified ranges into an explicit simulation instead of silent original voicings', () => {
+    const unverified = planTwoHandArrangement({ rangeLo: 48, rangeHi: 72, verified: false });
+    expect(unverified.kind).toBe('simulation');
+    expect(unverified.explanation.length).toBeGreaterThan(0);
+    const verified = planTwoHandArrangement({ rangeLo: 48, rangeHi: 72, verified: true });
+    expect(verified.kind).toBe('compact');
+  });
+
+  it('supports a valid calibrated C1–C3 range with notes below the virtual piano', () => {
+    const plan = planTwoHandArrangement({ rangeLo: 24, rangeHi: 48, verified: true });
+    expect(plan.kind).toBe('compact');
+    const notes = arrangementNotes(plan);
+    expect(Math.min(...notes)).toBeGreaterThanOrEqual(24);
+    expect(Math.max(...notes)).toBeLessThanOrEqual(48);
+    expect(notes.some(note => note < 36)).toBe(true);
+    for (const chordId of plan.sequence) {
+      const voicing = plan.voicings[chordId];
+      const bassMidi = midiFromKeyId(voicing.bassKeyId)!;
+      const triadMidis = voicing.triadKeyIds.map(keyId => midiFromKeyId(keyId)!);
+      const bassPc = HARMONY_CHORDS[chordId].bassKeyId.replace(/\d/g, '');
+      expect(voicing.bassKeyId.replace(/\d/g, '')).toBe(bassPc);
+      expect(bassMidi).toBeLessThan(Math.min(...triadMidis));
+    }
   });
 
   it('re-plans a C2–C4 calibrated range into playable voicings with the slash bass lowest', () => {

@@ -11,8 +11,8 @@ const projectDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.
 const previewEntry = path.join(projectDir, 'node_modules', 'vite', 'bin', 'vite.js');
 const chromePath = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 const appRoute = '/piano-key-trainer/';
-const screenshotDir = path.join(projectDir, 'acceptance', 'm3l-rev2', 'screenshots');
-const summaryPath = path.join(projectDir, 'acceptance', 'm3l-rev2', 'smoke-summary.json');
+const screenshotDir = path.join(projectDir, 'acceptance', 'm3l-rev3', 'screenshots');
+const summaryPath = path.join(projectDir, 'acceptance', 'm3l-rev3', 'smoke-summary.json');
 
 const ORIGINAL_REQUIRED = { min: 41, max: 67, span: 27 };
 const MICROLAB_RANGE = { min: 48, max: 72 };
@@ -37,6 +37,14 @@ const fakeMidiScript = `(() => {
   window.__m3lMidiInput = input;
   window.__m3lNoteOn = notes => notes.forEach(note => input.onmidimessage?.({data:new Uint8Array([0x90,note,100])}));
   window.__m3lNoteOff = notes => notes.forEach(note => input.onmidimessage?.({data:new Uint8Array([0x80,note,0])}));
+  window.__m3lNoteOnFrom = (portId, notes) => {
+    const target = access.inputs.get(portId);
+    notes.forEach(note => target?.onmidimessage?.({data:new Uint8Array([0x90,note,100])}));
+  };
+  window.__m3lNoteOffFrom = (portId, notes) => {
+    const target = access.inputs.get(portId);
+    notes.forEach(note => target?.onmidimessage?.({data:new Uint8Array([0x80,note,0])}));
+  };
   window.__m3lPlayNotesAt = (notes, onset, durationMs = 60) => new Promise(resolve => {
     const started = performance.now();
     const guard = setInterval(() => {
@@ -395,7 +403,12 @@ const baseSettings = {
   }
 };
 
-async function seedDatabase(cdp, data) {
+const { midiCalibration: _ignoredCalibration, ...settingsBaseWithoutCalibration } = baseSettings;
+const settingsWithoutCalibration = { ...settingsBaseWithoutCalibration, midiCalibration: null };
+const PORT_A = 'm3l-fake-midi';
+const PORT_B = 'm3l-second-device';
+
+async function seedDatabase(cdp, data, settingsPayload = baseSettings) {
   const payload = { cards: data.cards, learningProgress: data.learningProgress, reviewLogs: [] };
   const seeded = await cdp.evaluate(`((data) => new Promise((resolve, reject) => {
     const request = indexedDB.open('PianoTrainerDB');
@@ -408,9 +421,10 @@ async function seedDatabase(cdp, data) {
         const store = tx.objectStore(name); store.clear();
         for (const row of (data[name] ?? [])) store.put(row);
       }
-      tx.objectStore('settings').put({key:'userSettings',value:${JSON.stringify(baseSettings)}});
+      tx.objectStore('settings').put({key:'userSettings',value:${JSON.stringify(settingsPayload)}});
       tx.oncomplete = () => {
-        localStorage.setItem('piano-key-trainer-settings', ${JSON.stringify(JSON.stringify(baseSettings))});
+        localStorage.setItem('piano-key-trainer-settings', ${JSON.stringify(JSON.stringify(settingsPayload))});
+        localStorage.setItem('piano-trainer-settings', ${JSON.stringify(JSON.stringify(settingsPayload))});
         db.close(); resolve(true);
       };
       tx.onerror = () => reject(tx.error);
@@ -418,6 +432,12 @@ async function seedDatabase(cdp, data) {
     };
   }))(${JSON.stringify(payload)})`);
   assert(seeded, 'Could not seed the isolated synthetic browser profile.');
+  await cdp.send('Page.addScriptToEvaluateOnNewDocument', {
+    source: `try {
+      localStorage.setItem('piano-trainer-settings', ${JSON.stringify(JSON.stringify(settingsPayload))});
+      localStorage.setItem('piano-key-trainer-settings', ${JSON.stringify(JSON.stringify(settingsPayload))});
+    } catch (error) {}`
+  });
   const freshUrl = `${await cdp.evaluate('location.origin + location.pathname')}?m3lSeed=${Date.now()}`;
   await cdp.send('Page.navigate', { url: freshUrl });
   await waitFor(cdp, `location.href === ${JSON.stringify(freshUrl)} && document.readyState === 'complete' && document.querySelectorAll('.top-nav-btn').length === 9`, 'reloaded synthetic profile');
@@ -506,9 +526,9 @@ async function startRunAndOpen(cdp) {
   await waitRunOpen(cdp);
 }
 
-async function startRunAndArm(cdp) {
+async function startRunAndArm(cdp, countInValue = '1') {
   await realClick(cdp, '[data-testid="two-hand-start-run"]');
-  await waitFor(cdp, `document.querySelector(${JSON.stringify(stageSelector())})?.dataset.twoHandCountIn === '1'`, 'last count-in beat');
+  await waitFor(cdp, `document.querySelector(${JSON.stringify(stageSelector())})?.dataset.twoHandCountIn === '${countInValue}'`, 'last count-in beat');
   return cdp.evaluate('({ timing: window.__m3lTimingTarget, targets: window.__m3lPhraseTargets })');
 }
 
@@ -520,6 +540,21 @@ async function playSequence(cdp, events) {
 async function midiPlay(cdp, notes, onsetExpression) {
   const played = await cdp.evaluate(`window.__m3lPlayNotesAt(${JSON.stringify(notes)}, ${onsetExpression})`);
   assert(played, `MIDI notes ${JSON.stringify(notes)} were not played at ${onsetExpression}.`);
+}
+
+async function midiFrom(cdp, portId, events) {
+  await cdp.evaluate(`new Promise(resolve => {
+    const events = ${JSON.stringify(events)};
+    for (const event of events) {
+      setTimeout(() => {
+        const port = event.port ?? ${JSON.stringify(portId)};
+        if (event.type === 'off') window.__m3lNoteOffFrom(port, event.notes);
+        else window.__m3lNoteOnFrom(port, event.notes);
+      }, Math.max(0, event.at - performance.now()));
+    }
+    const last = events.length ? Math.max(...events.map(event => event.at)) : performance.now();
+    const done = setInterval(() => { if (performance.now() >= last + 250) { clearInterval(done); resolve(true); } }, 10);
+  })`);
 }
 
 async function lastAttempt(cdp) {
@@ -661,7 +696,7 @@ try {
   await scenario('M3L-01 four bars play continuously after one count-in', async () => {
     await seedAndStartModule(cdp, synthetic, 'fourBar');
     await waitStage(cdp, 'fourBar', 'four-bar stage');
-    const armed = await startRunAndArm(cdp);
+    const armed = await startRunAndArm(cdp, '3');
     const targets = armed.targets;
     assert(Array.isArray(targets) && targets.length === 4, `Expected 4 phrase targets, got ${JSON.stringify(targets)}.`);
     assert(targets[1].onset - targets[0].onset === 4000, 'Bars must be four 60 BPM beats apart.');
@@ -678,7 +713,7 @@ try {
       range: MICROLAB_RANGE
     };
     evidence.compactVoicings = arrangement.voicings;
-    await saveScreenshot(cdp, '02-m3l-rev2-compact-four-bars.png');
+    await saveScreenshot(cdp, '02-m3l-rev3-compact-four-bars.png');
     const phraseEvents = [];
     for (let barIndex = 0; barIndex < 4; barIndex++) {
       const keys = MIDI_KEYS[['C', 'G/B', 'Am', 'F'][barIndex]];
@@ -688,8 +723,10 @@ try {
     await playSequence(cdp, phraseEvents);
     await waitRunClosed(cdp);
     const phraseResults = await cdp.evaluate('window.__m3lPhraseResults ?? null');
+    const phraseDebug = await cdp.evaluate('window.__m3lPhraseDebug ?? null');
+    evidence.continuousPhraseTrace = phraseDebug;
     assert(Array.isArray(phraseResults) && phraseResults.every(result => result?.correct === true),
-      `Every compact bar must be graded correct before reaching independent: ${JSON.stringify(phraseResults)}`);
+      `Every compact bar must be graded correct before reaching independent: ${JSON.stringify({ phraseResults, phraseDebug })}`);
     await waitStage(cdp, 'independent', 'independent stage after continuous phrase');
     evidence.fourBarsOneCountInContinuous = true;
   });
@@ -701,7 +738,7 @@ try {
     assert(!/[A-G]\d/.test(info.instruction), `Independent instruction must not list exact keys: ${info.instruction}`);
     
     evidence.independentNoNoteHints = true;
-    await startRunAndArm(cdp);
+    await startRunAndArm(cdp, '3');
     const independentEvents = [];
     for (let barIndex = 0; barIndex < 4; barIndex++) {
       const keys = MIDI_KEYS[['C', 'G/B', 'Am', 'F'][barIndex]];
@@ -720,7 +757,7 @@ try {
       const chordId = info.chord;
       const keys = MIDI_KEYS[chordId];
       assert(keys, `Trial ${trial + 1}: unknown chord ${chordId}.`);
-      const armed = await startRunAndArm(cdp);
+      const armed = await startRunAndArm(cdp, '3');
       const timing = armed.timing;
       assert(timing && Number.isFinite(timing.onset), `Trial ${trial + 1}: timing target missing.`);
       const events = info.pattern === 'simultaneous'
@@ -736,7 +773,7 @@ try {
       await waitRunClosed(cdp);
       const attempt = await lastAttempt(cdp);
       assert(attempt?.correct === true, `Trial ${trial + 1} not graded correct: ${JSON.stringify(attempt)}.`);
-      if (trial === 5) await saveScreenshot(cdp, '03-m3l-rev2-assessment-midi.png');
+      if (trial === 5) await saveScreenshot(cdp, '03-m3l-rev3-assessment-midi.png');
     }
     await waitStage(cdp, 'transferResult', 'assessment result');
     const snapshot = await readTwoHandSnapshot(cdp);
@@ -830,7 +867,7 @@ try {
     info = await stageInfo(cdp);
     assert(info.chord === 'C', `Wrong remediation must keep the same item, got ${info.chord}.`);
     assert(await cdp.evaluate(`!document.querySelector('[data-testid="two-hand-remediation-next"]')`), 'Next must stay hidden after a wrong remediation attempt.');
-    await saveScreenshot(cdp, '04-m3l-rev2-remediation-gate.png');
+    await saveScreenshot(cdp, '04-m3l-rev3-remediation-gate.png');
     evidence.wrongRemediationNextBlocked = true;
 
     const correctiveArmed = await startRunAndArm(cdp);
@@ -939,7 +976,7 @@ try {
     assert(rangeText.includes('C3') && rangeText.includes('C5'), `Calibrated range must show C3–C5: ${rangeText}`);
     const adaptation = await cdp.evaluate(`document.querySelector('[data-testid="two-hand-adaptation"]')?.innerText || ''`);
     assert(adaptation.length > 0, 'Compact adaptation notice must be visible.');
-    await saveScreenshot(cdp, '01-m3l-rev2-device-range.png');
+    await saveScreenshot(cdp, '01-m3l-rev3-device-range.png');
     evidence.deviceProfile = { label: deviceLabel, range: rangeText, source: 'known-profile+calibration' };
 
     // Calibration workflow captures raw notes, including notes outside the virtual C2–C6 piano.
@@ -1027,7 +1064,165 @@ try {
     evidence.allBarsWithinOneCompactRange = true;
   });
 
-  await scenario('M3L-11 integrity: no duplicate events, exceptions or console errors', async () => {
+  await scenario('M3L-11 port isolation: only the selected device feeds M3L', async () => {
+    await seedAndStartModule(cdp, synthetic, 'simultaneous');
+    await waitStage(cdp, 'simultaneous', 'simultaneous stage');
+    if (!(await cdp.evaluate(`Boolean(document.querySelector('[data-testid="two-hand-device-select"]'))`))) {
+      await cdp.evaluate('window.__m3lAddSecondDevice()');
+      await waitFor(cdp, `Boolean(document.querySelector('[data-testid="two-hand-device-select"]'))`, 'device selector');
+    }
+    await cdp.evaluate(`(() => {
+      const select = document.querySelector('[data-testid="two-hand-device-select"]');
+      if (select.value !== ${JSON.stringify(PORT_A)}) {
+        select.value = ${JSON.stringify(PORT_A)};
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      return true;
+    })()`);
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-device-label"]')?.innerText.includes('MicroLab')`, 'device A selected');
+    const arrangement = await cdp.evaluate('window.__m3lArrangement');
+    const keys = arrangement.voicings.C;
+
+    await cdp.evaluate('window.__m3lAttemptCount = 0; window.__m3lLastAttempt = null;');
+    const bArmed = await startRunAndArm(cdp);
+    await midiFrom(cdp, PORT_B, [
+      { type: 'on', notes: [keys.bassMidi, ...keys.triadMidi], at: bArmed.timing.onset },
+      { type: 'off', notes: [keys.bassMidi, ...keys.triadMidi], at: bArmed.timing.onset + 80 }
+    ]);
+    await waitRunClosed(cdp);
+    assert((await lastAttempt(cdp))?.outcome === 'missing_left', `Device B events must not be captured while A is selected: ${JSON.stringify(await lastAttempt(cdp))}.`);
+
+    await cdp.evaluate('window.__m3lAttemptCount = 0; window.__m3lLastAttempt = null;');
+    const aArmed = await startRunAndArm(cdp);
+    await playSequence(cdp, [
+      { notes: [keys.bassMidi], at: aArmed.timing.onset, durationMs: 60 },
+      { notes: keys.triadMidi, at: aArmed.timing.onset + 20, durationMs: 60 }
+    ]);
+    await waitRunClosed(cdp);
+    assert((await lastAttempt(cdp))?.correct === true, 'Selected-device input must be accepted and graded.');
+
+    await cdp.evaluate('window.__m3lAttemptCount = 0; window.__m3lLastAttempt = null;');
+    const heldChord = (await stageInfo(cdp)).chord;
+    const heldKeys = arrangement.voicings[heldChord];
+    assert(heldKeys, `Held-identity block: unknown chord ${heldChord}.`);
+    const heldArmed = await startRunAndArm(cdp);
+    await midiFrom(cdp, PORT_A, [
+      { type: 'on', notes: [heldKeys.bassMidi], at: heldArmed.timing.onset },
+      { type: 'on', notes: [heldKeys.bassMidi], at: heldArmed.timing.onset + 5, port: PORT_B },
+      { type: 'off', notes: [heldKeys.bassMidi], at: heldArmed.timing.onset + 10, port: PORT_B },
+      { type: 'on', notes: [heldKeys.bassMidi], at: heldArmed.timing.onset + 15 },
+      { type: 'on', notes: heldKeys.triadMidi, at: heldArmed.timing.onset + 20 },
+      { type: 'off', notes: [heldKeys.bassMidi, ...heldKeys.triadMidi], at: heldArmed.timing.onset + 90 }
+    ]);
+    await waitRunClosed(cdp);
+    assert((await cdp.evaluate('window.__m3lAttemptCount ?? 0')) === 1, 'Identical note/channel from two devices must not duplicate held state.');
+    assert((await lastAttempt(cdp))?.correct === true, 'Held-note identity isolation must preserve a valid attempt.');
+    await cdp.evaluate(`window.__m3lNoteOffFrom(${JSON.stringify(PORT_A)}, [${keys.bassMidi}])`);
+
+    await realClick(cdp, '[data-testid="two-hand-calibrate"]');
+    await waitFor(cdp, `Boolean(document.querySelector('[data-testid="two-hand-calibration"]'))`, 'calibration panel');
+    await cdp.evaluate(`window.__m3lNoteOnFrom(${JSON.stringify(PORT_B)}, [30])`);
+    await cdp.evaluate(`window.__m3lNoteOnFrom(${JSON.stringify(PORT_B)}, [96])`);
+    await delay(200);
+    assert(!(await cdp.evaluate(`Boolean(document.querySelector('[data-testid="two-hand-calibration-range"]'))`)), 'Device B notes must not calibrate device A.');
+    await cdp.evaluate(`window.__m3lNoteOnFrom(${JSON.stringify(PORT_A)}, [48])`);
+    await cdp.evaluate(`window.__m3lNoteOnFrom(${JSON.stringify(PORT_A)}, [72])`);
+    await waitFor(cdp, `Boolean(document.querySelector('[data-testid="two-hand-calibration-range"]'))`, 'device A calibration range');
+    await realClick(cdp, '[data-testid="two-hand-calibration-cancel"]');
+    evidence.portIsolation = { foreignDeviceIgnored: true, selectedDeviceAccepted: true, heldIdentityIsolated: true, calibrationIsolated: true };
+  });
+
+  await scenario('M3L-12 verified range required; C1–C3 support; stale reconfirmation and calibration isolation', async () => {
+    await seedDatabase(cdp, { cards: synthetic.cards, learningProgress: synthetic.profiles.simultaneous }, settingsWithoutCalibration);
+    await startTwoHandModule(cdp);
+    await waitStage(cdp, 'simultaneous', 'simultaneous stage');
+    await waitFor(cdp, `window.__m3lArrangement?.kind === 'simulation'`, 'simulation arrangement without verified range');
+    await waitFor(cdp, `Boolean(document.querySelector('[data-testid="two-hand-simulation"]'))`, 'simulation label');
+    await cdp.evaluate('window.__m3lAttemptCount = 0; window.__m3lLastAttempt = null;');
+    const simArmed = await startRunAndArm(cdp);
+    await midiFrom(cdp, PORT_A, [
+      { type: 'on', notes: [48, 60, 64, 67], at: simArmed.timing.onset },
+      { type: 'off', notes: [48, 60, 64, 67], at: simArmed.timing.onset + 80 }
+    ]);
+    await waitRunClosed(cdp);
+    assert((await lastAttempt(cdp))?.correct !== true, 'Unverified physical input must not be graded.');
+
+    await realClick(cdp, '[data-testid="two-hand-calibrate"]');
+    await cdp.evaluate(`window.__m3lNoteOnFrom(${JSON.stringify(PORT_A)}, [24])`);
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-calibration"]')?.innerText.includes('Справа') || document.querySelector('[data-testid="two-hand-calibration"]')?.innerText.includes('прав')`, 'C1 captured');
+    await cdp.evaluate(`window.__m3lNoteOnFrom(${JSON.stringify(PORT_A)}, [48])`);
+    await waitFor(cdp, `Boolean(document.querySelector('[data-testid="two-hand-calibration-range"]'))`, 'C1–C3 calibration range');
+    await realClick(cdp, '[data-testid="two-hand-calibration-cancel"]');
+    await waitFor(cdp, `window.__m3lArrangement?.kind === 'compact'`, 'compact arrangement for C1–C3');
+    const lowArrangement = await cdp.evaluate('window.__m3lArrangement');
+    const lowNotes = Object.values(lowArrangement.voicings).flatMap(voicing => [voicing.bassMidi, ...voicing.triadMidi]);
+    assert(lowNotes.some(note => note < 36), `C1–C3 arrangement must use notes below the virtual piano: ${JSON.stringify(lowNotes)}.`);
+    await cdp.evaluate('window.__m3lAttemptCount = 0; window.__m3lLastAttempt = null;');
+    const lowArmed = await startRunAndArm(cdp);
+    const lowC = lowArrangement.voicings.C;
+    await playSequence(cdp, [
+      { notes: [lowC.bassMidi], at: lowArmed.timing.onset, durationMs: 60 },
+      { notes: lowC.triadMidi, at: lowArmed.timing.onset + 20, durationMs: 60 }
+    ]);
+    await waitRunClosed(cdp);
+    assert((await lastAttempt(cdp))?.correct === true, 'Validated sub-C2 notes must be received and graded.');
+    evidence.c1c3Supported = { notes: lowNotes, graded: true };
+
+    await cdp.evaluate(`window.__m3lNoteOnFrom(${JSON.stringify(PORT_A)}, [60])`);
+    await delay(250);
+    await waitFor(cdp, `window.__m3lArrangement?.kind === 'simulation'`, 'stale range blocks physical play');
+    await waitFor(cdp, `Boolean(document.querySelector('[data-testid="two-hand-verify-range"]'))`, 'verification button');
+    await cdp.evaluate('window.__m3lAttemptCount = 0; window.__m3lLastAttempt = null;');
+    const blockedArmed = await startRunAndArm(cdp);
+    await midiFrom(cdp, PORT_A, [
+      { type: 'on', notes: [24, 36, 40, 43], at: blockedArmed.timing.onset },
+      { type: 'off', notes: [24, 36, 40, 43], at: blockedArmed.timing.onset + 80 }
+    ]);
+    await waitRunClosed(cdp);
+    assert((await lastAttempt(cdp))?.correct !== true, 'Stale range must block physical grading.');
+    await cdp.evaluate(`window.__m3lNoteOffFrom(${JSON.stringify(PORT_A)}, [24,36,40,43])`);
+
+    await realClick(cdp, '[data-testid="two-hand-verify-range"]');
+    await cdp.evaluate(`window.__m3lNoteOnFrom(${JSON.stringify(PORT_A)}, [24])`);
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-calibration"]')?.innerText.includes('Справа') || document.querySelector('[data-testid="two-hand-calibration"]')?.innerText.includes('прав')`, 'verification left captured');
+    await cdp.evaluate(`window.__m3lNoteOnFrom(${JSON.stringify(PORT_A)}, [48])`);
+    await waitFor(cdp, `window.__m3lArrangement?.kind === 'compact'`, 'range reverified');
+    await realClick(cdp, '[data-testid="two-hand-calibration-cancel"]');
+    evidence.verifiedRangeRequired = true;
+    evidence.staleBlockedUntilVerified = true;
+
+    await cdp.evaluate('window.__m3lAddSecondDevice()');
+    await waitFor(cdp, `Boolean(document.querySelector('[data-testid="two-hand-device-select"]'))`, 'second device for switch test');
+    await cdp.evaluate('window.__m3lAttemptCount = 0; window.__m3lLastAttempt = null;');
+    const beforeLogs = await readStore(cdp, 'reviewLogEvents');
+    await realClick(cdp, '[data-testid="two-hand-calibrate"]');
+    await waitFor(cdp, `Boolean(document.querySelector('[data-testid="two-hand-calibration"]'))`, 'calibration during run');
+    await realClick(cdp, '[data-testid="two-hand-start-run"]');
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandRunning === 'true'`, 'run with calibration open');
+    await cdp.evaluate(`window.__m3lNoteOnFrom(${JSON.stringify(PORT_A)}, [24])`);
+    await cdp.evaluate(`window.__m3lNoteOnFrom(${JSON.stringify(PORT_A)}, [48])`);
+    await waitFor(cdp, `Boolean(document.querySelector('[data-testid="two-hand-calibration-range"]'))`, 'calibration captured during run');
+    assert((await lastAttempt(cdp)) === null, 'Calibration events must never be submitted as an attempt.');
+    assert((await cdp.evaluate('window.__m3lAttemptCount ?? 0')) === 0, 'No evaluation may originate from calibration events.');
+    await realClick(cdp, '[data-testid="two-hand-calibration-cancel"]');
+    await waitFor(cdp, `Boolean(document.querySelector('[data-testid="two-hand-device-select"]'))`, 'device selector after calibration');
+    await cdp.evaluate(`(() => {
+      const select = document.querySelector('[data-testid="two-hand-device-select"]');
+      const option = [...select.options].find(item => item.value === ${JSON.stringify(PORT_B)});
+      if (option) { select.value = option.value; select.dispatchEvent(new Event('change', { bubbles: true })); }
+      return true;
+    })()`);
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandRunning === 'false'`, 'run stopped on device switch');
+    assert((await lastAttempt(cdp)) === null, 'Device switch must not grade the interrupted run.');
+    assert((await cdp.evaluate('window.__m3lAttemptCount ?? 0')) === 0, 'Interrupted run must not be evaluated.');
+    const afterLogs = await readStore(cdp, 'reviewLogEvents');
+    assert(afterLogs.length === beforeLogs.length, 'Interrupted run must not create review logs.');
+    evidence.calibrationIsolatedDuringRun = true;
+    evidence.deviceSwitchStopsWithoutGrade = true;
+    evidence.compactProgressionsPlayable = { c2c4: true, c3c5: true };
+  });
+
+  await scenario('M3L-13 integrity: no duplicate events, exceptions or console errors', async () => {
     const logs = await readStore(cdp, 'reviewLogEvents');
     const ids = logs.map(row => row.reviewEventId).filter(Boolean);
     assert(ids.length - new Set(ids).size === 0, 'Duplicate review event identities detected.');
@@ -1048,6 +1243,11 @@ try {
   if (tempRoot) { try { await rm(tempRoot, { recursive: true, force: true }); } catch {} }
   if (portFile) { try { await rm(portFile, { force: true }); } catch {} }
 }
+
+
+
+
+
 
 
 

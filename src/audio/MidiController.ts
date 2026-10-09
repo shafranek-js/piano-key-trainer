@@ -15,6 +15,7 @@ export interface MidiNoteOnEvent {
   channel: number;
   voiceKey: string;
   timestamp: number;
+  portId: string;
 }
 
 export interface MidiNoteOffEvent {
@@ -24,6 +25,7 @@ export interface MidiNoteOffEvent {
   voiceKey: string;
   timestamp: number;
   durationMs: number;
+  portId: string;
 }
 
 export type MidiStatusCallback = (status: {
@@ -41,24 +43,31 @@ export interface MidiInputDescriptor {
   state: string;
 }
 
-export type RawNoteCallback = (note: number, velocity: number, channel: number) => void;
+export type RawNoteCallback = (portId: string, note: number, velocity: number, channel: number) => void;
 
 export class MidiController {
   private static instance: MidiController | null = null;
   private midiAccess: MIDIAccess | null = null;
-  private heldNotes = new Set<string>(); // keyIds currently pressed
-  private activeNoteOns = new Map<string, number>(); // voiceKey -> performance.now()
+  private heldNotes = new Set<string>(); // keyIds currently pressed (union across ports)
+  private heldNotesByPort = new Map<string, Set<string>>(); // portId -> keyIds
+  private activeNoteOns = new Map<string, number>(); // `${portId}:${channel}:${note}` -> performance.now()
   private noteOnListeners = new Set<(ev: MidiNoteOnEvent) => void>();
   private noteOffListeners = new Set<(ev: MidiNoteOffEvent) => void>();
   private statusListeners = new Set<MidiStatusCallback>();
   private rawNoteListeners = new Set<RawNoteCallback>();
   private calibrationMode = false;
+  private extendedRange = false;
 
   public static getInstance(): MidiController {
     if (!MidiController.instance) {
       MidiController.instance = new MidiController();
     }
     return MidiController.instance;
+  }
+
+  /** Isolated instance for tests; production continues to use the singleton. */
+  public static createIsolated(): MidiController {
+    return new MidiController();
   }
 
   private constructor() {}
@@ -69,6 +78,18 @@ export class MidiController {
 
   public getHeldNotes(): ReadonlySet<string> {
     return this.heldNotes;
+  }
+
+  public getHeldNotesForPort(portId: string): ReadonlySet<string> {
+    return this.heldNotesByPort.get(portId) ?? new Set<string>();
+  }
+
+  /**
+   * While enabled, transmitted notes outside the virtual C2–C6 piano are still delivered
+   * to listeners (used by validated M3L arrangements). The visual keyboard is unchanged.
+   */
+  public setExtendedRange(active: boolean): void {
+    this.extendedRange = active;
   }
 
   public onNoteOn(cb: (ev: MidiNoteOnEvent) => void): () => void {
@@ -138,13 +159,20 @@ export class MidiController {
 
     const names: string[] = [];
     let count = 0;
+    const connectedPortIds = new Set<string>();
 
     this.midiAccess.inputs.forEach(input => {
       if (input.state !== 'connected') return;
       count++;
+      connectedPortIds.add(input.id);
       if (input.name) names.push(input.name);
-      input.onmidimessage = (e: MIDIMessageEvent) => this.handleMidiMessage(e);
+      input.onmidimessage = (e: MIDIMessageEvent) => this.handleMidiMessage(e, input.id);
     });
+
+    // A disconnected port must not keep stale held notes that could corrupt identities.
+    for (const portId of [...this.heldNotesByPort.keys()]) {
+      if (!connectedPortIds.has(portId)) this.clearPortHeldNotes(portId);
+    }
 
     const connected = count > 0;
     const msg = connected
@@ -154,12 +182,25 @@ export class MidiController {
     this.notifyStatus(connected, count, names, msg);
   }
 
+  private clearPortHeldNotes(portId: string): void {
+    const held = this.heldNotesByPort.get(portId);
+    if (!held) return;
+    this.heldNotesByPort.delete(portId);
+    for (const keyId of held) {
+      let stillHeld = false;
+      for (const other of this.heldNotesByPort.values()) {
+        if (other.has(keyId)) { stillHeld = true; break; }
+      }
+      if (!stillHeld) this.heldNotes.delete(keyId);
+    }
+  }
+
   private notifyStatus(connected: boolean, count: number, names: string[], message: string): void {
     const payload = { connected, deviceCount: count, deviceNames: names, message };
     this.statusListeners.forEach(cb => cb(payload));
   }
 
-  private handleMidiMessage(event: MIDIMessageEvent): void {
+  private handleMidiMessage(event: MIDIMessageEvent, portId: string): void {
     const data = event.data;
     if (!data || data.length < 2) return;
 
@@ -167,19 +208,22 @@ export class MidiController {
     const channel = data[0] & 0x0f;
     const note = data[1];
     const velocity = data[2] ?? 0;
-    const voiceKey = `midi:${channel}:${note}`;
+    const voiceKey = `midi:${portId}:${channel}:${note}`;
     const now = performance.now();
 
     if (status === 0x90 && velocity > 0) {
       // Note On — emit the raw stream first (calibration accepts any MIDI note number).
-      this.rawNoteListeners.forEach(cb => cb(note, velocity, channel));
+      this.rawNoteListeners.forEach(cb => cb(portId, note, velocity, channel));
       if (this.calibrationMode) return;
-      if (note < MIDI_MIN || note > MIDI_MAX) return;
+      if (!this.extendedRange && (note < MIDI_MIN || note > MIDI_MAX)) return;
 
       const keyId = keyIdFromMidi(note);
       const noteName = pitchClassFromMidi(note);
 
       this.heldNotes.add(keyId);
+      const portHeld = this.heldNotesByPort.get(portId) ?? new Set<string>();
+      portHeld.add(keyId);
+      this.heldNotesByPort.set(portId, portHeld);
       this.activeNoteOns.set(voiceKey, now);
 
       const ev: MidiNoteOnEvent = {
@@ -189,14 +233,32 @@ export class MidiController {
         velocity,
         channel,
         voiceKey,
-        timestamp: now
+        timestamp: now,
+        portId
       };
 
       this.noteOnListeners.forEach(cb => cb(ev));
-    } else if (status === 0x80 || (status === 0x90 && velocity === 0)) {
-      // Note Off
+      return;
+    }
+
+    if (status === 0x80 || (status === 0x90 && velocity === 0)) {
+      // Note Off — calibration consumes its own releases so the last key can never
+      // surface as an exercise event.
+      if (this.calibrationMode) {
+        this.activeNoteOns.delete(voiceKey);
+        return;
+      }
       const keyId = keyIdFromMidi(note);
-      this.heldNotes.delete(keyId);
+      const portHeld = this.heldNotesByPort.get(portId);
+      if (portHeld) {
+        portHeld.delete(keyId);
+        if (!portHeld.size) this.heldNotesByPort.delete(portId);
+      }
+      let stillHeld = false;
+      for (const other of this.heldNotesByPort.values()) {
+        if (other.has(keyId)) { stillHeld = true; break; }
+      }
+      if (!stillHeld) this.heldNotes.delete(keyId);
 
       const onTime = this.activeNoteOns.get(voiceKey) ?? now;
       this.activeNoteOns.delete(voiceKey);
@@ -208,7 +270,8 @@ export class MidiController {
         channel,
         voiceKey,
         timestamp: now,
-        durationMs
+        durationMs,
+        portId
       };
 
       this.noteOffListeners.forEach(cb => cb(ev));

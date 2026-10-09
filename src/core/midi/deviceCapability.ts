@@ -170,30 +170,90 @@ export function observeTransmittedNote(capability: MidiDeviceCapability, note: n
 
 export type CalibrationStep = 'idle' | 'awaiting-left' | 'awaiting-right' | 'complete';
 
+export type CalibrationMode = 'calibrate' | 'verify';
+
 export interface CalibrationState {
   step: CalibrationStep;
+  mode: CalibrationMode;
   deviceId: string | null;
   deviceName: string;
   minNote: number | null;
   maxNote: number | null;
+  expectedMinNote: number | null;
+  expectedMaxNote: number | null;
   rejectedNote: number | null;
   message: string;
 }
 
 export function idleCalibration(): CalibrationState {
-  return { step: 'idle', deviceId: null, deviceName: '', minNote: null, maxNote: null, rejectedNote: null, message: '' };
+  return { step: 'idle', mode: 'calibrate', deviceId: null, deviceName: '', minNote: null, maxNote: null, expectedMinNote: null, expectedMaxNote: null, rejectedNote: null, message: '' };
 }
 
 export function startCalibration(device: MidiDeviceDescriptor): CalibrationState {
   return {
     step: 'awaiting-left',
+    mode: 'calibrate',
     deviceId: device.id,
     deviceName: device.name,
     minNote: null,
     maxNote: null,
+    expectedMinNote: null,
+    expectedMaxNote: null,
     rejectedNote: null,
     message: 'Нажмите самую левую клавишу инструмента.'
   };
+}
+
+/**
+ * Reconfirms an existing calibration by requiring the same leftmost/rightmost keys again.
+ * A boolean reset is never enough: only a matching captured range clears the stale state.
+ */
+export function startVerification(
+  device: MidiDeviceDescriptor,
+  expected: { minNote: number; maxNote: number }
+): CalibrationState {
+  return {
+    step: 'awaiting-left',
+    mode: 'verify',
+    deviceId: device.id,
+    deviceName: device.name,
+    minNote: null,
+    maxNote: null,
+    expectedMinNote: expected.minNote,
+    expectedMaxNote: expected.maxNote,
+    rejectedNote: null,
+    message: 'Подтвердите диапазон: нажмите самую левую клавишу инструмента.'
+  };
+}
+
+export type RangeVerificationResult = 'match' | 'mismatch' | 'incomplete';
+
+export function verifyCapturedRange(
+  expected: { minNote: number; maxNote: number },
+  captured: { minNote: number | null; maxNote: number | null }
+): RangeVerificationResult {
+  if (captured.minNote == null || captured.maxNote == null) return 'incomplete';
+  return captured.minNote === expected.minNote && captured.maxNote === expected.maxNote ? 'match' : 'mismatch';
+}
+
+/** A range may gate physical grading only when it comes from a current calibration. */
+export function isRangeVerified(capability: MidiDeviceCapability | null, externallyStale = false): boolean {
+  if (!capability) return false;
+  return capability.source === 'calibration' &&
+    capability.calibrated &&
+    !capability.needsRevalidation &&
+    !externallyStale &&
+    capability.minNote != null &&
+    capability.maxNote != null;
+}
+
+/** Port isolation helpers: an event may enter M3L only from the explicitly selected port. */
+export function acceptsPortEvent(selectedPortId: string | null, eventPortId: string): boolean {
+  return Boolean(selectedPortId) && selectedPortId === eventPortId;
+}
+
+export function heldNoteIdentity(portId: string, keyId: string): string {
+  return `${portId}:${keyId}`;
 }
 
 export interface CalibrationNoteResult {

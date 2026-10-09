@@ -134,4 +134,89 @@ describe('M3L Rev3 port-aware MIDI events', () => {
     expect([...controller.getHeldNotesForPort('port-b')]).toEqual([]);
     expect([...controller.getHeldNotesForPort('port-a')]).toEqual(['C3']);
   });
+
+  it('Fix 2: consumes calibration Note On and matching Note Off even when calibration mode is disabled in raw-note callback', async () => {
+    const a = makeInput('port-a');
+    const controller = await connectIsolated(createFakeAccess([a]));
+    const noteOns: MidiNoteOnEvent[] = [];
+    const noteOffs: MidiNoteOffEvent[] = [];
+    controller.onNoteOn(ev => noteOns.push(ev));
+    controller.onNoteOff(ev => noteOffs.push(ev));
+
+    // Begin calibration
+    controller.setCalibrationMode(true);
+
+    // In the raw-note callback for the rightmost key (note 96), immediately disable calibration mode
+    controller.onRawNoteOn((_portId, note) => {
+      if (note === 96) {
+        controller.setCalibrationMode(false);
+      }
+    });
+
+    // Press the rightmost key during calibration
+    dispatch(a, [0x90, 96, 100]);
+
+    // Assert zero ordinary Note On events from that key
+    expect(noteOns).toEqual([]);
+    // Assert no leaked held-note state
+    expect([...controller.getHeldNotes()]).toEqual([]);
+    expect([...controller.getHeldNotesForPort('port-a')]).toEqual([]);
+
+    // Release the rightmost key
+    dispatch(a, [0x80, 96, 0]);
+
+    // Assert zero ordinary Note Off events from that key
+    expect(noteOffs).toEqual([]);
+    expect([...controller.getHeldNotes()]).toEqual([]);
+
+    // Confirm the next intentional Note On after calibration works normally
+    dispatch(a, [0x90, 60, 100]);
+    expect(noteOns).toHaveLength(1);
+    expect(noteOns[0].midi).toBe(60);
+    expect(noteOns[0].portId).toBe('port-a');
+    expect([...controller.getHeldNotes()]).toEqual(['C4']);
+
+    dispatch(a, [0x80, 60, 0]);
+    expect(noteOffs).toHaveLength(1);
+    expect(noteOffs[0].midi).toBe(60);
+    expect([...controller.getHeldNotes()]).toEqual([]);
+  });
+
+  it('Fix 1: tracks individual port connection states and clears held notes when a port disconnects while another remains connected', async () => {
+    const a = makeInput('port-a', 'Port A');
+    const b = makeInput('port-b', 'Port B');
+    const access = createFakeAccess([a, b]);
+    const controller = await connectIsolated(access);
+
+    expect(controller.isPortConnected('port-a')).toBe(true);
+    expect(controller.isPortConnected('port-b')).toBe(true);
+    expect([...controller.getConnectedPortIds()]).toEqual(['port-a', 'port-b']);
+
+    // Hold notes on both ports
+    dispatch(a, [0x90, 48, 100]); // C3 on A
+    dispatch(b, [0x90, 60, 100]); // C4 on B
+    expect([...controller.getHeldNotesForPort('port-a')]).toEqual(['C3']);
+    expect([...controller.getHeldNotesForPort('port-b')]).toEqual(['C4']);
+
+    // Disconnect port A while port B remains connected
+    a.state = 'disconnected';
+    access.onstatechange?.();
+
+    // Port A is disconnected, Port B remains connected
+    expect(controller.isPortConnected('port-a')).toBe(false);
+    expect(controller.isPortConnected('port-b')).toBe(true);
+    expect([...controller.getConnectedPortIds()]).toEqual(['port-b']);
+
+    // Port A held notes cleared, Port B held notes preserved
+    expect([...controller.getHeldNotesForPort('port-a')]).toEqual([]);
+    expect([...controller.getHeldNotesForPort('port-b')]).toEqual(['C4']);
+    expect([...controller.getHeldNotes()]).toEqual(['C4']);
+
+    // Port A remains in descriptors as disconnected
+    const descriptors = controller.getInputDescriptors();
+    const descA = descriptors.find(d => d.id === 'port-a');
+    const descB = descriptors.find(d => d.id === 'port-b');
+    expect(descA?.state).toBe('disconnected');
+    expect(descB?.state).toBe('connected');
+  });
 });

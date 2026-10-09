@@ -1,0 +1,112 @@
+{
+  "generatedAt": "2026-10-09T10:45:00.000Z",
+  "checkpoint": "Milestone 3L Rev4 - Selected-Port Disconnect & Calibration Event Isolation",
+  "baseline": "M3L Rev3",
+  "branch": "stabilization/m3k-audit-remediation",
+  "smoke": "smoke:m3l",
+  "smokeScenarios": [
+    "M3L-P0-A wrong right-hand triad via MIDI then correct chord advances exactly once",
+    "M3L-P0-B on-screen wrong triad then correct chord and a fresh correct first attempt",
+    "M3L-01 four bars play continuously after one count-in",
+    "M3L-02 independent phrase hides note hints and stays continuous",
+    "M3L-03 complete 12 assessment trials through the real MIDI pipeline",
+    "M3L-04 wrong LH bass is classified as wrong bass, not missing left hand",
+    "M3L-05 delayed extra note cannot receive false success",
+    "M3L-06 MIDI disconnect cancels the attempt without grading",
+    "M3L-07 failed assessment returns to learning with history preserved",
+    "M3L-08 remediation gate blocks Next after a wrong item and maps failed trial positions",
+    "M3L-09 shared metronome count-in 4-3-2-1, play cue and restart integrity",
+    "M3L-10 device profile, calibration trace, compact range and input selection",
+    "M3L-11 port isolation: only the selected device feeds M3L",
+    "M3L-11B selected-port disconnect while second port connected stops run immediately without grade or fallback",
+    "M3L-12 verified range required; C1–C3 support; stale reconfirmation and calibration isolation",
+    "M3L-13 integrity: no duplicate events, exceptions or console errors"
+  ],
+  "fix1SelectedPortDisconnect": {
+    "trackActualConnectionOfSelectedPort": true,
+    "selectedPortTrackedIndependentlyOfGlobalConnection": true,
+    "scenarioConnectAAndBSelectAndCalibrateAStartRunDisconnectAWhileBConnected": {
+      "activeRunStopsImmediately": true,
+      "allPendingBeatTimersCancelled": true,
+      "noFailedTrialOrFsrsMutationOrReviewLog": true,
+      "heldNotesOfDisconnectedPortCleared": true,
+      "unselectedPortDoesNotSilentlyReplaceForGrading": true,
+      "physicalPerformanceUnavailableUntilExplicitSelection": true
+    },
+    "disconnectedPortInMidiInputListHandled": true,
+    "controllerLevelTestCoverage": "tests/unit/midiPortIsolation.test.ts",
+    "productionSmokeCoverage": "scripts/smokeM3l.mjs scenario M3L-11B"
+  },
+  "fix2CalibrationEventIsolation": {
+    "calibrationModeCapturedBeforeNotifyingRawNoteListeners": true,
+    "callbackDisablingCalibrationModeCannotForwardCurrentNoteOn": true,
+    "finalCalibrationNoteOnConsumed": true,
+    "matchingNoteOffConsumedAfterCalibrationEnded": true,
+    "requiredRegression": {
+      "beginCalibration": true,
+      "rawNoteCallbackForRightmostKeyImmediatelyDisablesCalibrationMode": true,
+      "assertZeroOrdinaryNoteOnFromThatKey": true,
+      "releaseRightmostKey": true,
+      "assertZeroOrdinaryNoteOffFromThatKey": true,
+      "assertNoLeakedHeldNoteStateNoAudioVoiceNoM3lAttempt": true,
+      "nextIntentionalNoteOnAfterCalibrationWorksNormally": true
+    },
+    "unitTestCoverage": "tests/unit/midiPortIsolation.test.ts"
+  },
+  "portIsolation": {
+    "eventsCarryPortId": true,
+    "noteOnNoteOffRawAndScoredPortTagged": true,
+    "selectedDeviceOnly": true,
+    "foreignDeviceIgnoredForCalibrationAndScoring": true,
+    "heldNoteIdentityPerPort": true,
+    "disconnectPrunesPortHeldNotes": true,
+    "duplicateNoteChannelAcrossDevicesSafe": true
+  },
+  "verifiedRange": {
+    "knownProfileFallbackIsInformationalOnly": true,
+    "physicalGradingRequiresVerifiedCalibration": true,
+    "unverifiedOrStaleNeverFallsBackToOriginalVoicings": true,
+    "unverifiedUsesExplicitSimulation": true,
+    "staleRequiresMatchingReconfirmationOrRecalibration": true,
+    "booleanResetRemoved": true
+  },
+  "outsideVirtualPiano": {
+    "supported": true,
+    "extendedRangeScopedToOpenTwoHandExercise": true,
+    "virtualKeyboardUnchanged": true,
+    "c1c3Voicings": {
+      "C": { "bass": "C2 (36)", "triad": ["E2 (40)", "G2 (43)", "C3 (48)"] },
+      "G/B": { "bass": "B1 (35)", "triad": ["D2 (38)", "G2 (43)", "B2 (47)"] },
+      "Am": { "bass": "A1 (33)", "triad": ["E2 (40)", "A2 (45)", "C3 (48)"] },
+      "F": { "bass": "F1 (29)", "triad": ["F2 (41)", "A2 (45)", "C3 (48)"] }
+    },
+    "graded": true
+  },
+  "rangeSafety": {
+    "deviceSwitchDuringRunStopsWithoutGrade": true,
+    "disconnectDuringRunStopsWithoutGrade": true,
+    "restartRequiresFreshCountIn": true,
+    "noFailedGradeForEquipmentLimits": true,
+    "noDuplicateReviewLogs": true
+  },
+  "unitTests": {
+    "files": 42,
+    "total": 657,
+    "midiPortIsolation": 7,
+    "midiDeviceAwareness": 18,
+    "twoHandAccompaniment": 26,
+    "metronomeClock": 6
+  },
+  "verification": {
+    "typecheck": "clean",
+    "svelteCheck": "0 errors / 0 warnings",
+    "build": "clean",
+    "smokeM3l": "16/16 scenarios passed"
+  },
+  "screenshots": [
+    "acceptance/m3l-rev4/screenshots/01-m3l-rev4-device-range.png",
+    "acceptance/m3l-rev4/screenshots/02-m3l-rev4-compact-four-bars.png",
+    "acceptance/m3l-rev4/screenshots/03-m3l-rev4-assessment-midi.png",
+    "acceptance/m3l-rev4/screenshots/04-m3l-rev4-remediation-gate.png"
+  ]
+}

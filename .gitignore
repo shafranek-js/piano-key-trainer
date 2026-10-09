@@ -3,9 +3,10 @@ node_modules
 .pnp
 .pnp.js
 
-# Production build
+# Production & test build
 dist
 dist-ssr
+dist-test
 
 # Environment variables
 .env
@@ -23,6 +24,8 @@ diagnostics-*.json
 
 # Generated milestone delivery archives
 piano-key-trainer-*.zip
+acceptance-screenshots.zip
+*.zip
 
 # Temporary browser profiles (smoke scripts write to os.tmpdir, but keep repo clean)
 chrome-profile/

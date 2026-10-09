@@ -3,8 +3,15 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
 
-export default defineConfig({
-  base: '/piano-key-trainer/',
+export default defineConfig(({ mode }) => {
+  const isTestBuild = mode === 'test' || process.env.TEST_BUILD === 'true' || process.env.VITE_TEST_HOOKS === 'true';
+  const outDir = process.env.OUT_DIR || (mode === 'test' ? 'dist-test' : 'dist');
+
+  return {
+    base: '/piano-key-trainer/',
+    define: {
+      __ENABLE_TEST_HOOKS__: JSON.stringify(Boolean(isTestBuild))
+    },
   plugins: [
     {
       name: 'dev-no-stale-module-cache',
@@ -60,6 +67,7 @@ export default defineConfig({
     })
   ],
   build: {
+    outDir,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -89,4 +97,5 @@ export default defineConfig({
       'Cache-Control': 'no-store'
     }
   }
+};
 });

@@ -478,7 +478,7 @@ body::before{opacity:.9}
   margin-left:4px!important;
   box-shadow:none!important;
 }
-@media(min-width:1261px){
+@media(min-width:1024px){
   .topbar{height:38px!important;min-height:38px!important;padding:0 6px!important;margin:0 0 7px!important;gap:6px!important}
   .topbar .stats{height:100%!important;margin-left:auto!important;gap:2px!important}
   .topbar .stat{height:30px!important;min-width:54px!important;padding:3px 6px!important;border-radius:4px!important;background:transparent!important;border:0!important}
@@ -500,7 +500,7 @@ body::before{opacity:.9}
 .practice-mode-identify #answersCard .answer-btn{flex:1 1 0!important;min-width:0!important;min-height:42px!important;padding:7px 5px!important;font-size:15px!important;border-radius:11px!important;white-space:nowrap!important}
 .practice-mode-identify .keyboard,.practice-mode-intervalIdentify .keyboard,.practice-mode-triadIdentify .keyboard{--white-h:230px!important;height:230px!important}
 .practice-mode-identify .keyboard-card,.practice-mode-intervalIdentify .keyboard-card,.practice-mode-triadIdentify .keyboard-card{height:auto!important;min-height:250px!important}
-@media(max-width:1260px){.practice-mode-identify #answersCard .note-buttons{gap:5px!important}.practice-mode-identify #answersCard .answer-btn{font-size:13px!important;padding:6px 3px!important}}
+@media(max-width:1023px){.practice-mode-identify #answersCard .note-buttons{gap:5px!important}.practice-mode-identify #answersCard .answer-btn{font-size:13px!important;padding:6px 3px!important}}
 
 
 /* v4.7.7 realistic 4-octave keyboard */
@@ -555,20 +555,20 @@ body::before{opacity:.9}
   .keyboard{--white-w:min(3.4vw,46px);--white-h:min(23vh,205px)}
   .black-key{width:min(2.1vw,28px)}
 }
-@media (max-width:1260px){
+@media (max-width:1023px){
   .keyboard-scroll{overflow:auto;padding-bottom:18px}
   .keyboard{width:max(calc(var(--white-w) * 29),1100px)}
 }
 
 
 /* ===== v4.7.9 Fixed keyboard stage ===== */
-@media(min-width:1261px){
+@media(min-width:1024px){
   /* The practice canvas uses invariant vertical slots. Dynamic copy can change inside
      the task slot, but it can never push the piano up or down. */
   .workspace-page[data-page="practice"]{
     position:relative!important;
     display:grid!important;
-    grid-template-rows:54px minmax(0,1fr)!important;
+    grid-template-rows:auto minmax(0,1fr)!important;
     row-gap:7px!important;
     height:100%!important;
     min-height:0!important;
@@ -576,7 +576,7 @@ body::before{opacity:.9}
   }
   .workspace-page[data-page="practice"]>.session-strip{
     grid-row:1!important;
-    height:54px!important;min-height:54px!important;max-height:54px!important;
+    min-height:44px!important;height:auto!important;max-height:none!important;
     margin:0!important;
   }
   .practice-stage{grid-row:2!important;height:100%!important;min-height:0!important;overflow:hidden!important}
@@ -672,9 +672,9 @@ body::before{opacity:.9}
     letter-spacing: -0.01em;
   }
 }
-@media(min-width:1261px) and (max-height:820px){
-  .workspace-page[data-page="practice"]{grid-template-rows:48px minmax(0,1fr)!important}
-  .workspace-page[data-page="practice"]>.session-strip{height:48px!important;min-height:48px!important;max-height:48px!important}
+@media(min-width:1024px) and (max-height:820px){
+  .workspace-page[data-page="practice"]{grid-template-rows:auto minmax(0,1fr)!important}
+  .workspace-page[data-page="practice"]>.session-strip{min-height:44px!important;height:auto!important;max-height:none!important}
   .practice-focus{grid-template-rows:150px 224px 54px!important}
   .task-grid,.challenge{height:150px!important;min-height:150px!important;max-height:150px!important}
   .keyboard-card,.practice-mode-identify .keyboard-card,.practice-mode-intervalIdentify .keyboard-card,.practice-mode-triadIdentify .keyboard-card,.midi-connected .keyboard-card{height:224px!important;min-height:224px!important;max-height:224px!important}
@@ -751,7 +751,7 @@ body::before{opacity:.9}
   .keyboard{--white-w:min(calc((100vw - 150px)/29), 50px);--white-h:214px}
   .black-key{height:135px}
 }
-@media (max-width: 1260px){
+@media (max-width: 1023px){
   .keyboard-scroll{overflow-x:auto;overflow-y:hidden;padding-bottom:12px}
   .keyboard{width:max(calc(var(--white-w) * 29), 1120px)}
 }
@@ -961,7 +961,7 @@ body::before{opacity:.9}
   0%,100%{filter:brightness(1);}
   50%{filter:brightness(1.25) drop-shadow(0 0 16px rgba(34,197,94,.95));}
 }
-@media(max-width:1260px){
+@media(max-width:1023px){
   .keyboard-scroll{overflow-x:auto!important;overflow-y:hidden!important}
   .keyboard,.practice-mode-identify .keyboard,.midi-connected .keyboard{min-width:1080px!important;width:1080px!important}
 }
@@ -979,7 +979,7 @@ body::before{opacity:.9}
 .workspace-page[data-page="practice"]{display:none!important}
 .workspace-page[data-page="practice"].active{display:grid!important}
 
-@media(min-width:1261px){
+@media(min-width:1024px){
   .workspace-page[data-page="practice"]{display:none!important}
   .workspace-page[data-page="practice"].active{
     display:grid!important;
@@ -1137,7 +1137,7 @@ body::before{opacity:.9}
 
 
 /* ===== v6.0.1 Task Feedback UX Basics + bottom-docked keyboard ===== */
-@media(min-width:1261px){
+@media(min-width:1024px){
   .workspace-page[data-page="practice"].active{
     display:grid!important;
     grid-template-rows:auto minmax(0,1fr) auto!important;
@@ -1340,7 +1340,7 @@ body::before{opacity:.9}
   .staff-repertoire-active .operation-stage .prompt{font-size:20px!important}
 }
 
-@media(max-width:1260px){
+@media(max-width:1023px){
   .operation-stage{display:grid;gap:8px}
   #songNoteLane{margin-top:8px}
 }
@@ -1356,7 +1356,7 @@ body::before{opacity:.9}
 
 
 /* ===== v6.0.1 Task feedback UX ===== */
-@media(min-width:1261px){
+@media(min-width:1024px){
   .operation-inner{width:min(1280px,100%)!important;gap:10px!important}
   .operation-stage .challenge{padding:6px 14px 8px!important}
   .operation-stage .challenge-inner{
@@ -1465,7 +1465,7 @@ body::before{opacity:.9}
   /* Repertoire already has its own status; keep this strip unobtrusive. */
   .repertoire-active .operation-stage .feedback-wrap{display:none!important}
 }
-@media(max-width:1260px){
+@media(max-width:1023px){
   .operation-stage .feedback-wrap{position:static!important;width:100%!important;max-width:none!important;display:grid!important;grid-template-columns:1fr auto!important;gap:8px!important;align-items:center!important}
   .operation-stage .reaction-panel{justify-self:start!important}
   .operation-stage .feedback{grid-column:1/-1!important;text-align:left!important}
@@ -1500,7 +1500,7 @@ body::before{opacity:.9}
 
 
 /* ===== v6.0.1 non-practice scroll accessibility fix ===== */
-@media(min-width:1261px){
+@media(min-width:1024px){
   /* Practice remains a fixed no-scroll instrument surface. Every informational
      workspace must scroll when its content is taller than the viewport. */
   .workspace-page:not([data-page="practice"]),
@@ -1608,8 +1608,8 @@ body::before{opacity:.9}
   border:1px solid rgba(148,163,184,.15);
 }
 .session-meta span{display:block;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.session-meta b{display:block;font-size:14px;color:var(--text);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.session-meta small{display:block;font-size:10px;color:#94a3b8;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.session-meta b{display:block;font-size:14px;color:var(--text);margin-top:1px;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:break-word}
+.session-meta small{display:block;font-size:10px;color:#94a3b8;margin-top:1px;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:break-word}
 .session-progress{
   height: 8px !important;
   background: rgba(15, 23, 42, 0.85) !important;
@@ -2172,14 +2172,13 @@ body::before{opacity:.9}
 }
 
 .notation-caption {
-  height: 18px !important;
   min-height: 18px !important;
-  max-height: 18px !important;
-  line-height: 18px !important;
+  height: auto !important;
+  line-height: 1.3 !important;
   font-size: 12px !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
   text-align: center !important;
   max-width: 100% !important;
 }
@@ -2360,35 +2359,33 @@ body::before{opacity:.9}
   min-height: 0 !important;
   max-height: none !important;
   flex: 0 0 auto !important;
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 
 .practice-stage-center .operation-stage .eyebrow {
-  height: 16px !important;
+  height: auto !important;
   min-height: 16px !important;
-  max-height: 16px !important;
   line-height: 16px !important;
   font-size: 11.5px !important;
   margin: 0 !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
   max-width: 100% !important;
 }
 
 .practice-stage-center .operation-stage .prompt {
-  height: 40px !important;
   min-height: 40px !important;
-  max-height: 40px !important;
+  height: auto !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   gap: 6px !important;
   font-size: clamp(22px, 2vw, 32px) !important;
-  line-height: 1 !important;
+  line-height: 1.1 !important;
   margin: 0 auto !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
+  white-space: normal !important;
+  overflow: visible !important;
 }
 
 .repertoire-stage-wrap.is-staff-mode .operation-stage .prompt,
@@ -2401,25 +2398,26 @@ body::before{opacity:.9}
 }
 
 .practice-stage-center .operation-stage .instruction {
-  height: 18px !important;
+  height: auto !important;
   min-height: 18px !important;
-  max-height: 18px !important;
-  line-height: 18px !important;
+  max-height: none !important;
+  line-height: 1.35 !important;
   font-size: 12.5px !important;
   margin: 0 auto !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
   max-width: 100% !important;
+  text-align: center !important;
 }
 
-/* Fixed-height single-row status & action bar inside TaskStage */
+/* Flexible single-row status & action bar inside TaskStage */
 .practice-stage-center .operation-stage .feedback-wrap {
   position: static !important;
   width: 100% !important;
-  height: 42px !important;
   min-height: 42px !important;
-  max-height: 42px !important;
+  height: auto !important;
+  max-height: none !important;
   display: grid !important;
   grid-template-columns: 190px minmax(0, 1fr) auto !important;
   align-items: center !important;
@@ -2429,7 +2427,7 @@ body::before{opacity:.9}
   border-top: 1px solid rgba(148, 163, 184, 0.12) !important;
   background: linear-gradient(90deg, rgba(15, 23, 42, 0.28), rgba(15, 23, 42, 0.10), rgba(15, 23, 42, 0.28)) !important;
   border-radius: 12px !important;
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 
 .practice-stage-center .operation-stage .feedback-wrap.no-reaction-panel {
@@ -2445,29 +2443,32 @@ body::before{opacity:.9}
   width: 190px !important;
   min-width: 190px !important;
   max-width: 190px !important;
-  height: 32px !important;
+  min-height: 32px !important;
+  height: auto !important;
   padding: 0 8px !important;
   box-sizing: border-box !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: flex-start !important;
   gap: 6px !important;
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 
 .practice-stage-center .operation-stage .reaction-panel small {
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+  line-height: 1.2 !important;
 }
 
 .practice-stage-center .operation-stage .feedback {
-  height: 22px !important;
-  line-height: 22px !important;
+  min-height: 22px !important;
+  height: auto !important;
+  line-height: 1.35 !important;
   font-size: 12.5px !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
   text-align: left !important;
   margin: 0 !important;
   padding: 0 4px !important;
@@ -2512,7 +2513,7 @@ body::before{opacity:.9}
   font-weight: 600;
 }
 
-@media (min-width: 1261px) {
+@media (min-width: 1024px) {
   .app {
     display: flex !important;
     flex-direction: column !important;
@@ -2600,13 +2601,14 @@ body::before{opacity:.9}
 .practice-stage-center .first-run-stage .first-run-body {
   height: auto !important;
   min-height: 20px !important;
-  max-height: 40px !important;
+  max-height: none !important;
   line-height: 1.35 !important;
   font-size: 13.5px !important;
   color: #cbd5e1 !important;
   white-space: normal !important;
   text-align: center !important;
   max-width: 680px !important;
+  overflow: visible !important;
 }
 
 .first-run-visual-slot {
@@ -2903,7 +2905,7 @@ body::before{opacity:.9}
 }
 
 /* Advanced stages scroll in the reserved workspace above the bottom piano dock. */
-@media (min-width: 1261px) {
+@media (min-width: 1024px) {
   .workspace-page[data-page="practice"] {
     --keyboard-dock-height: 252px;
   }
@@ -2918,11 +2920,11 @@ body::before{opacity:.9}
     min-height: 0 !important;
     min-width: 0 !important;
     overflow-x: hidden !important;
-    overflow-y: auto !important;
+    overflow-y: hidden !important;
     overscroll-behavior-y: contain;
     scroll-padding-block: 12px;
     scrollbar-gutter: stable;
-    padding: 10px 12px 16px !important;
+    padding: clamp(2px, 0.8vh, 8px) 10px !important;
     box-sizing: border-box;
   }
 
@@ -2933,8 +2935,8 @@ body::before{opacity:.9}
     min-width: 0 !important;
     flex: 0 0 auto !important;
     justify-content: center !important;
-    overflow: visible !important;
-    padding-block: 8px !important;
+    overflow: hidden !important;
+    padding-block: 0 !important;
     box-sizing: border-box;
   }
 
@@ -2952,19 +2954,23 @@ body::before{opacity:.9}
   }
 }
 
-@media (min-width: 1261px) and (max-height: 900px) {
+@media (min-width: 1024px) and (max-height: 920px) {
   .workspace-page[data-page="practice"] {
-    --keyboard-dock-height: 232px;
+    --keyboard-dock-height: 228px;
   }
 
   .workspace-page[data-page="practice"] > .practice-stage-center {
-    padding-block: 6px 12px !important;
+    padding-block: 4px 8px !important;
   }
 }
 
-@media (min-width: 1261px) and (max-height: 820px) {
+@media (min-width: 1024px) and (max-height: 820px) {
   .workspace-page[data-page="practice"] {
-    --keyboard-dock-height: 224px;
+    --keyboard-dock-height: 208px;
+  }
+
+  .workspace-page[data-page="practice"] > .practice-stage-center {
+    padding-block: 2px 4px !important;
   }
 }
 
@@ -3223,7 +3229,7 @@ body::before{opacity:.9}
   pointer-events: none;
 }
 
-@media (min-width: 1261px) {
+@media (min-width: 1024px) {
   .topbar {
     flex-wrap: nowrap !important;
   }
@@ -4516,35 +4522,88 @@ body::before{opacity:.9}
   flex: 0 0 auto;
 }
 
-/* ===== Checkpoint C: SessionStrip title priority ===== */
+/* ===== Checkpoint C: SessionStrip layout contract ===== */
 .session-strip{grid-template-columns:minmax(0,1fr) minmax(140px,260px) auto}
 .session-strip .session-meta{min-width:0}
 .session-strip .session-meta b{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
 .session-strip .session-meta small{white-space:normal;overflow-wrap:anywhere}
 .session-strip .session-progress{min-width:120px}
-@media(max-width:1280px){.session-strip{grid-template-columns:minmax(0,1fr) auto}.session-strip .session-progress{grid-column:1/-1;min-width:0}}
-@media(max-width:1024px){.session-strip{grid-template-columns:minmax(0,1fr)}.session-strip .end-session-btn{justify-self:start}}
 
-/* Checkpoint C: practice SessionStrip grows with wrapped title instead of clipping */
-.workspace-page[data-page="practice"] > .session-strip{height:auto!important;min-height:48px!important;max-height:none!important;align-items:center!important}
-.workspace-page[data-page="practice"] > .session-strip .session-meta{overflow:visible!important}
-.workspace-page[data-page="practice"] > .session-strip .session-progress{grid-column:auto}
-@media(max-width:1280px){.workspace-page[data-page="practice"] > .session-strip .session-progress{grid-column:1/-1}}
-@media(max-width:1024px){.workspace-page[data-page="practice"] > .session-strip{grid-template-columns:minmax(0,1fr)!important}.workspace-page[data-page="practice"] > .session-strip .end-session-btn{justify-self:start}}
+@media(max-width:768px){
+  .session-strip{grid-template-columns:minmax(0,1fr)}
+  .session-strip .end-session-btn{justify-self:start}
+  .session-strip .session-progress{grid-column:1/-1}
+}
 
-/* Checkpoint C: practice grid row follows the auto-height SessionStrip */
-.workspace-page[data-page="practice"]{grid-template-rows:auto minmax(0,1fr)!important}
-
-/* Checkpoint C Rev1: desktop SessionStrip row follows the wrapped title (no vertical clipping) */
-@media(min-width:1261px){
-  .workspace-page[data-page="practice"].active{grid-template-rows:minmax(46px,auto) minmax(0,1fr) var(--keyboard-dock-height,252px)!important}
-  .workspace-page[data-page="practice"] > .session-strip{
-    height:auto!important;min-height:54px!important;max-height:none!important;
-    overflow:visible!important;
-    padding:7px 12px!important;
-    grid-template-columns:minmax(0,1fr) minmax(140px,260px) auto!important;
+/* Practice SessionStrip desktop contract: adaptable height header, no clipping, fully readable title */
+@media(min-width:1024px){
+  .workspace-page[data-page="practice"].active{
+    grid-template-rows:auto minmax(0,1fr) var(--keyboard-dock-height, 220px)!important;
   }
-  .workspace-page[data-page="practice"] > .session-strip .session-meta{overflow:visible!important}
+  .workspace-page[data-page="practice"] > .session-strip{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) minmax(80px,180px) auto!important;
+    align-items:center!important;
+    min-height:44px!important;
+    height:auto!important;
+    max-height:none!important;
+    overflow:visible!important;
+    padding:4px 12px!important;
+    gap:10px!important;
+    box-sizing:border-box!important;
+  }
+  .workspace-page[data-page="practice"] > .session-strip .session-meta{
+    display:flex!important;
+    align-items:center!important;
+    gap:6px 10px!important;
+    min-width:0!important;
+    overflow:visible!important;
+    flex-wrap:wrap!important;
+  }
+  .workspace-page[data-page="practice"] > .session-strip .session-meta span{
+    font-size:9.5px!important;
+    margin:0!important;
+    white-space:nowrap!important;
+    flex-shrink:0!important;
+  }
+  .workspace-page[data-page="practice"] > .session-strip .session-meta b{
+    font-size:13px!important;
+    line-height:1.25!important;
+    margin:0!important;
+    white-space:normal!important;
+    overflow:visible!important;
+    text-overflow:clip!important;
+    overflow-wrap:break-word!important;
+    word-break:normal!important;
+    flex-shrink:1!important;
+    min-width:0!important;
+  }
+  .workspace-page[data-page="practice"] > .session-strip .session-meta small{
+    font-size:10.5px!important;
+    margin:0!important;
+    white-space:normal!important;
+    overflow:visible!important;
+    text-overflow:clip!important;
+    overflow-wrap:break-word!important;
+    flex-shrink:0!important;
+    min-width:0!important;
+  }
+  .workspace-page[data-page="practice"] > .session-strip .session-progress{
+    grid-column:2!important;
+    min-width:80px!important;
+    max-width:180px!important;
+    margin:0!important;
+  }
+  .workspace-page[data-page="practice"] > .session-strip .end-session-btn{
+    grid-column:3!important;
+    height:28px!important;
+    min-height:28px!important;
+    max-height:28px!important;
+    padding:0 10px!important;
+    font-size:11px!important;
+    margin:0!important;
+    align-self:center!important;
+  }
 }
 
 .key.key-unavailable{filter:grayscale(.85) brightness(.72);opacity:.55}

@@ -33,6 +33,7 @@ export type MidiStatusCallback = (status: {
   deviceCount: number;
   deviceNames: string[];
   message: string;
+  connectedPortIds?: string[];
 }) => void;
 
 export interface MidiInputDescriptor {
@@ -56,7 +57,9 @@ export class MidiController {
   private statusListeners = new Set<MidiStatusCallback>();
   private rawNoteListeners = new Set<RawNoteCallback>();
   private calibrationMode = false;
+  private calibrationVoiceKeys = new Set<string>(); // voiceKeys captured during calibration, awaiting Note Off
   private extendedRange = false;
+  private connectedPortIds = new Set<string>();
 
   public static getInstance(): MidiController {
     if (!MidiController.instance) {
@@ -119,6 +122,18 @@ export class MidiController {
   /** While active, raw notes are emitted and virtual-piano routing is suppressed. */
   public setCalibrationMode(active: boolean): void {
     this.calibrationMode = active;
+    if (active) {
+      this.calibrationVoiceKeys.clear();
+    }
+  }
+
+  public isPortConnected(portId: string | null | undefined): boolean {
+    if (!portId) return false;
+    return this.connectedPortIds.has(portId);
+  }
+
+  public getConnectedPortIds(): ReadonlySet<string> {
+    return this.connectedPortIds;
   }
 
   public getInputDescriptors(): MidiInputDescriptor[] {
@@ -169,6 +184,8 @@ export class MidiController {
       input.onmidimessage = (e: MIDIMessageEvent) => this.handleMidiMessage(e, input.id);
     });
 
+    this.connectedPortIds = connectedPortIds;
+
     // A disconnected port must not keep stale held notes that could corrupt identities.
     for (const portId of [...this.heldNotesByPort.keys()]) {
       if (!connectedPortIds.has(portId)) this.clearPortHeldNotes(portId);
@@ -184,19 +201,36 @@ export class MidiController {
 
   private clearPortHeldNotes(portId: string): void {
     const held = this.heldNotesByPort.get(portId);
-    if (!held) return;
-    this.heldNotesByPort.delete(portId);
-    for (const keyId of held) {
-      let stillHeld = false;
-      for (const other of this.heldNotesByPort.values()) {
-        if (other.has(keyId)) { stillHeld = true; break; }
+    if (held) {
+      this.heldNotesByPort.delete(portId);
+      for (const keyId of held) {
+        let stillHeld = false;
+        for (const other of this.heldNotesByPort.values()) {
+          if (other.has(keyId)) { stillHeld = true; break; }
+        }
+        if (!stillHeld) this.heldNotes.delete(keyId);
       }
-      if (!stillHeld) this.heldNotes.delete(keyId);
+    }
+    for (const key of [...this.activeNoteOns.keys()]) {
+      if (key.startsWith(`${portId}:`) || key.startsWith(`midi:${portId}:`)) {
+        this.activeNoteOns.delete(key);
+      }
+    }
+    for (const key of [...this.calibrationVoiceKeys.keys()]) {
+      if (key.startsWith(`${portId}:`) || key.startsWith(`midi:${portId}:`)) {
+        this.calibrationVoiceKeys.delete(key);
+      }
     }
   }
 
   private notifyStatus(connected: boolean, count: number, names: string[], message: string): void {
-    const payload = { connected, deviceCount: count, deviceNames: names, message };
+    const payload = {
+      connected,
+      deviceCount: count,
+      deviceNames: names,
+      message,
+      connectedPortIds: [...this.connectedPortIds]
+    };
     this.statusListeners.forEach(cb => cb(payload));
   }
 
@@ -212,9 +246,13 @@ export class MidiController {
     const now = performance.now();
 
     if (status === 0x90 && velocity > 0) {
+      const wasCalibration = this.calibrationMode;
       // Note On — emit the raw stream first (calibration accepts any MIDI note number).
       this.rawNoteListeners.forEach(cb => cb(portId, note, velocity, channel));
-      if (this.calibrationMode) return;
+      if (wasCalibration) {
+        this.calibrationVoiceKeys.add(voiceKey);
+        return;
+      }
       if (!this.extendedRange && (note < MIDI_MIN || note > MIDI_MAX)) return;
 
       const keyId = keyIdFromMidi(note);
@@ -243,8 +281,11 @@ export class MidiController {
 
     if (status === 0x80 || (status === 0x90 && velocity === 0)) {
       // Note Off — calibration consumes its own releases so the last key can never
-      // surface as an exercise event.
-      if (this.calibrationMode) {
+      // surface as an exercise event. Even if calibrationMode was disabled in rawNoteListener,
+      // the matching release is consumed.
+      const isCalibrationRelease = this.calibrationMode || this.calibrationVoiceKeys.has(voiceKey);
+      if (isCalibrationRelease) {
+        this.calibrationVoiceKeys.delete(voiceKey);
         this.activeNoteOns.delete(voiceKey);
         return;
       }

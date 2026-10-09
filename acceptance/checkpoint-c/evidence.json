@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-08T12:24:41.024Z",
+  "generatedAt": "2026-10-09T19:08:40.906Z",
   "smoke": "smoke:daily-practice",
   "dailyPracticeTaskCount": 70,
   "uniqueSkills": [
@@ -83,7 +83,7 @@
   "storageVersion": 4,
   "knownSkillsCount": 19,
   "unknownSkills": [],
-  "roadmapStages": 11,
+  "roadmapStages": 12,
   "completedStages": 11,
   "latencyProvenance": {
     "measured": 70,

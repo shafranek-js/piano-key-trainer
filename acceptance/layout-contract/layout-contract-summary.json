@@ -1,0 +1,4785 @@
+{
+  "timestamp": "2026-10-09T18:57:12.137Z",
+  "rule": "Global Training Layout Contract (P1)",
+  "status": "ALL_PASSED",
+  "viewportsTested": 6,
+  "totalTestCases": 70,
+  "viewports": [
+    {
+      "width": 1920,
+      "height": 1080,
+      "name": "1920x1080-fhd",
+      "label": "1920×1080 (Desktop FHD)"
+    },
+    {
+      "width": 1792,
+      "height": 864,
+      "name": "1792x864-failing-baseline",
+      "label": "1792×864 (Reported User Failure)"
+    },
+    {
+      "width": 1440,
+      "height": 900,
+      "name": "1440x900-macbook",
+      "label": "1440×900 (MacBook Pro / Standard Desktop)"
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "name": "1366x768-laptop",
+      "label": "1366×768 (Standard Laptop)"
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "name": "1280x800-wxga",
+      "label": "1280×800 (16:10 Laptop)"
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "name": "1024x768-compact-desktop",
+      "label": "1024×768 (Compact Desktop Minimum)"
+    }
+  ],
+  "suitesCovered": [
+    "M3L Two-Hand Accompaniment (idle, count-in, playing, feedback, corrective, assessment across 6 viewports = 36 test cases)",
+    "Daily Practice (question review across 6 viewports = 6 test cases)",
+    "Cold Test (first item across 6 viewports = 6 test cases)",
+    "Curriculum First Run C/F (FirstRunStage across 6 viewports = 6 test cases)",
+    "Curriculum Harmony (Milestone 3D across 6 viewports = 6 test cases)",
+    "Curriculum Chord Rhythm (Milestone 3K across 6 viewports = 6 test cases)",
+    "SessionStrip Long Title (fully readable long titles across 1024, 1280, 1440, 1792 viewports = 4 test cases)"
+  ],
+  "assertionsVerified": [
+    "0px horizontal document scrollbar across all viewports and states",
+    "0px vertical document scrollbar across all viewports and states",
+    "0px stage-center internal scroll overflow across all viewports and states",
+    "Zero direct horizontal text clipping (scrollWidth <= clientWidth + 1.5px)",
+    "Zero direct vertical text clipping (scrollHeight <= clientHeight + 1.5px)",
+    "Zero ancestor clipping (no clipping by any ancestor with overflow:hidden)",
+    "Zero keyboard dock occlusion (all interactive content, feedback, instructions, and actions strictly above piano dock)",
+    "Positive clearance maintained between primary actions and bottom piano dock",
+    "Fixed four-octave keyboard dock fits completely within viewport across all viewports and states",
+    "Zero forced nowrap/overflow:hidden/ellipsis on primary session title (.session-strip .session-meta b)",
+    "Controlled test isolation: window.__m3lDebug is not openly available in normal sessions"
+  ],
+  "results": [
+    {
+      "suite": "M3L Two-Hand",
+      "state": "idle",
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080-fhd",
+        "label": "1920×1080 (Desktop FHD)"
+      },
+      "metrics": {
+        "winW": 1920,
+        "winH": 1080,
+        "docH": 1080,
+        "docClientH": 1080,
+        "docW": 1920,
+        "docClientW": 1920,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 1013,
+        "pageClientH": 1013,
+        "stageCenterH": 705,
+        "stageCenterClientH": 705,
+        "cardRect": {
+          "top": 255,
+          "bottom": 660,
+          "height": 405
+        },
+        "keyboardRect": {
+          "top": 816,
+          "bottom": 1068,
+          "height": 252
+        },
+        "buttonRect": {
+          "top": 577,
+          "bottom": 621,
+          "height": 44
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 469,
+          "bottom": 512,
+          "height": 43
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 810,
+          "height": 705
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 195,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "idle",
+      "viewport": {
+        "width": 1792,
+        "height": 864,
+        "name": "1792x864-failing-baseline",
+        "label": "1792×864 (Reported User Failure)"
+      },
+      "metrics": {
+        "winW": 1792,
+        "winH": 864,
+        "docH": 864,
+        "docClientH": 864,
+        "docW": 1792,
+        "docClientW": 1792,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 797,
+        "pageClientH": 797,
+        "stageCenterH": 513,
+        "stageCenterClientH": 513,
+        "cardRect": {
+          "top": 157,
+          "bottom": 562,
+          "height": 404
+        },
+        "keyboardRect": {
+          "top": 624,
+          "bottom": 852,
+          "height": 228
+        },
+        "buttonRect": {
+          "top": 479,
+          "bottom": 523,
+          "height": 44
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 371,
+          "bottom": 414,
+          "height": 43
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 618,
+          "height": 513
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 101,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": "m3l-idle-1792x864-failing-baseline.png",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "idle",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "name": "1440x900-macbook",
+        "label": "1440×900 (MacBook Pro / Standard Desktop)"
+      },
+      "metrics": {
+        "winW": 1440,
+        "winH": 900,
+        "docH": 900,
+        "docClientH": 900,
+        "docW": 1440,
+        "docClientW": 1440,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 833,
+        "pageClientH": 833,
+        "stageCenterH": 549,
+        "stageCenterClientH": 549,
+        "cardRect": {
+          "top": 175,
+          "bottom": 580,
+          "height": 405
+        },
+        "keyboardRect": {
+          "top": 660,
+          "bottom": 888,
+          "height": 228
+        },
+        "buttonRect": {
+          "top": 497,
+          "bottom": 541,
+          "height": 44
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 389,
+          "bottom": 432,
+          "height": 43
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 654,
+          "height": 549
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 119,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "idle",
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768-laptop",
+        "label": "1366×768 (Standard Laptop)"
+      },
+      "metrics": {
+        "winW": 1366,
+        "winH": 768,
+        "docH": 768,
+        "docClientH": 768,
+        "docW": 1366,
+        "docClientW": 1366,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 701,
+        "pageClientH": 701,
+        "stageCenterH": 437,
+        "stageCenterClientH": 437,
+        "cardRect": {
+          "top": 147,
+          "bottom": 498,
+          "height": 351
+        },
+        "keyboardRect": {
+          "top": 548,
+          "bottom": 756,
+          "height": 208
+        },
+        "buttonRect": {
+          "top": 427,
+          "bottom": 471,
+          "height": 44
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 347,
+          "bottom": 364,
+          "height": 17
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 542,
+          "height": 437
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 77,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "idle",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "name": "1280x800-wxga",
+        "label": "1280×800 (16:10 Laptop)"
+      },
+      "metrics": {
+        "winW": 1280,
+        "winH": 800,
+        "docH": 800,
+        "docClientH": 800,
+        "docW": 1280,
+        "docClientW": 1280,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 733,
+        "pageClientH": 733,
+        "stageCenterH": 469,
+        "stageCenterClientH": 469,
+        "cardRect": {
+          "top": 163,
+          "bottom": 514,
+          "height": 351
+        },
+        "keyboardRect": {
+          "top": 580,
+          "bottom": 788,
+          "height": 208
+        },
+        "buttonRect": {
+          "top": 443,
+          "bottom": 487,
+          "height": 44
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 363,
+          "bottom": 380,
+          "height": 17
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 574,
+          "height": 469
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 93,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "idle",
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768-compact-desktop",
+        "label": "1024×768 (Compact Desktop Minimum)"
+      },
+      "metrics": {
+        "winW": 1024,
+        "winH": 768,
+        "docH": 768,
+        "docClientH": 768,
+        "docW": 1024,
+        "docClientW": 1024,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 697,
+        "pageClientH": 697,
+        "stageCenterH": 433,
+        "stageCenterClientH": 433,
+        "cardRect": {
+          "top": 147,
+          "bottom": 498,
+          "height": 351
+        },
+        "keyboardRect": {
+          "top": 546,
+          "bottom": 754,
+          "height": 208
+        },
+        "buttonRect": {
+          "top": 427,
+          "bottom": 471,
+          "height": 44
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 347,
+          "bottom": 364,
+          "height": 17
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 107,
+          "bottom": 540,
+          "height": 433
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 75,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": "m3l-idle-1024x768-compact-desktop.png",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "count-in",
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080-fhd",
+        "label": "1920×1080 (Desktop FHD)"
+      },
+      "metrics": {
+        "winW": 1920,
+        "winH": 1080,
+        "docH": 1080,
+        "docClientH": 1080,
+        "docW": 1920,
+        "docClientW": 1920,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 1013,
+        "pageClientH": 1013,
+        "stageCenterH": 705,
+        "stageCenterClientH": 705,
+        "cardRect": {
+          "top": 277,
+          "bottom": 638,
+          "height": 361
+        },
+        "keyboardRect": {
+          "top": 816,
+          "bottom": 1068,
+          "height": 252
+        },
+        "buttonRect": null,
+        "nextRect": null,
+        "instructionRect": {
+          "top": 491,
+          "bottom": 534,
+          "height": 43
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 810,
+          "height": 705
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": false,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": null,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "count-in",
+      "viewport": {
+        "width": 1792,
+        "height": 864,
+        "name": "1792x864-failing-baseline",
+        "label": "1792×864 (Reported User Failure)"
+      },
+      "metrics": {
+        "winW": 1792,
+        "winH": 864,
+        "docH": 864,
+        "docClientH": 864,
+        "docW": 1792,
+        "docClientW": 1792,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 797,
+        "pageClientH": 797,
+        "stageCenterH": 513,
+        "stageCenterClientH": 513,
+        "cardRect": {
+          "top": 179,
+          "bottom": 540,
+          "height": 360
+        },
+        "keyboardRect": {
+          "top": 624,
+          "bottom": 852,
+          "height": 228
+        },
+        "buttonRect": null,
+        "nextRect": null,
+        "instructionRect": {
+          "top": 393,
+          "bottom": 436,
+          "height": 43
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 618,
+          "height": 513
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": false,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": null,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": "m3l-count-in-1792x864-failing-baseline.png",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "count-in",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "name": "1440x900-macbook",
+        "label": "1440×900 (MacBook Pro / Standard Desktop)"
+      },
+      "metrics": {
+        "winW": 1440,
+        "winH": 900,
+        "docH": 900,
+        "docClientH": 900,
+        "docW": 1440,
+        "docClientW": 1440,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 833,
+        "pageClientH": 833,
+        "stageCenterH": 549,
+        "stageCenterClientH": 549,
+        "cardRect": {
+          "top": 197,
+          "bottom": 558,
+          "height": 361
+        },
+        "keyboardRect": {
+          "top": 660,
+          "bottom": 888,
+          "height": 228
+        },
+        "buttonRect": null,
+        "nextRect": null,
+        "instructionRect": {
+          "top": 411,
+          "bottom": 454,
+          "height": 43
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 654,
+          "height": 549
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": false,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": null,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "count-in",
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768-laptop",
+        "label": "1366×768 (Standard Laptop)"
+      },
+      "metrics": {
+        "winW": 1366,
+        "winH": 768,
+        "docH": 768,
+        "docClientH": 768,
+        "docW": 1366,
+        "docClientW": 1366,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 701,
+        "pageClientH": 701,
+        "stageCenterH": 437,
+        "stageCenterClientH": 437,
+        "cardRect": {
+          "top": 169,
+          "bottom": 476,
+          "height": 307
+        },
+        "keyboardRect": {
+          "top": 548,
+          "bottom": 756,
+          "height": 208
+        },
+        "buttonRect": null,
+        "nextRect": null,
+        "instructionRect": {
+          "top": 369,
+          "bottom": 386,
+          "height": 17
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 542,
+          "height": 437
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": false,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": null,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "count-in",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "name": "1280x800-wxga",
+        "label": "1280×800 (16:10 Laptop)"
+      },
+      "metrics": {
+        "winW": 1280,
+        "winH": 800,
+        "docH": 800,
+        "docClientH": 800,
+        "docW": 1280,
+        "docClientW": 1280,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 733,
+        "pageClientH": 733,
+        "stageCenterH": 469,
+        "stageCenterClientH": 469,
+        "cardRect": {
+          "top": 185,
+          "bottom": 492,
+          "height": 307
+        },
+        "keyboardRect": {
+          "top": 580,
+          "bottom": 788,
+          "height": 208
+        },
+        "buttonRect": null,
+        "nextRect": null,
+        "instructionRect": {
+          "top": 385,
+          "bottom": 402,
+          "height": 17
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 574,
+          "height": 469
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": false,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": null,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "count-in",
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768-compact-desktop",
+        "label": "1024×768 (Compact Desktop Minimum)"
+      },
+      "metrics": {
+        "winW": 1024,
+        "winH": 768,
+        "docH": 768,
+        "docClientH": 768,
+        "docW": 1024,
+        "docClientW": 1024,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 697,
+        "pageClientH": 697,
+        "stageCenterH": 433,
+        "stageCenterClientH": 433,
+        "cardRect": {
+          "top": 169,
+          "bottom": 476,
+          "height": 307
+        },
+        "keyboardRect": {
+          "top": 546,
+          "bottom": 754,
+          "height": 208
+        },
+        "buttonRect": null,
+        "nextRect": null,
+        "instructionRect": {
+          "top": 369,
+          "bottom": 386,
+          "height": 17
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 107,
+          "bottom": 540,
+          "height": 433
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": false,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": null,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": "m3l-count-in-1024x768-compact-desktop.png",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "playing",
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080-fhd",
+        "label": "1920×1080 (Desktop FHD)"
+      },
+      "metrics": {
+        "winW": 1920,
+        "winH": 1080,
+        "docH": 1080,
+        "docClientH": 1080,
+        "docW": 1920,
+        "docClientW": 1920,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 1013,
+        "pageClientH": 1013,
+        "stageCenterH": 705,
+        "stageCenterClientH": 705,
+        "cardRect": {
+          "top": 277,
+          "bottom": 638,
+          "height": 361
+        },
+        "keyboardRect": {
+          "top": 816,
+          "bottom": 1068,
+          "height": 252
+        },
+        "buttonRect": null,
+        "nextRect": null,
+        "instructionRect": {
+          "top": 491,
+          "bottom": 534,
+          "height": 43
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 810,
+          "height": 705
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": false,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": null,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "playing",
+      "viewport": {
+        "width": 1792,
+        "height": 864,
+        "name": "1792x864-failing-baseline",
+        "label": "1792×864 (Reported User Failure)"
+      },
+      "metrics": {
+        "winW": 1792,
+        "winH": 864,
+        "docH": 864,
+        "docClientH": 864,
+        "docW": 1792,
+        "docClientW": 1792,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 797,
+        "pageClientH": 797,
+        "stageCenterH": 513,
+        "stageCenterClientH": 513,
+        "cardRect": {
+          "top": 179,
+          "bottom": 540,
+          "height": 360
+        },
+        "keyboardRect": {
+          "top": 624,
+          "bottom": 852,
+          "height": 228
+        },
+        "buttonRect": null,
+        "nextRect": null,
+        "instructionRect": {
+          "top": 393,
+          "bottom": 436,
+          "height": 43
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 618,
+          "height": 513
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": false,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": null,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": "m3l-playing-1792x864-failing-baseline.png",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "playing",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "name": "1440x900-macbook",
+        "label": "1440×900 (MacBook Pro / Standard Desktop)"
+      },
+      "metrics": {
+        "winW": 1440,
+        "winH": 900,
+        "docH": 900,
+        "docClientH": 900,
+        "docW": 1440,
+        "docClientW": 1440,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 833,
+        "pageClientH": 833,
+        "stageCenterH": 549,
+        "stageCenterClientH": 549,
+        "cardRect": {
+          "top": 197,
+          "bottom": 558,
+          "height": 361
+        },
+        "keyboardRect": {
+          "top": 660,
+          "bottom": 888,
+          "height": 228
+        },
+        "buttonRect": null,
+        "nextRect": null,
+        "instructionRect": {
+          "top": 411,
+          "bottom": 454,
+          "height": 43
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 654,
+          "height": 549
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": false,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": null,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "playing",
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768-laptop",
+        "label": "1366×768 (Standard Laptop)"
+      },
+      "metrics": {
+        "winW": 1366,
+        "winH": 768,
+        "docH": 768,
+        "docClientH": 768,
+        "docW": 1366,
+        "docClientW": 1366,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 701,
+        "pageClientH": 701,
+        "stageCenterH": 437,
+        "stageCenterClientH": 437,
+        "cardRect": {
+          "top": 169,
+          "bottom": 476,
+          "height": 307
+        },
+        "keyboardRect": {
+          "top": 548,
+          "bottom": 756,
+          "height": 208
+        },
+        "buttonRect": null,
+        "nextRect": null,
+        "instructionRect": {
+          "top": 369,
+          "bottom": 386,
+          "height": 17
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 542,
+          "height": 437
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": false,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": null,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "playing",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "name": "1280x800-wxga",
+        "label": "1280×800 (16:10 Laptop)"
+      },
+      "metrics": {
+        "winW": 1280,
+        "winH": 800,
+        "docH": 800,
+        "docClientH": 800,
+        "docW": 1280,
+        "docClientW": 1280,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 733,
+        "pageClientH": 733,
+        "stageCenterH": 469,
+        "stageCenterClientH": 469,
+        "cardRect": {
+          "top": 185,
+          "bottom": 492,
+          "height": 307
+        },
+        "keyboardRect": {
+          "top": 580,
+          "bottom": 788,
+          "height": 208
+        },
+        "buttonRect": null,
+        "nextRect": null,
+        "instructionRect": {
+          "top": 385,
+          "bottom": 402,
+          "height": 17
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 574,
+          "height": 469
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": false,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": null,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "playing",
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768-compact-desktop",
+        "label": "1024×768 (Compact Desktop Minimum)"
+      },
+      "metrics": {
+        "winW": 1024,
+        "winH": 768,
+        "docH": 768,
+        "docClientH": 768,
+        "docW": 1024,
+        "docClientW": 1024,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 697,
+        "pageClientH": 697,
+        "stageCenterH": 433,
+        "stageCenterClientH": 433,
+        "cardRect": {
+          "top": 169,
+          "bottom": 476,
+          "height": 307
+        },
+        "keyboardRect": {
+          "top": 546,
+          "bottom": 754,
+          "height": 208
+        },
+        "buttonRect": null,
+        "nextRect": null,
+        "instructionRect": {
+          "top": 369,
+          "bottom": 386,
+          "height": 17
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 107,
+          "bottom": 540,
+          "height": 433
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": false,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": null,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": "m3l-playing-1024x768-compact-desktop.png",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "feedback",
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080-fhd",
+        "label": "1920×1080 (Desktop FHD)"
+      },
+      "metrics": {
+        "winW": 1920,
+        "winH": 1080,
+        "docH": 1080,
+        "docClientH": 1080,
+        "docW": 1920,
+        "docClientW": 1920,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 1013,
+        "pageClientH": 1013,
+        "stageCenterH": 705,
+        "stageCenterClientH": 705,
+        "cardRect": {
+          "top": 236,
+          "bottom": 679,
+          "height": 443
+        },
+        "keyboardRect": {
+          "top": 816,
+          "bottom": 1068,
+          "height": 252
+        },
+        "buttonRect": {
+          "top": 596,
+          "bottom": 640,
+          "height": 44
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 450,
+          "bottom": 493,
+          "height": 43
+        },
+        "feedbackRect": {
+          "top": 556,
+          "bottom": 588,
+          "height": 32
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 810,
+          "height": 705
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 176,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "feedback",
+      "viewport": {
+        "width": 1792,
+        "height": 864,
+        "name": "1792x864-failing-baseline",
+        "label": "1792×864 (Reported User Failure)"
+      },
+      "metrics": {
+        "winW": 1792,
+        "winH": 864,
+        "docH": 864,
+        "docClientH": 864,
+        "docW": 1792,
+        "docClientW": 1792,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 797,
+        "pageClientH": 797,
+        "stageCenterH": 513,
+        "stageCenterClientH": 513,
+        "cardRect": {
+          "top": 138,
+          "bottom": 581,
+          "height": 442
+        },
+        "keyboardRect": {
+          "top": 624,
+          "bottom": 852,
+          "height": 228
+        },
+        "buttonRect": {
+          "top": 498,
+          "bottom": 542,
+          "height": 44
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 352,
+          "bottom": 395,
+          "height": 43
+        },
+        "feedbackRect": {
+          "top": 458,
+          "bottom": 490,
+          "height": 32
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 618,
+          "height": 513
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 82,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": "m3l-feedback-1792x864-failing-baseline.png",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "feedback",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "name": "1440x900-macbook",
+        "label": "1440×900 (MacBook Pro / Standard Desktop)"
+      },
+      "metrics": {
+        "winW": 1440,
+        "winH": 900,
+        "docH": 900,
+        "docClientH": 900,
+        "docW": 1440,
+        "docClientW": 1440,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 833,
+        "pageClientH": 833,
+        "stageCenterH": 549,
+        "stageCenterClientH": 549,
+        "cardRect": {
+          "top": 156,
+          "bottom": 599,
+          "height": 443
+        },
+        "keyboardRect": {
+          "top": 660,
+          "bottom": 888,
+          "height": 228
+        },
+        "buttonRect": {
+          "top": 516,
+          "bottom": 560,
+          "height": 44
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 370,
+          "bottom": 413,
+          "height": 43
+        },
+        "feedbackRect": {
+          "top": 476,
+          "bottom": 508,
+          "height": 32
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 654,
+          "height": 549
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 100,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "feedback",
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768-laptop",
+        "label": "1366×768 (Standard Laptop)"
+      },
+      "metrics": {
+        "winW": 1366,
+        "winH": 768,
+        "docH": 768,
+        "docClientH": 768,
+        "docW": 1366,
+        "docClientW": 1366,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 701,
+        "pageClientH": 701,
+        "stageCenterH": 437,
+        "stageCenterClientH": 437,
+        "cardRect": {
+          "top": 132,
+          "bottom": 513,
+          "height": 381
+        },
+        "keyboardRect": {
+          "top": 548,
+          "bottom": 756,
+          "height": 208
+        },
+        "buttonRect": {
+          "top": 442,
+          "bottom": 486,
+          "height": 44
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 332,
+          "bottom": 349,
+          "height": 17
+        },
+        "feedbackRect": {
+          "top": 411,
+          "bottom": 438,
+          "height": 27
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 542,
+          "height": 437
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 62,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "feedback",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "name": "1280x800-wxga",
+        "label": "1280×800 (16:10 Laptop)"
+      },
+      "metrics": {
+        "winW": 1280,
+        "winH": 800,
+        "docH": 800,
+        "docClientH": 800,
+        "docW": 1280,
+        "docClientW": 1280,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 733,
+        "pageClientH": 733,
+        "stageCenterH": 469,
+        "stageCenterClientH": 469,
+        "cardRect": {
+          "top": 148,
+          "bottom": 529,
+          "height": 381
+        },
+        "keyboardRect": {
+          "top": 580,
+          "bottom": 788,
+          "height": 208
+        },
+        "buttonRect": {
+          "top": 458,
+          "bottom": 502,
+          "height": 44
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 348,
+          "bottom": 365,
+          "height": 17
+        },
+        "feedbackRect": {
+          "top": 427,
+          "bottom": 454,
+          "height": 27
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 574,
+          "height": 469
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 78,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "feedback",
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768-compact-desktop",
+        "label": "1024×768 (Compact Desktop Minimum)"
+      },
+      "metrics": {
+        "winW": 1024,
+        "winH": 768,
+        "docH": 768,
+        "docClientH": 768,
+        "docW": 1024,
+        "docClientW": 1024,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 697,
+        "pageClientH": 697,
+        "stageCenterH": 433,
+        "stageCenterClientH": 433,
+        "cardRect": {
+          "top": 132,
+          "bottom": 513,
+          "height": 381
+        },
+        "keyboardRect": {
+          "top": 546,
+          "bottom": 754,
+          "height": 208
+        },
+        "buttonRect": {
+          "top": 442,
+          "bottom": 486,
+          "height": 44
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 332,
+          "bottom": 349,
+          "height": 17
+        },
+        "feedbackRect": {
+          "top": 411,
+          "bottom": 438,
+          "height": 27
+        },
+        "stageRect": {
+          "top": 107,
+          "bottom": 540,
+          "height": 433
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 60,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": "m3l-feedback-1024x768-compact-desktop.png",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "corrective",
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080-fhd",
+        "label": "1920×1080 (Desktop FHD)"
+      },
+      "metrics": {
+        "winW": 1920,
+        "winH": 1080,
+        "docH": 1080,
+        "docClientH": 1080,
+        "docW": 1920,
+        "docClientW": 1920,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 1013,
+        "pageClientH": 1013,
+        "stageCenterH": 705,
+        "stageCenterClientH": 705,
+        "cardRect": {
+          "top": 236,
+          "bottom": 679,
+          "height": 443
+        },
+        "keyboardRect": {
+          "top": 816,
+          "bottom": 1068,
+          "height": 252
+        },
+        "buttonRect": {
+          "top": 596,
+          "bottom": 640,
+          "height": 44
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 450,
+          "bottom": 493,
+          "height": 43
+        },
+        "feedbackRect": {
+          "top": 556,
+          "bottom": 588,
+          "height": 32
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 810,
+          "height": 705
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 176,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "corrective",
+      "viewport": {
+        "width": 1792,
+        "height": 864,
+        "name": "1792x864-failing-baseline",
+        "label": "1792×864 (Reported User Failure)"
+      },
+      "metrics": {
+        "winW": 1792,
+        "winH": 864,
+        "docH": 864,
+        "docClientH": 864,
+        "docW": 1792,
+        "docClientW": 1792,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 797,
+        "pageClientH": 797,
+        "stageCenterH": 513,
+        "stageCenterClientH": 513,
+        "cardRect": {
+          "top": 138,
+          "bottom": 581,
+          "height": 442
+        },
+        "keyboardRect": {
+          "top": 624,
+          "bottom": 852,
+          "height": 228
+        },
+        "buttonRect": {
+          "top": 498,
+          "bottom": 542,
+          "height": 44
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 352,
+          "bottom": 395,
+          "height": 43
+        },
+        "feedbackRect": {
+          "top": 458,
+          "bottom": 490,
+          "height": 32
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 618,
+          "height": 513
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 82,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": "m3l-corrective-1792x864-failing-baseline.png",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "corrective",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "name": "1440x900-macbook",
+        "label": "1440×900 (MacBook Pro / Standard Desktop)"
+      },
+      "metrics": {
+        "winW": 1440,
+        "winH": 900,
+        "docH": 900,
+        "docClientH": 900,
+        "docW": 1440,
+        "docClientW": 1440,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 833,
+        "pageClientH": 833,
+        "stageCenterH": 549,
+        "stageCenterClientH": 549,
+        "cardRect": {
+          "top": 156,
+          "bottom": 599,
+          "height": 443
+        },
+        "keyboardRect": {
+          "top": 660,
+          "bottom": 888,
+          "height": 228
+        },
+        "buttonRect": {
+          "top": 516,
+          "bottom": 560,
+          "height": 44
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 370,
+          "bottom": 413,
+          "height": 43
+        },
+        "feedbackRect": {
+          "top": 476,
+          "bottom": 508,
+          "height": 32
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 654,
+          "height": 549
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 100,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "corrective",
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768-laptop",
+        "label": "1366×768 (Standard Laptop)"
+      },
+      "metrics": {
+        "winW": 1366,
+        "winH": 768,
+        "docH": 768,
+        "docClientH": 768,
+        "docW": 1366,
+        "docClientW": 1366,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 701,
+        "pageClientH": 701,
+        "stageCenterH": 437,
+        "stageCenterClientH": 437,
+        "cardRect": {
+          "top": 132,
+          "bottom": 513,
+          "height": 381
+        },
+        "keyboardRect": {
+          "top": 548,
+          "bottom": 756,
+          "height": 208
+        },
+        "buttonRect": {
+          "top": 442,
+          "bottom": 486,
+          "height": 44
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 332,
+          "bottom": 349,
+          "height": 17
+        },
+        "feedbackRect": {
+          "top": 411,
+          "bottom": 438,
+          "height": 27
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 542,
+          "height": 437
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 62,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "corrective",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "name": "1280x800-wxga",
+        "label": "1280×800 (16:10 Laptop)"
+      },
+      "metrics": {
+        "winW": 1280,
+        "winH": 800,
+        "docH": 800,
+        "docClientH": 800,
+        "docW": 1280,
+        "docClientW": 1280,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 733,
+        "pageClientH": 733,
+        "stageCenterH": 469,
+        "stageCenterClientH": 469,
+        "cardRect": {
+          "top": 148,
+          "bottom": 529,
+          "height": 381
+        },
+        "keyboardRect": {
+          "top": 580,
+          "bottom": 788,
+          "height": 208
+        },
+        "buttonRect": {
+          "top": 458,
+          "bottom": 502,
+          "height": 44
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 348,
+          "bottom": 365,
+          "height": 17
+        },
+        "feedbackRect": {
+          "top": 427,
+          "bottom": 454,
+          "height": 27
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 574,
+          "height": 469
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 78,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "corrective",
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768-compact-desktop",
+        "label": "1024×768 (Compact Desktop Minimum)"
+      },
+      "metrics": {
+        "winW": 1024,
+        "winH": 768,
+        "docH": 768,
+        "docClientH": 768,
+        "docW": 1024,
+        "docClientW": 1024,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 697,
+        "pageClientH": 697,
+        "stageCenterH": 433,
+        "stageCenterClientH": 433,
+        "cardRect": {
+          "top": 132,
+          "bottom": 513,
+          "height": 381
+        },
+        "keyboardRect": {
+          "top": 546,
+          "bottom": 754,
+          "height": 208
+        },
+        "buttonRect": {
+          "top": 442,
+          "bottom": 486,
+          "height": 44
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 323,
+          "bottom": 358,
+          "height": 35
+        },
+        "feedbackRect": {
+          "top": 411,
+          "bottom": 438,
+          "height": 27
+        },
+        "stageRect": {
+          "top": 107,
+          "bottom": 540,
+          "height": 433
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 60,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": "m3l-corrective-1024x768-compact-desktop.png",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "assessment",
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080-fhd",
+        "label": "1920×1080 (Desktop FHD)"
+      },
+      "metrics": {
+        "winW": 1920,
+        "winH": 1080,
+        "docH": 1080,
+        "docClientH": 1080,
+        "docW": 1920,
+        "docClientW": 1920,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 1013,
+        "pageClientH": 1013,
+        "stageCenterH": 705,
+        "stageCenterClientH": 705,
+        "cardRect": {
+          "top": 255,
+          "bottom": 660,
+          "height": 405
+        },
+        "keyboardRect": {
+          "top": 816,
+          "bottom": 1068,
+          "height": 252
+        },
+        "buttonRect": {
+          "top": 577,
+          "bottom": 621,
+          "height": 44
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 480,
+          "bottom": 501,
+          "height": 22
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 810,
+          "height": 705
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 195,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "assessment",
+      "viewport": {
+        "width": 1792,
+        "height": 864,
+        "name": "1792x864-failing-baseline",
+        "label": "1792×864 (Reported User Failure)"
+      },
+      "metrics": {
+        "winW": 1792,
+        "winH": 864,
+        "docH": 864,
+        "docClientH": 864,
+        "docW": 1792,
+        "docClientW": 1792,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 797,
+        "pageClientH": 797,
+        "stageCenterH": 513,
+        "stageCenterClientH": 513,
+        "cardRect": {
+          "top": 157,
+          "bottom": 562,
+          "height": 404
+        },
+        "keyboardRect": {
+          "top": 624,
+          "bottom": 852,
+          "height": 228
+        },
+        "buttonRect": {
+          "top": 479,
+          "bottom": 523,
+          "height": 44
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 382,
+          "bottom": 403,
+          "height": 22
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 618,
+          "height": 513
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 101,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": "m3l-assessment-1792x864-failing-baseline.png",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "assessment",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "name": "1440x900-macbook",
+        "label": "1440×900 (MacBook Pro / Standard Desktop)"
+      },
+      "metrics": {
+        "winW": 1440,
+        "winH": 900,
+        "docH": 900,
+        "docClientH": 900,
+        "docW": 1440,
+        "docClientW": 1440,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 833,
+        "pageClientH": 833,
+        "stageCenterH": 549,
+        "stageCenterClientH": 549,
+        "cardRect": {
+          "top": 175,
+          "bottom": 580,
+          "height": 405
+        },
+        "keyboardRect": {
+          "top": 660,
+          "bottom": 888,
+          "height": 228
+        },
+        "buttonRect": {
+          "top": 497,
+          "bottom": 541,
+          "height": 44
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 400,
+          "bottom": 421,
+          "height": 22
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 654,
+          "height": 549
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 119,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "assessment",
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768-laptop",
+        "label": "1366×768 (Standard Laptop)"
+      },
+      "metrics": {
+        "winW": 1366,
+        "winH": 768,
+        "docH": 768,
+        "docClientH": 768,
+        "docW": 1366,
+        "docClientW": 1366,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 701,
+        "pageClientH": 701,
+        "stageCenterH": 437,
+        "stageCenterClientH": 437,
+        "cardRect": {
+          "top": 147,
+          "bottom": 498,
+          "height": 351
+        },
+        "keyboardRect": {
+          "top": 548,
+          "bottom": 756,
+          "height": 208
+        },
+        "buttonRect": {
+          "top": 427,
+          "bottom": 471,
+          "height": 44
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 347,
+          "bottom": 364,
+          "height": 17
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 542,
+          "height": 437
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 77,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "assessment",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "name": "1280x800-wxga",
+        "label": "1280×800 (16:10 Laptop)"
+      },
+      "metrics": {
+        "winW": 1280,
+        "winH": 800,
+        "docH": 800,
+        "docClientH": 800,
+        "docW": 1280,
+        "docClientW": 1280,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 733,
+        "pageClientH": 733,
+        "stageCenterH": 469,
+        "stageCenterClientH": 469,
+        "cardRect": {
+          "top": 163,
+          "bottom": 514,
+          "height": 351
+        },
+        "keyboardRect": {
+          "top": 580,
+          "bottom": 788,
+          "height": 208
+        },
+        "buttonRect": {
+          "top": 443,
+          "bottom": 487,
+          "height": 44
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 363,
+          "bottom": 380,
+          "height": 17
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 574,
+          "height": 469
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 93,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "M3L Two-Hand",
+      "state": "assessment",
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768-compact-desktop",
+        "label": "1024×768 (Compact Desktop Minimum)"
+      },
+      "metrics": {
+        "winW": 1024,
+        "winH": 768,
+        "docH": 768,
+        "docClientH": 768,
+        "docW": 1024,
+        "docClientW": 1024,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 697,
+        "pageClientH": 697,
+        "stageCenterH": 433,
+        "stageCenterClientH": 433,
+        "cardRect": {
+          "top": 147,
+          "bottom": 498,
+          "height": 351
+        },
+        "keyboardRect": {
+          "top": 546,
+          "bottom": 754,
+          "height": 208
+        },
+        "buttonRect": {
+          "top": 427,
+          "bottom": 471,
+          "height": 44
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 347,
+          "bottom": 364,
+          "height": 17
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 107,
+          "bottom": 540,
+          "height": 433
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 75,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": "m3l-assessment-1024x768-compact-desktop.png",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Daily Practice",
+      "state": "question-review",
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080-fhd",
+        "label": "1920×1080 (Desktop FHD)"
+      },
+      "metrics": {
+        "winW": 1920,
+        "winH": 1080,
+        "docH": 1080,
+        "docClientH": 1080,
+        "docW": 1920,
+        "docClientW": 1920,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 1013,
+        "pageClientH": 1013,
+        "stageCenterH": 705,
+        "stageCenterClientH": 705,
+        "cardRect": {
+          "top": 129,
+          "bottom": 263,
+          "height": 134
+        },
+        "keyboardRect": {
+          "top": 816,
+          "bottom": 1068,
+          "height": 252
+        },
+        "buttonRect": {
+          "top": 222,
+          "bottom": 256,
+          "height": 34
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 193,
+          "bottom": 211,
+          "height": 18
+        },
+        "feedbackRect": {
+          "top": 228,
+          "bottom": 250,
+          "height": 22
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 810,
+          "height": 705
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 561,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Daily Practice",
+      "state": "question-review",
+      "viewport": {
+        "width": 1792,
+        "height": 864,
+        "name": "1792x864-failing-baseline",
+        "label": "1792×864 (Reported User Failure)"
+      },
+      "metrics": {
+        "winW": 1792,
+        "winH": 864,
+        "docH": 864,
+        "docClientH": 864,
+        "docW": 1792,
+        "docClientW": 1792,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 797,
+        "pageClientH": 797,
+        "stageCenterH": 513,
+        "stageCenterClientH": 513,
+        "cardRect": {
+          "top": 125,
+          "bottom": 259,
+          "height": 134
+        },
+        "keyboardRect": {
+          "top": 624,
+          "bottom": 852,
+          "height": 228
+        },
+        "buttonRect": {
+          "top": 218,
+          "bottom": 252,
+          "height": 34
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 189,
+          "bottom": 207,
+          "height": 18
+        },
+        "feedbackRect": {
+          "top": 224,
+          "bottom": 246,
+          "height": 22
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 618,
+          "height": 513
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 373,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": "daily-practice-1792x864-failing-baseline.png",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Daily Practice",
+      "state": "question-review",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "name": "1440x900-macbook",
+        "label": "1440×900 (MacBook Pro / Standard Desktop)"
+      },
+      "metrics": {
+        "winW": 1440,
+        "winH": 900,
+        "docH": 900,
+        "docClientH": 900,
+        "docW": 1440,
+        "docClientW": 1440,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 833,
+        "pageClientH": 833,
+        "stageCenterH": 549,
+        "stageCenterClientH": 549,
+        "cardRect": {
+          "top": 125,
+          "bottom": 259,
+          "height": 134
+        },
+        "keyboardRect": {
+          "top": 660,
+          "bottom": 888,
+          "height": 228
+        },
+        "buttonRect": {
+          "top": 218,
+          "bottom": 252,
+          "height": 34
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 189,
+          "bottom": 207,
+          "height": 18
+        },
+        "feedbackRect": {
+          "top": 224,
+          "bottom": 246,
+          "height": 22
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 654,
+          "height": 549
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 409,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Daily Practice",
+      "state": "question-review",
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768-laptop",
+        "label": "1366×768 (Standard Laptop)"
+      },
+      "metrics": {
+        "winW": 1366,
+        "winH": 768,
+        "docH": 768,
+        "docClientH": 768,
+        "docW": 1366,
+        "docClientW": 1366,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 701,
+        "pageClientH": 701,
+        "stageCenterH": 437,
+        "stageCenterClientH": 437,
+        "cardRect": {
+          "top": 123,
+          "bottom": 257,
+          "height": 134
+        },
+        "keyboardRect": {
+          "top": 548,
+          "bottom": 756,
+          "height": 208
+        },
+        "buttonRect": {
+          "top": 216,
+          "bottom": 250,
+          "height": 34
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 187,
+          "bottom": 205,
+          "height": 18
+        },
+        "feedbackRect": {
+          "top": 222,
+          "bottom": 244,
+          "height": 22
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 542,
+          "height": 437
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 299,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Daily Practice",
+      "state": "question-review",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "name": "1280x800-wxga",
+        "label": "1280×800 (16:10 Laptop)"
+      },
+      "metrics": {
+        "winW": 1280,
+        "winH": 800,
+        "docH": 800,
+        "docClientH": 800,
+        "docW": 1280,
+        "docClientW": 1280,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 733,
+        "pageClientH": 733,
+        "stageCenterH": 469,
+        "stageCenterClientH": 469,
+        "cardRect": {
+          "top": 123,
+          "bottom": 257,
+          "height": 134
+        },
+        "keyboardRect": {
+          "top": 580,
+          "bottom": 788,
+          "height": 208
+        },
+        "buttonRect": {
+          "top": 216,
+          "bottom": 250,
+          "height": 34
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 187,
+          "bottom": 205,
+          "height": 18
+        },
+        "feedbackRect": {
+          "top": 222,
+          "bottom": 244,
+          "height": 22
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 574,
+          "height": 469
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 331,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Daily Practice",
+      "state": "question-review",
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768-compact-desktop",
+        "label": "1024×768 (Compact Desktop Minimum)"
+      },
+      "metrics": {
+        "winW": 1024,
+        "winH": 768,
+        "docH": 768,
+        "docClientH": 768,
+        "docW": 1024,
+        "docClientW": 1024,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 697,
+        "pageClientH": 697,
+        "stageCenterH": 433,
+        "stageCenterClientH": 433,
+        "cardRect": {
+          "top": 125,
+          "bottom": 259,
+          "height": 134
+        },
+        "keyboardRect": {
+          "top": 546,
+          "bottom": 754,
+          "height": 208
+        },
+        "buttonRect": {
+          "top": 218,
+          "bottom": 252,
+          "height": 34
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 189,
+          "bottom": 207,
+          "height": 18
+        },
+        "feedbackRect": {
+          "top": 224,
+          "bottom": 246,
+          "height": 22
+        },
+        "stageRect": {
+          "top": 107,
+          "bottom": 540,
+          "height": 433
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 295,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": "daily-practice-1024x768-compact-desktop.png",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Cold Test",
+      "state": "cold-item-1",
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080-fhd",
+        "label": "1920×1080 (Desktop FHD)"
+      },
+      "metrics": {
+        "winW": 1920,
+        "winH": 1080,
+        "docH": 1080,
+        "docClientH": 1080,
+        "docW": 1920,
+        "docClientW": 1920,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 1013,
+        "pageClientH": 1013,
+        "stageCenterH": 705,
+        "stageCenterClientH": 705,
+        "cardRect": {
+          "top": 129,
+          "bottom": 263,
+          "height": 134
+        },
+        "keyboardRect": {
+          "top": 816,
+          "bottom": 1068,
+          "height": 252
+        },
+        "buttonRect": null,
+        "nextRect": null,
+        "instructionRect": {
+          "top": 193,
+          "bottom": 211,
+          "height": 18
+        },
+        "feedbackRect": {
+          "top": 228,
+          "bottom": 250,
+          "height": 22
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 810,
+          "height": 705
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": false,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": null,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Cold Test",
+      "state": "cold-item-1",
+      "viewport": {
+        "width": 1792,
+        "height": 864,
+        "name": "1792x864-failing-baseline",
+        "label": "1792×864 (Reported User Failure)"
+      },
+      "metrics": {
+        "winW": 1792,
+        "winH": 864,
+        "docH": 864,
+        "docClientH": 864,
+        "docW": 1792,
+        "docClientW": 1792,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 797,
+        "pageClientH": 797,
+        "stageCenterH": 513,
+        "stageCenterClientH": 513,
+        "cardRect": {
+          "top": 125,
+          "bottom": 259,
+          "height": 134
+        },
+        "keyboardRect": {
+          "top": 624,
+          "bottom": 852,
+          "height": 228
+        },
+        "buttonRect": null,
+        "nextRect": null,
+        "instructionRect": {
+          "top": 189,
+          "bottom": 207,
+          "height": 18
+        },
+        "feedbackRect": {
+          "top": 224,
+          "bottom": 246,
+          "height": 22
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 618,
+          "height": 513
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": false,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": null,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": "cold-test-1792x864-failing-baseline.png",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Cold Test",
+      "state": "cold-item-1",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "name": "1440x900-macbook",
+        "label": "1440×900 (MacBook Pro / Standard Desktop)"
+      },
+      "metrics": {
+        "winW": 1440,
+        "winH": 900,
+        "docH": 900,
+        "docClientH": 900,
+        "docW": 1440,
+        "docClientW": 1440,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 833,
+        "pageClientH": 833,
+        "stageCenterH": 549,
+        "stageCenterClientH": 549,
+        "cardRect": {
+          "top": 125,
+          "bottom": 259,
+          "height": 134
+        },
+        "keyboardRect": {
+          "top": 660,
+          "bottom": 888,
+          "height": 228
+        },
+        "buttonRect": null,
+        "nextRect": null,
+        "instructionRect": {
+          "top": 189,
+          "bottom": 207,
+          "height": 18
+        },
+        "feedbackRect": {
+          "top": 224,
+          "bottom": 246,
+          "height": 22
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 654,
+          "height": 549
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": false,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": null,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Cold Test",
+      "state": "cold-item-1",
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768-laptop",
+        "label": "1366×768 (Standard Laptop)"
+      },
+      "metrics": {
+        "winW": 1366,
+        "winH": 768,
+        "docH": 768,
+        "docClientH": 768,
+        "docW": 1366,
+        "docClientW": 1366,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 701,
+        "pageClientH": 701,
+        "stageCenterH": 437,
+        "stageCenterClientH": 437,
+        "cardRect": {
+          "top": 123,
+          "bottom": 257,
+          "height": 134
+        },
+        "keyboardRect": {
+          "top": 548,
+          "bottom": 756,
+          "height": 208
+        },
+        "buttonRect": null,
+        "nextRect": null,
+        "instructionRect": {
+          "top": 187,
+          "bottom": 205,
+          "height": 18
+        },
+        "feedbackRect": {
+          "top": 222,
+          "bottom": 244,
+          "height": 22
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 542,
+          "height": 437
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": false,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": null,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Cold Test",
+      "state": "cold-item-1",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "name": "1280x800-wxga",
+        "label": "1280×800 (16:10 Laptop)"
+      },
+      "metrics": {
+        "winW": 1280,
+        "winH": 800,
+        "docH": 800,
+        "docClientH": 800,
+        "docW": 1280,
+        "docClientW": 1280,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 733,
+        "pageClientH": 733,
+        "stageCenterH": 469,
+        "stageCenterClientH": 469,
+        "cardRect": {
+          "top": 123,
+          "bottom": 257,
+          "height": 134
+        },
+        "keyboardRect": {
+          "top": 580,
+          "bottom": 788,
+          "height": 208
+        },
+        "buttonRect": null,
+        "nextRect": null,
+        "instructionRect": {
+          "top": 187,
+          "bottom": 205,
+          "height": 18
+        },
+        "feedbackRect": {
+          "top": 222,
+          "bottom": 244,
+          "height": 22
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 574,
+          "height": 469
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": false,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": null,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Cold Test",
+      "state": "cold-item-1",
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768-compact-desktop",
+        "label": "1024×768 (Compact Desktop Minimum)"
+      },
+      "metrics": {
+        "winW": 1024,
+        "winH": 768,
+        "docH": 768,
+        "docClientH": 768,
+        "docW": 1024,
+        "docClientW": 1024,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 697,
+        "pageClientH": 697,
+        "stageCenterH": 433,
+        "stageCenterClientH": 433,
+        "cardRect": {
+          "top": 125,
+          "bottom": 259,
+          "height": 134
+        },
+        "keyboardRect": {
+          "top": 546,
+          "bottom": 754,
+          "height": 208
+        },
+        "buttonRect": null,
+        "nextRect": null,
+        "instructionRect": {
+          "top": 189,
+          "bottom": 207,
+          "height": 18
+        },
+        "feedbackRect": {
+          "top": 224,
+          "bottom": 246,
+          "height": 22
+        },
+        "stageRect": {
+          "top": 107,
+          "bottom": 540,
+          "height": 433
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": false,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": null,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": "cold-test-1024x768-compact-desktop.png",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Curriculum First Run C/F",
+      "state": "orientation-c-model",
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080-fhd",
+        "label": "1920×1080 (Desktop FHD)"
+      },
+      "metrics": {
+        "winW": 1920,
+        "winH": 1080,
+        "docH": 1080,
+        "docClientH": 1080,
+        "docW": 1920,
+        "docClientW": 1920,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 1013,
+        "pageClientH": 1013,
+        "stageCenterH": 705,
+        "stageCenterClientH": 705,
+        "cardRect": {
+          "top": 125,
+          "bottom": 409,
+          "height": 284
+        },
+        "keyboardRect": {
+          "top": 816,
+          "bottom": 1068,
+          "height": 252
+        },
+        "buttonRect": {
+          "top": 360,
+          "bottom": 394,
+          "height": 34
+        },
+        "nextRect": {
+          "top": 360,
+          "bottom": 394,
+          "height": 34
+        },
+        "instructionRect": {
+          "top": 203,
+          "bottom": 223,
+          "height": 20
+        },
+        "feedbackRect": {
+          "top": 355,
+          "bottom": 397,
+          "height": 42
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 810,
+          "height": 705
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 423,
+        "nextClearancePx": 423,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Curriculum First Run C/F",
+      "state": "orientation-c-model",
+      "viewport": {
+        "width": 1792,
+        "height": 864,
+        "name": "1792x864-failing-baseline",
+        "label": "1792×864 (Reported User Failure)"
+      },
+      "metrics": {
+        "winW": 1792,
+        "winH": 864,
+        "docH": 864,
+        "docClientH": 864,
+        "docW": 1792,
+        "docClientW": 1792,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 797,
+        "pageClientH": 797,
+        "stageCenterH": 513,
+        "stageCenterClientH": 513,
+        "cardRect": {
+          "top": 121,
+          "bottom": 405,
+          "height": 284
+        },
+        "keyboardRect": {
+          "top": 624,
+          "bottom": 852,
+          "height": 228
+        },
+        "buttonRect": {
+          "top": 356,
+          "bottom": 390,
+          "height": 34
+        },
+        "nextRect": {
+          "top": 356,
+          "bottom": 390,
+          "height": 34
+        },
+        "instructionRect": {
+          "top": 199,
+          "bottom": 219,
+          "height": 20
+        },
+        "feedbackRect": {
+          "top": 351,
+          "bottom": 393,
+          "height": 42
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 618,
+          "height": 513
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 235,
+        "nextClearancePx": 235,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": "curriculum-first-run-1792x864-failing-baseline.png",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Curriculum First Run C/F",
+      "state": "orientation-c-model",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "name": "1440x900-macbook",
+        "label": "1440×900 (MacBook Pro / Standard Desktop)"
+      },
+      "metrics": {
+        "winW": 1440,
+        "winH": 900,
+        "docH": 900,
+        "docClientH": 900,
+        "docW": 1440,
+        "docClientW": 1440,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 833,
+        "pageClientH": 833,
+        "stageCenterH": 549,
+        "stageCenterClientH": 549,
+        "cardRect": {
+          "top": 121,
+          "bottom": 405,
+          "height": 284
+        },
+        "keyboardRect": {
+          "top": 660,
+          "bottom": 888,
+          "height": 228
+        },
+        "buttonRect": {
+          "top": 356,
+          "bottom": 390,
+          "height": 34
+        },
+        "nextRect": {
+          "top": 356,
+          "bottom": 390,
+          "height": 34
+        },
+        "instructionRect": {
+          "top": 199,
+          "bottom": 219,
+          "height": 20
+        },
+        "feedbackRect": {
+          "top": 351,
+          "bottom": 393,
+          "height": 42
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 654,
+          "height": 549
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 271,
+        "nextClearancePx": 271,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Curriculum First Run C/F",
+      "state": "orientation-c-model",
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768-laptop",
+        "label": "1366×768 (Standard Laptop)"
+      },
+      "metrics": {
+        "winW": 1366,
+        "winH": 768,
+        "docH": 768,
+        "docClientH": 768,
+        "docW": 1366,
+        "docClientW": 1366,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 701,
+        "pageClientH": 701,
+        "stageCenterH": 437,
+        "stageCenterClientH": 437,
+        "cardRect": {
+          "top": 119,
+          "bottom": 403,
+          "height": 284
+        },
+        "keyboardRect": {
+          "top": 548,
+          "bottom": 756,
+          "height": 208
+        },
+        "buttonRect": {
+          "top": 354,
+          "bottom": 388,
+          "height": 34
+        },
+        "nextRect": {
+          "top": 354,
+          "bottom": 388,
+          "height": 34
+        },
+        "instructionRect": {
+          "top": 197,
+          "bottom": 217,
+          "height": 20
+        },
+        "feedbackRect": {
+          "top": 349,
+          "bottom": 391,
+          "height": 42
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 542,
+          "height": 437
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 161,
+        "nextClearancePx": 161,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Curriculum First Run C/F",
+      "state": "orientation-c-model",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "name": "1280x800-wxga",
+        "label": "1280×800 (16:10 Laptop)"
+      },
+      "metrics": {
+        "winW": 1280,
+        "winH": 800,
+        "docH": 800,
+        "docClientH": 800,
+        "docW": 1280,
+        "docClientW": 1280,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 733,
+        "pageClientH": 733,
+        "stageCenterH": 469,
+        "stageCenterClientH": 469,
+        "cardRect": {
+          "top": 119,
+          "bottom": 403,
+          "height": 284
+        },
+        "keyboardRect": {
+          "top": 580,
+          "bottom": 788,
+          "height": 208
+        },
+        "buttonRect": {
+          "top": 354,
+          "bottom": 388,
+          "height": 34
+        },
+        "nextRect": {
+          "top": 354,
+          "bottom": 388,
+          "height": 34
+        },
+        "instructionRect": {
+          "top": 197,
+          "bottom": 217,
+          "height": 20
+        },
+        "feedbackRect": {
+          "top": 349,
+          "bottom": 391,
+          "height": 42
+        },
+        "stageRect": {
+          "top": 105,
+          "bottom": 574,
+          "height": 469
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 193,
+        "nextClearancePx": 193,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Curriculum First Run C/F",
+      "state": "orientation-c-model",
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768-compact-desktop",
+        "label": "1024×768 (Compact Desktop Minimum)"
+      },
+      "metrics": {
+        "winW": 1024,
+        "winH": 768,
+        "docH": 768,
+        "docClientH": 768,
+        "docW": 1024,
+        "docClientW": 1024,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 697,
+        "pageClientH": 697,
+        "stageCenterH": 433,
+        "stageCenterClientH": 433,
+        "cardRect": {
+          "top": 121,
+          "bottom": 406,
+          "height": 285
+        },
+        "keyboardRect": {
+          "top": 546,
+          "bottom": 754,
+          "height": 208
+        },
+        "buttonRect": {
+          "top": 357,
+          "bottom": 389,
+          "height": 32
+        },
+        "nextRect": {
+          "top": 357,
+          "bottom": 389,
+          "height": 32
+        },
+        "instructionRect": {
+          "top": 199,
+          "bottom": 219,
+          "height": 20
+        },
+        "feedbackRect": {
+          "top": 351,
+          "bottom": 394,
+          "height": 43
+        },
+        "stageRect": {
+          "top": 107,
+          "bottom": 540,
+          "height": 433
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 157,
+        "nextClearancePx": 157,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": "curriculum-first-run-1024x768-compact-desktop.png",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Curriculum Harmony",
+      "state": "harmony-progression",
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080-fhd",
+        "label": "1920×1080 (Desktop FHD)"
+      },
+      "metrics": {
+        "winW": 1920,
+        "winH": 1080,
+        "docH": 1080,
+        "docClientH": 1080,
+        "docW": 1920,
+        "docClientW": 1920,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 1013,
+        "pageClientH": 1013,
+        "stageCenterH": 705,
+        "stageCenterClientH": 705,
+        "cardRect": {
+          "top": 344,
+          "bottom": 571,
+          "height": 228
+        },
+        "keyboardRect": {
+          "top": 816,
+          "bottom": 1068,
+          "height": 252
+        },
+        "buttonRect": null,
+        "nextRect": null,
+        "instructionRect": {
+          "top": 417,
+          "bottom": 458,
+          "height": 42
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 810,
+          "height": 705
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": false,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": null,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Curriculum Harmony",
+      "state": "harmony-progression",
+      "viewport": {
+        "width": 1792,
+        "height": 864,
+        "name": "1792x864-failing-baseline",
+        "label": "1792×864 (Reported User Failure)"
+      },
+      "metrics": {
+        "winW": 1792,
+        "winH": 864,
+        "docH": 864,
+        "docClientH": 864,
+        "docW": 1792,
+        "docClientW": 1792,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 797,
+        "pageClientH": 797,
+        "stageCenterH": 513,
+        "stageCenterClientH": 513,
+        "cardRect": {
+          "top": 246,
+          "bottom": 473,
+          "height": 227
+        },
+        "keyboardRect": {
+          "top": 624,
+          "bottom": 852,
+          "height": 228
+        },
+        "buttonRect": null,
+        "nextRect": null,
+        "instructionRect": {
+          "top": 319,
+          "bottom": 360,
+          "height": 42
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 618,
+          "height": 513
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": false,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": null,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": "curriculum-harmony-1792x864-failing-baseline.png",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Curriculum Harmony",
+      "state": "harmony-progression",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "name": "1440x900-macbook",
+        "label": "1440×900 (MacBook Pro / Standard Desktop)"
+      },
+      "metrics": {
+        "winW": 1440,
+        "winH": 900,
+        "docH": 900,
+        "docClientH": 900,
+        "docW": 1440,
+        "docClientW": 1440,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 833,
+        "pageClientH": 833,
+        "stageCenterH": 549,
+        "stageCenterClientH": 549,
+        "cardRect": {
+          "top": 264,
+          "bottom": 491,
+          "height": 228
+        },
+        "keyboardRect": {
+          "top": 660,
+          "bottom": 888,
+          "height": 228
+        },
+        "buttonRect": null,
+        "nextRect": null,
+        "instructionRect": {
+          "top": 337,
+          "bottom": 378,
+          "height": 42
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 654,
+          "height": 549
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": false,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": null,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Curriculum Harmony",
+      "state": "harmony-progression",
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768-laptop",
+        "label": "1366×768 (Standard Laptop)"
+      },
+      "metrics": {
+        "winW": 1366,
+        "winH": 768,
+        "docH": 768,
+        "docClientH": 768,
+        "docW": 1366,
+        "docClientW": 1366,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 701,
+        "pageClientH": 701,
+        "stageCenterH": 437,
+        "stageCenterClientH": 437,
+        "cardRect": {
+          "top": 211,
+          "bottom": 434,
+          "height": 223
+        },
+        "keyboardRect": {
+          "top": 548,
+          "bottom": 756,
+          "height": 208
+        },
+        "buttonRect": null,
+        "nextRect": null,
+        "instructionRect": {
+          "top": 282,
+          "bottom": 323,
+          "height": 42
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 542,
+          "height": 437
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": false,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": null,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Curriculum Harmony",
+      "state": "harmony-progression",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "name": "1280x800-wxga",
+        "label": "1280×800 (16:10 Laptop)"
+      },
+      "metrics": {
+        "winW": 1280,
+        "winH": 800,
+        "docH": 800,
+        "docClientH": 800,
+        "docW": 1280,
+        "docClientW": 1280,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 733,
+        "pageClientH": 733,
+        "stageCenterH": 469,
+        "stageCenterClientH": 469,
+        "cardRect": {
+          "top": 226,
+          "bottom": 451,
+          "height": 225
+        },
+        "keyboardRect": {
+          "top": 580,
+          "bottom": 788,
+          "height": 208
+        },
+        "buttonRect": null,
+        "nextRect": null,
+        "instructionRect": {
+          "top": 298,
+          "bottom": 339,
+          "height": 42
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 574,
+          "height": 469
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": false,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": null,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Curriculum Harmony",
+      "state": "harmony-progression",
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768-compact-desktop",
+        "label": "1024×768 (Compact Desktop Minimum)"
+      },
+      "metrics": {
+        "winW": 1024,
+        "winH": 768,
+        "docH": 768,
+        "docClientH": 768,
+        "docW": 1024,
+        "docClientW": 1024,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 697,
+        "pageClientH": 697,
+        "stageCenterH": 433,
+        "stageCenterClientH": 433,
+        "cardRect": {
+          "top": 213,
+          "bottom": 432,
+          "height": 219
+        },
+        "keyboardRect": {
+          "top": 546,
+          "bottom": 754,
+          "height": 208
+        },
+        "buttonRect": null,
+        "nextRect": null,
+        "instructionRect": {
+          "top": 280,
+          "bottom": 321,
+          "height": 42
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 107,
+          "bottom": 540,
+          "height": 433
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": false,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": null,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": "curriculum-harmony-1024x768-compact-desktop.png",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Curriculum Chord Rhythm",
+      "state": "change-on-beat-one",
+      "viewport": {
+        "width": 1920,
+        "height": 1080,
+        "name": "1920x1080-fhd",
+        "label": "1920×1080 (Desktop FHD)"
+      },
+      "metrics": {
+        "winW": 1920,
+        "winH": 1080,
+        "docH": 1080,
+        "docClientH": 1080,
+        "docW": 1920,
+        "docClientW": 1920,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 1013,
+        "pageClientH": 1013,
+        "stageCenterH": 705,
+        "stageCenterClientH": 705,
+        "cardRect": {
+          "top": 323,
+          "bottom": 592,
+          "height": 270
+        },
+        "keyboardRect": {
+          "top": 816,
+          "bottom": 1068,
+          "height": 252
+        },
+        "buttonRect": {
+          "top": 467,
+          "bottom": 501,
+          "height": 34
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 486,
+          "bottom": 503,
+          "height": 17
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 810,
+          "height": 705
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 316,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Curriculum Chord Rhythm",
+      "state": "change-on-beat-one",
+      "viewport": {
+        "width": 1792,
+        "height": 864,
+        "name": "1792x864-failing-baseline",
+        "label": "1792×864 (Reported User Failure)"
+      },
+      "metrics": {
+        "winW": 1792,
+        "winH": 864,
+        "docH": 864,
+        "docClientH": 864,
+        "docW": 1792,
+        "docClientW": 1792,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 797,
+        "pageClientH": 797,
+        "stageCenterH": 513,
+        "stageCenterClientH": 513,
+        "cardRect": {
+          "top": 225,
+          "bottom": 494,
+          "height": 269
+        },
+        "keyboardRect": {
+          "top": 624,
+          "bottom": 852,
+          "height": 228
+        },
+        "buttonRect": {
+          "top": 369,
+          "bottom": 403,
+          "height": 34
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 388,
+          "bottom": 405,
+          "height": 17
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 618,
+          "height": 513
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 222,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": "curriculum-chord-rhythm-1792x864-failing-baseline.png",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Curriculum Chord Rhythm",
+      "state": "change-on-beat-one",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "name": "1440x900-macbook",
+        "label": "1440×900 (MacBook Pro / Standard Desktop)"
+      },
+      "metrics": {
+        "winW": 1440,
+        "winH": 900,
+        "docH": 900,
+        "docClientH": 900,
+        "docW": 1440,
+        "docClientW": 1440,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 833,
+        "pageClientH": 833,
+        "stageCenterH": 549,
+        "stageCenterClientH": 549,
+        "cardRect": {
+          "top": 243,
+          "bottom": 512,
+          "height": 270
+        },
+        "keyboardRect": {
+          "top": 660,
+          "bottom": 888,
+          "height": 228
+        },
+        "buttonRect": {
+          "top": 387,
+          "bottom": 421,
+          "height": 34
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 406,
+          "bottom": 423,
+          "height": 17
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 654,
+          "height": 549
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 240,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Curriculum Chord Rhythm",
+      "state": "change-on-beat-one",
+      "viewport": {
+        "width": 1366,
+        "height": 768,
+        "name": "1366x768-laptop",
+        "label": "1366×768 (Standard Laptop)"
+      },
+      "metrics": {
+        "winW": 1366,
+        "winH": 768,
+        "docH": 768,
+        "docClientH": 768,
+        "docW": 1366,
+        "docClientW": 1366,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 701,
+        "pageClientH": 701,
+        "stageCenterH": 437,
+        "stageCenterClientH": 437,
+        "cardRect": {
+          "top": 213,
+          "bottom": 432,
+          "height": 220
+        },
+        "keyboardRect": {
+          "top": 548,
+          "bottom": 756,
+          "height": 208
+        },
+        "buttonRect": {
+          "top": 326,
+          "bottom": 360,
+          "height": 34
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 340,
+          "bottom": 356,
+          "height": 16
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 542,
+          "height": 437
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 189,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Curriculum Chord Rhythm",
+      "state": "change-on-beat-one",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "name": "1280x800-wxga",
+        "label": "1280×800 (16:10 Laptop)"
+      },
+      "metrics": {
+        "winW": 1280,
+        "winH": 800,
+        "docH": 800,
+        "docClientH": 800,
+        "docW": 1280,
+        "docClientW": 1280,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 733,
+        "pageClientH": 733,
+        "stageCenterH": 469,
+        "stageCenterClientH": 469,
+        "cardRect": {
+          "top": 229,
+          "bottom": 448,
+          "height": 220
+        },
+        "keyboardRect": {
+          "top": 580,
+          "bottom": 788,
+          "height": 208
+        },
+        "buttonRect": {
+          "top": 342,
+          "bottom": 376,
+          "height": 34
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 356,
+          "bottom": 372,
+          "height": 16
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 574,
+          "height": 469
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 205,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "Curriculum Chord Rhythm",
+      "state": "change-on-beat-one",
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768-compact-desktop",
+        "label": "1024×768 (Compact Desktop Minimum)"
+      },
+      "metrics": {
+        "winW": 1024,
+        "winH": 768,
+        "docH": 768,
+        "docClientH": 768,
+        "docW": 1024,
+        "docClientW": 1024,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 697,
+        "pageClientH": 697,
+        "stageCenterH": 433,
+        "stageCenterClientH": 433,
+        "cardRect": {
+          "top": 213,
+          "bottom": 432,
+          "height": 220
+        },
+        "keyboardRect": {
+          "top": 546,
+          "bottom": 754,
+          "height": 208
+        },
+        "buttonRect": {
+          "top": 326,
+          "bottom": 360,
+          "height": 34
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 340,
+          "bottom": 356,
+          "height": 16
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 107,
+          "bottom": 540,
+          "height": 433
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 187,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "screenshot": "curriculum-chord-rhythm-1024x768-compact-desktop.png",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "SessionStrip Long Title",
+      "state": "long-title",
+      "viewport": {
+        "width": 1792,
+        "height": 864,
+        "name": "1792x864-failing-baseline",
+        "label": "1792×864 (Reported User Failure)"
+      },
+      "metrics": {
+        "winW": 1792,
+        "winH": 864,
+        "docH": 864,
+        "docClientH": 864,
+        "docW": 1792,
+        "docClientW": 1792,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 797,
+        "pageClientH": 797,
+        "stageCenterH": 513,
+        "stageCenterClientH": 513,
+        "cardRect": {
+          "top": 225,
+          "bottom": 494,
+          "height": 269
+        },
+        "keyboardRect": {
+          "top": 624,
+          "bottom": 852,
+          "height": 228
+        },
+        "buttonRect": {
+          "top": 369,
+          "bottom": 403,
+          "height": 34
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 388,
+          "bottom": 405,
+          "height": 17
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 618,
+          "height": 513
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 222,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "titleAudit": {
+        "found": true,
+        "text": "Ежедневная тренировка: Закрепление устойчивости FSRS и двуручная координация",
+        "whiteSpace": "normal",
+        "textOverflow": "clip",
+        "overflowX": "visible",
+        "scrollWidth": 542,
+        "clientWidth": 542,
+        "hasEllipsis": false,
+        "hasNowrap": false,
+        "hasOverflowHidden": false
+      },
+      "screenshot": "long-title-1792x864-failing-baseline.png",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "SessionStrip Long Title",
+      "state": "long-title",
+      "viewport": {
+        "width": 1440,
+        "height": 900,
+        "name": "1440x900-macbook",
+        "label": "1440×900 (MacBook Pro / Standard Desktop)"
+      },
+      "metrics": {
+        "winW": 1440,
+        "winH": 900,
+        "docH": 900,
+        "docClientH": 900,
+        "docW": 1440,
+        "docClientW": 1440,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 833,
+        "pageClientH": 833,
+        "stageCenterH": 549,
+        "stageCenterClientH": 549,
+        "cardRect": {
+          "top": 243,
+          "bottom": 512,
+          "height": 270
+        },
+        "keyboardRect": {
+          "top": 660,
+          "bottom": 888,
+          "height": 228
+        },
+        "buttonRect": {
+          "top": 387,
+          "bottom": 421,
+          "height": 34
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 406,
+          "bottom": 423,
+          "height": 17
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 654,
+          "height": 549
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 240,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "titleAudit": {
+        "found": true,
+        "text": "Ежедневная тренировка: Закрепление устойчивости FSRS и двуручная координация",
+        "whiteSpace": "normal",
+        "textOverflow": "clip",
+        "overflowX": "visible",
+        "scrollWidth": 542,
+        "clientWidth": 542,
+        "hasEllipsis": false,
+        "hasNowrap": false,
+        "hasOverflowHidden": false
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "SessionStrip Long Title",
+      "state": "long-title",
+      "viewport": {
+        "width": 1280,
+        "height": 800,
+        "name": "1280x800-wxga",
+        "label": "1280×800 (16:10 Laptop)"
+      },
+      "metrics": {
+        "winW": 1280,
+        "winH": 800,
+        "docH": 800,
+        "docClientH": 800,
+        "docW": 1280,
+        "docClientW": 1280,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 733,
+        "pageClientH": 733,
+        "stageCenterH": 469,
+        "stageCenterClientH": 469,
+        "cardRect": {
+          "top": 229,
+          "bottom": 448,
+          "height": 220
+        },
+        "keyboardRect": {
+          "top": 580,
+          "bottom": 788,
+          "height": 208
+        },
+        "buttonRect": {
+          "top": 342,
+          "bottom": 376,
+          "height": 34
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 356,
+          "bottom": 372,
+          "height": 16
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 105,
+          "bottom": 574,
+          "height": 469
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 205,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "titleAudit": {
+        "found": true,
+        "text": "Ежедневная тренировка: Закрепление устойчивости FSRS и двуручная координация",
+        "whiteSpace": "normal",
+        "textOverflow": "clip",
+        "overflowX": "visible",
+        "scrollWidth": 542,
+        "clientWidth": 542,
+        "hasEllipsis": false,
+        "hasNowrap": false,
+        "hasOverflowHidden": false
+      },
+      "screenshot": null,
+      "passed": true,
+      "errors": []
+    },
+    {
+      "suite": "SessionStrip Long Title",
+      "state": "long-title",
+      "viewport": {
+        "width": 1024,
+        "height": 768,
+        "name": "1024x768-compact-desktop",
+        "label": "1024×768 (Compact Desktop Minimum)"
+      },
+      "metrics": {
+        "winW": 1024,
+        "winH": 768,
+        "docH": 768,
+        "docClientH": 768,
+        "docW": 1024,
+        "docClientW": 1024,
+        "hasHorizontalOverflow": false,
+        "hasVerticalPageOverflow": false,
+        "hasStageCenterOverflow": false,
+        "pageH": 697,
+        "pageClientH": 697,
+        "stageCenterH": 431,
+        "stageCenterClientH": 431,
+        "cardRect": {
+          "top": 214,
+          "bottom": 433,
+          "height": 220
+        },
+        "keyboardRect": {
+          "top": 546,
+          "bottom": 754,
+          "height": 208
+        },
+        "buttonRect": {
+          "top": 327,
+          "bottom": 361,
+          "height": 34
+        },
+        "nextRect": null,
+        "instructionRect": {
+          "top": 341,
+          "bottom": 357,
+          "height": 16
+        },
+        "feedbackRect": null,
+        "stageRect": {
+          "top": 109,
+          "bottom": 540,
+          "height": 431
+        },
+        "buttonAboveKeyboard": true,
+        "buttonInsideViewport": true,
+        "buttonVisible": true,
+        "nextAboveKeyboard": true,
+        "instructionAboveKeyboard": true,
+        "feedbackAboveKeyboard": true,
+        "keyboardInsideViewport": true,
+        "buttonClearancePx": 185,
+        "nextClearancePx": null,
+        "stageCenterHeadroomPx": 0,
+        "clippingViolations": []
+      },
+      "titleAudit": {
+        "found": true,
+        "text": "Ежедневная тренировка: Закрепление устойчивости FSRS и двуручная координация",
+        "whiteSpace": "normal",
+        "textOverflow": "clip",
+        "overflowX": "visible",
+        "scrollWidth": 542,
+        "clientWidth": 542,
+        "hasEllipsis": false,
+        "hasNowrap": false,
+        "hasOverflowHidden": false
+      },
+      "screenshot": "long-title-1024x768-compact-desktop.png",
+      "passed": true,
+      "errors": []
+    }
+  ]
+}

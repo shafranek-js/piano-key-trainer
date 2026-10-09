@@ -1,0 +1,219 @@
+{
+  "scenarios": [
+    "M3L-P0-A wrong right-hand triad via MIDI then correct chord advances exactly once",
+    "M3L-P0-B on-screen wrong triad then correct chord and a fresh correct first attempt",
+    "M3L-01 four bars play continuously after one count-in",
+    "M3L-02 independent phrase hides note hints and stays continuous",
+    "M3L-03 complete 12 assessment trials through the real MIDI pipeline",
+    "M3L-04 wrong LH bass is classified as wrong bass, not missing left hand",
+    "M3L-05 delayed extra note cannot receive false success",
+    "M3L-06 MIDI disconnect cancels the attempt without grading",
+    "M3L-07 failed assessment returns to learning with history preserved",
+    "M3L-08 remediation gate blocks Next after a wrong item and maps failed trial positions",
+    "M3L-09 shared metronome count-in 4-3-2-1, play cue and restart integrity",
+    "M3L-10 device profile, calibration trace, compact range and input selection",
+    "M3L-11 port isolation: only the selected device feeds M3L",
+    "M3L-11B selected-port disconnect while second port connected stops run immediately without grade or fallback",
+    "M3L-12 verified range required; C1–C3 support; stale reconfirmation and calibration isolation",
+    "M3L-14 hands-free MIDI start on initial timed run",
+    "M3L-15 hands-free MIDI start in corrective mode",
+    "M3L-16 hands-free MIDI start in four-bar progression",
+    "M3L-17 hands-free start guards: port isolation, multitouch, autorepeat and button fallback",
+    "M3L-13 integrity: no duplicate events, exceptions or console errors"
+  ],
+  "evidence": {
+    "failedAssessmentReturnToLearning": true,
+    "wrongRemediationNextBlocked": true,
+    "correctRemediationNextAvailable": true,
+    "fourBarsOneCountInContinuous": true,
+    "independentNoNoteHints": true,
+    "wrongBassClassification": true,
+    "delayedExtraNoteNoFalseSuccess": true,
+    "midiDisconnectSafeCancel": true,
+    "assessmentTwelveTrialsRealInput": true,
+    "p0RightHandCorrectionMidi": true,
+    "p0RightHandCorrectionScreen": true,
+    "p0FreshCorrectFirstAttempt": true,
+    "p0PersistenceUnchanged": true,
+    "m3lHandsFreeInitialSuccess": true,
+    "m3lHandsFreeCorrectiveSuccess": true,
+    "m3lHandsFreeFourBarSuccess": true,
+    "m3lHandsFreePortIsolation": true,
+    "m3lHandsFreeMultitouchRelease": true,
+    "m3lHandsFreeButtonAlternative": true,
+    "originalVsAdapted": {
+      "original": {
+        "min": 41,
+        "max": 67,
+        "span": 27
+      },
+      "adaptedSpan": 24,
+      "range": {
+        "min": 48,
+        "max": 72
+      }
+    },
+    "compactVoicings": {
+      "C": {
+        "bassKeyId": "C3",
+        "triadKeyIds": [
+          "C4",
+          "E4",
+          "G4"
+        ],
+        "bassMidi": 48,
+        "triadMidi": [
+          60,
+          64,
+          67
+        ]
+      },
+      "G/B": {
+        "bassKeyId": "B3",
+        "triadKeyIds": [
+          "D4",
+          "G4",
+          "B4"
+        ],
+        "bassMidi": 59,
+        "triadMidi": [
+          62,
+          67,
+          71
+        ]
+      },
+      "Am": {
+        "bassKeyId": "A3",
+        "triadKeyIds": [
+          "C4",
+          "E4",
+          "A4"
+        ],
+        "bassMidi": 57,
+        "triadMidi": [
+          60,
+          64,
+          69
+        ]
+      },
+      "F": {
+        "bassKeyId": "F3",
+        "triadKeyIds": [
+          "A3",
+          "C4",
+          "F4"
+        ],
+        "bassMidi": 53,
+        "triadMidi": [
+          57,
+          60,
+          65
+        ]
+      }
+    },
+    "continuousPhraseTrace": [
+      {
+        "bar": 0,
+        "noteCount": 4,
+        "bassKey": "C3",
+        "bassAt": 4492,
+        "targetOnset": 4482,
+        "chordAt": 6490,
+        "chordTarget": 6482
+      },
+      {
+        "bar": 1,
+        "noteCount": 4,
+        "bassKey": "B3",
+        "bassAt": 8490,
+        "targetOnset": 8482,
+        "chordAt": 10490,
+        "chordTarget": 10482
+      },
+      {
+        "bar": 2,
+        "noteCount": 4,
+        "bassKey": "A3",
+        "bassAt": 12490,
+        "targetOnset": 12482,
+        "chordAt": 14492,
+        "chordTarget": 14482
+      },
+      {
+        "bar": 3,
+        "noteCount": 4,
+        "bassKey": "F3",
+        "bassAt": 16491,
+        "targetOnset": 16482,
+        "chordAt": 18493,
+        "chordTarget": 18482
+      }
+    ],
+    "metronomeCountInValues": [
+      4,
+      3,
+      2,
+      1
+    ],
+    "metronomeFirstPlayableAccent": true,
+    "metronomeLateRejected": "timing_failed",
+    "deviceProfile": {
+      "label": "MIDI: Arturia MicroLab mk3 · 25 клавиш",
+      "range": "Доступный диапазон: C3–C5",
+      "source": "known-profile+calibration"
+    },
+    "calibrationTrace": {
+      "left": 30,
+      "right": 96,
+      "displayed": "Слева: 30 · Справа: 96"
+    },
+    "multiDeviceSelection": {
+      "optionCount": 2,
+      "secondId": "m3l-second-device"
+    },
+    "rangeChangeReplan": {
+      "from": "C3–C5 compact (B3 / D4–G4–B4)",
+      "to": "C2–C4 compact (B2 / D3–G3–B3)",
+      "playable": true,
+      "unavailableKeysMarked": true
+    },
+    "allBarsWithinOneCompactRange": true,
+    "portIsolation": {
+      "foreignDeviceIgnored": true,
+      "selectedDeviceAccepted": true,
+      "heldIdentityIsolated": true,
+      "calibrationIsolated": true
+    },
+    "selectedPortDisconnectStopsWithoutGrade": true,
+    "unselectedPortDoesNotSilentlyReplace": true,
+    "c1c3Supported": {
+      "notes": [
+        36,
+        40,
+        43,
+        48,
+        35,
+        38,
+        43,
+        47,
+        33,
+        40,
+        45,
+        48,
+        29,
+        41,
+        45,
+        48
+      ],
+      "graded": true
+    },
+    "verifiedRangeRequired": true,
+    "staleBlockedUntilVerified": true,
+    "calibrationIsolatedDuringRun": true,
+    "deviceSwitchStopsWithoutGrade": true,
+    "compactProgressionsPlayable": {
+      "c2c4": true,
+      "c3c5": true
+    }
+  }
+}

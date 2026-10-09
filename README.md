@@ -68,11 +68,13 @@
 * **Inversions & Chord Symbols (3I):** Root, first, and second inversion, slash symbols, inversion identification, and the introductory `C → G/B → Am → F` sequence.
 * **Harmony & Accompaniment I (3J):** Beginner-friendly I–V–vi–IV orientation, root-position and smooth bass transitions, guided/independent/memory block-chord sequences, bounded transfer with fresh retry, and three gated Daily Practice card families. Rhythm and two-hand accompaniment are outside this module.
 * **Chord Rhythm & Pulse I (3K — accepted):** 4/4 pulse at 60 BPM, a genuine two-bar chord change `C → G/B` (bar 1 C, bar 2 G/B on the next downbeat) with per-bar feedback, two-strike pattern on beats 1 and 3 across `C → G/B → Am → F`, bounded assessment (12 initial / 8 retry trials, 80% threshold), at most three focused remediation tasks, reload-safe corrective state, targeted return-to-learning, and an explicit module exit back into the normal practice lifecycle. Stabilization and Rev1 fixes are **accepted** and add no new pedagogy.
+* **Two-Hand Accompaniment I (3L — implemented, Rev4):** Left-hand bass + right-hand chords over `C → G/B → Am → F` at 60 BPM. Reuses the accepted hands-free MIDI countdown behavior from M3K: idle $\to$ Note On $\to$ release prompt $\to$ Note Off $\to$ 4-beat countdown $\to$ PLAY cue $\to$ chord input $\to$ progression across initial, corrective, and four-bar modes. Multi-device port isolation, verified physical range gating, safe disconnect cancellation without grading, calibration event isolation, and Global Training Layout Contract compliance (`npm run smoke:m3l`).
 
 ### 3. Acoustic Sound, Web MIDI & 4-Octave Keyboard Ergonomics
 * **Salamander Grand Piano Audio (`src/audio/AudioEngine.ts`):** Real acoustic Yamaha C5 samples across 4 octaves (`C2–C6`), plus a Web Audio lookahead metronome (`src/audio/MetronomeClock.ts`). Never falls back to harsh synthetic oscillators.
 * **Web MIDI (`src/audio/MidiController.ts`):** Full MIDI note-on/note-off handling, exact octave verification, velocity-based dynamics ($p / mf / f$), note-hold duration articulation ($legato / detached$), and two-hand onset simultaneity measurement.
 * **Persistent 4-Octave Keyboard (`C2–C6`):** 29 white keys and 20 black keys docked at the bottom of the practice workspace as a stable visual anchor that never shifts vertically when prompts or feedback change.
+* **Global Training Layout Contract (P1 Mandatory UX Requirement):** Every interactive training exercise must fit entirely within the available viewport without vertical or horizontal scrolling across all supported viewports (`1920×1080`, `1792×864`, `1440×900`, `1366×768`, `1280×800`, `1024×768`). The learner simultaneously sees the exercise title, instructions, required notes/chords, feedback, all necessary action controls (such as «Начать отсчёт»), and the fixed bottom keyboard dock. Primary controls are strictly visible above the keyboard dock at all times (`npm run smoke:layout-contract`).
 
 ### 4. Local-First Storage, PWA & Optional Cloud Infrastructure
 * **IndexedDB via Dexie.js (`src/storage/db.ts`):** Stores `cards`, `reviewLogEvents`, `coldTests`, `repertoireHistory`, `twoHandHistory`, `lessonProgress`, and `settings` locally in `PianoTrainerDB`, with automatic one-time migration from legacy `localStorage` (`src/storage/migrator.ts`) and full JSON backup export/import. Review events carry a stable `reviewEventId` identity (schema v3+) with `ts` kept as indexed chronology, and `responseTimingSource` provenance so only real measured latencies feed adaptive grading.
@@ -199,6 +201,35 @@ Injects a synthetic persistence failure into the production preview and verifies
 npm run smoke:daily-practice
 ```
 Runs a production preview with an isolated Chrome profile and a deterministic synthetic profile (all 11 core/advanced learner stages completed, every skill family due). Phase 1 covers all six advanced families (Harmony + M3K); the long run completes 70 tasks across 17 skills with the canonical one-grade invariant (wrong first attempt = exactly one ReviewLog/FSRS mutation; corrective success = none), no duplicate question activation and no scheduler advance before persistence. It also asserts the SessionStrip title is not truncated at 1440/1024 and exports a clean diagnostics snapshot (schema v3, storage schema v4, 12-stage roadmap with 11 completed and `two_hand` available, `unknownSkillIds = []`). Evidence: `acceptance/checkpoint-c/` (3 screenshots + `evidence.json`).
+
+### 19. Production Global Training Layout Contract Smoke
+```bash
+npm run smoke:layout-contract
+```
+Runs an automated Chrome CDP smoke suite verifying the P1 Global Training Layout Contract across all 6 mandatory viewports (`1920×1080`, `1792×864`, `1440×900`, `1366×768`, `1280×800`, `1024×768`) across M3L (idle, count-in, playing, feedback, corrective, assessment), Daily Practice, Cold Test, and representative Curriculum modules. Enforces strict zero-scroll and anti-clipping bounding box invariants (`doc.scrollHeight <= doc.clientHeight`, `doc.scrollWidth <= doc.clientWidth`, `stageCenter.scrollHeight <= stageCenter.clientHeight`, zero ancestor clipping, zero keyboard dock occlusion). Evidence: `acceptance/layout-contract/screenshots/` (screenshots + machine-readable `layout-contract-summary.json`).
+
+### 20. Package Lean Source Archive & Acceptance Screenshots
+```bash
+npm run package:m3l-rev4
+npm run package:acceptance-screenshots
+```
+Implements the permanent **Lean ZIP Packaging** contract:
+- The main source ZIP (`piano-key-trainer-m3l-two-hand-accompaniment-rev4.zip`) contains source, tests, scripts, documentation, compact machine-readable acceptance JSON (`smoke-summary.json`, `layout-contract-summary.json`), and at most 3–4 representative screenshots (keeping archive size compact at ~2.4 MB).
+- The full visual evidence collection (42 screenshots across M3L and Layout Contract suites) is packaged into a separate optional `acceptance-screenshots.zip`.
+- Prior-revision screenshots are never accumulated in source archives.
+- Automated visual regression testing and screenshot generation remain fully operational.
+
+---
+
+## 📦 Permanent Project Rule — Lean ZIP Packaging
+
+To keep distribution archives maintainable and lightweight across all future milestones:
+1. **Main Source ZIP:** Contains complete application source, tests, scripts, documentation, reports, and compact machine-readable acceptance evidence (`*.json`).
+2. **Representative Visual Evidence:** At most 3–4 essential screenshots are included in the main ZIP.
+3. **Separate Visual Archive:** The complete collection of current acceptance screenshots is stored in a separate optional `acceptance-screenshots.zip`.
+4. **No Historical Bloat:** Historical screenshots from previous revisions/milestones are excluded from deliverables.
+5. **Zero Compromise on Testing:** Automated visual regression testing, screenshot generation, and geometry assertions remain 100% operational.
+6. **Delivery Metrics Reporting:** Every milestone packaging must report screenshot counts, total uncompressed screenshot sizes, and final ZIP archive sizes.
 
 ---
 

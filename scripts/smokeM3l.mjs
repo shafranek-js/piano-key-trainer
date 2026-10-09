@@ -11,8 +11,8 @@ const projectDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.
 const previewEntry = path.join(projectDir, 'node_modules', 'vite', 'bin', 'vite.js');
 const chromePath = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 const appRoute = '/piano-key-trainer/';
-const screenshotDir = path.join(projectDir, 'acceptance', 'm3l-rev3', 'screenshots');
-const summaryPath = path.join(projectDir, 'acceptance', 'm3l-rev3', 'smoke-summary.json');
+const screenshotDir = path.join(projectDir, 'acceptance', 'm3l-rev4', 'screenshots');
+const summaryPath = path.join(projectDir, 'acceptance', 'm3l-rev4', 'smoke-summary.json');
 
 const ORIGINAL_REQUIRED = { min: 41, max: 67, span: 27 };
 const MICROLAB_RANGE = { min: 48, max: 72 };
@@ -92,6 +92,22 @@ const fakeMidiScript = `(() => {
     access.inputs.set(second.id, second);
     access.onstatechange?.();
     return second.id;
+  };
+  window.__m3lDisconnectPort = (portId) => {
+    const target = access.inputs.get(portId);
+    if (target) {
+      target.state = 'disconnected';
+      target.connection = 'closed';
+      access.onstatechange?.();
+    }
+  };
+  window.__m3lReconnectPort = (portId) => {
+    const target = access.inputs.get(portId);
+    if (target) {
+      target.state = 'connected';
+      target.connection = 'open';
+      access.onstatechange?.();
+    }
   };
 })();`;
 
@@ -440,8 +456,8 @@ async function seedDatabase(cdp, data, settingsPayload = baseSettings) {
   });
   const freshUrl = `${await cdp.evaluate('location.origin + location.pathname')}?m3lSeed=${Date.now()}`;
   await cdp.send('Page.navigate', { url: freshUrl });
-  await waitFor(cdp, `location.href === ${JSON.stringify(freshUrl)} && document.readyState === 'complete' && document.querySelectorAll('.top-nav-btn').length === 9`, 'reloaded synthetic profile');
-  await delay(500);
+  await waitFor(cdp, `location.href === ${JSON.stringify(freshUrl)} && document.readyState === 'complete' && document.querySelectorAll('.top-nav-btn').length === 9 && Boolean(window.__dataLoaded)`, 'reloaded synthetic profile and loaded data');
+  await delay(200);
 }
 
 async function saveScreenshot(cdp, fileName) {
@@ -567,6 +583,8 @@ async function openProgram(cdp) {
 }
 
 async function startTwoHandModule(cdp) {
+  const alreadyOpen = await cdp.evaluate(`Boolean(document.querySelector(${JSON.stringify(stageSelector())}))`);
+  if (alreadyOpen) return;
   await openProgram(cdp);
   await waitFor(cdp, `Boolean(document.querySelector('[data-stage-id="two_hand"]'))`, 'two_hand roadmap card');
   const selected = await cdp.evaluate(`(() => {
@@ -604,7 +622,13 @@ const evidence = {
   p0RightHandCorrectionMidi: false,
   p0RightHandCorrectionScreen: false,
   p0FreshCorrectFirstAttempt: false,
-  p0PersistenceUnchanged: false
+  p0PersistenceUnchanged: false,
+  m3lHandsFreeInitialSuccess: false,
+  m3lHandsFreeCorrectiveSuccess: false,
+  m3lHandsFreeFourBarSuccess: false,
+  m3lHandsFreePortIsolation: false,
+  m3lHandsFreeMultitouchRelease: false,
+  m3lHandsFreeButtonAlternative: false
 };
 
 async function scenario(name, fn) {
@@ -713,7 +737,7 @@ try {
       range: MICROLAB_RANGE
     };
     evidence.compactVoicings = arrangement.voicings;
-    await saveScreenshot(cdp, '02-m3l-rev3-compact-four-bars.png');
+    await saveScreenshot(cdp, '02-m3l-rev4-compact-four-bars.png');
     const phraseEvents = [];
     for (let barIndex = 0; barIndex < 4; barIndex++) {
       const keys = MIDI_KEYS[['C', 'G/B', 'Am', 'F'][barIndex]];
@@ -773,7 +797,7 @@ try {
       await waitRunClosed(cdp);
       const attempt = await lastAttempt(cdp);
       assert(attempt?.correct === true, `Trial ${trial + 1} not graded correct: ${JSON.stringify(attempt)}.`);
-      if (trial === 5) await saveScreenshot(cdp, '03-m3l-rev3-assessment-midi.png');
+      if (trial === 5) await saveScreenshot(cdp, '03-m3l-rev4-assessment-midi.png');
     }
     await waitStage(cdp, 'transferResult', 'assessment result');
     const snapshot = await readTwoHandSnapshot(cdp);
@@ -867,7 +891,7 @@ try {
     info = await stageInfo(cdp);
     assert(info.chord === 'C', `Wrong remediation must keep the same item, got ${info.chord}.`);
     assert(await cdp.evaluate(`!document.querySelector('[data-testid="two-hand-remediation-next"]')`), 'Next must stay hidden after a wrong remediation attempt.');
-    await saveScreenshot(cdp, '04-m3l-rev3-remediation-gate.png');
+    await saveScreenshot(cdp, '04-m3l-rev4-remediation-gate.png');
     evidence.wrongRemediationNextBlocked = true;
 
     const correctiveArmed = await startRunAndArm(cdp);
@@ -976,7 +1000,7 @@ try {
     assert(rangeText.includes('C3') && rangeText.includes('C5'), `Calibrated range must show C3–C5: ${rangeText}`);
     const adaptation = await cdp.evaluate(`document.querySelector('[data-testid="two-hand-adaptation"]')?.innerText || ''`);
     assert(adaptation.length > 0, 'Compact adaptation notice must be visible.');
-    await saveScreenshot(cdp, '01-m3l-rev3-device-range.png');
+    await saveScreenshot(cdp, '01-m3l-rev4-device-range.png');
     evidence.deviceProfile = { label: deviceLabel, range: rangeText, source: 'known-profile+calibration' };
 
     // Calibration workflow captures raw notes, including notes outside the virtual C2–C6 piano.
@@ -1132,6 +1156,69 @@ try {
     evidence.portIsolation = { foreignDeviceIgnored: true, selectedDeviceAccepted: true, heldIdentityIsolated: true, calibrationIsolated: true };
   });
 
+  await scenario('M3L-11B selected-port disconnect while second port connected stops run immediately without grade or fallback', async () => {
+    await seedAndStartModule(cdp, synthetic, 'simultaneous');
+    await waitStage(cdp, 'simultaneous', 'simultaneous stage');
+    if (!(await cdp.evaluate(`Boolean(document.querySelector('[data-testid="two-hand-device-select"]'))`))) {
+      await cdp.evaluate('window.__m3lAddSecondDevice()');
+      await waitFor(cdp, `Boolean(document.querySelector('[data-testid="two-hand-device-select"]'))`, 'device selector');
+    }
+    await cdp.evaluate(`window.__m3lReconnectPort?.(${JSON.stringify(PORT_A)}) || window.__m3lReconnect()`);
+    await cdp.evaluate(`(() => {
+      const select = document.querySelector('[data-testid="two-hand-device-select"]');
+      if (select && select.value !== ${JSON.stringify(PORT_A)}) {
+        select.value = ${JSON.stringify(PORT_A)};
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      return true;
+    })()`);
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-device-label"]')?.innerText.includes('MicroLab')`, 'Port A selected');
+
+    await realClick(cdp, '[data-testid="two-hand-calibrate"]');
+    await waitFor(cdp, `Boolean(document.querySelector('[data-testid="two-hand-calibration"]'))`, 'calibration panel');
+    await cdp.evaluate(`window.__m3lNoteOnFrom(${JSON.stringify(PORT_A)}, [48])`);
+    await cdp.evaluate(`window.__m3lNoteOnFrom(${JSON.stringify(PORT_A)}, [72])`);
+    await waitFor(cdp, `Boolean(document.querySelector('[data-testid="two-hand-calibration-range"]'))`, 'device A calibration range');
+    await realClick(cdp, '[data-testid="two-hand-calibration-cancel"]');
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-range"]')?.classList.contains('ok')`, 'Port A range verified');
+
+    await cdp.evaluate('window.__m3lAttemptCount = 0; window.__m3lLastAttempt = null;');
+    const beforeLogs = await readStore(cdp, 'reviewLogEvents');
+    await startRunAndArm(cdp);
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandRunning === 'true'`, 'run active');
+
+    await cdp.evaluate(`window.__m3lNoteOnFrom(${JSON.stringify(PORT_A)}, [48])`);
+
+    await cdp.evaluate(`window.__m3lDisconnectPort(${JSON.stringify(PORT_A)})`);
+
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandRunning === 'false'`, 'run stopped immediately');
+    const stage = await stageInfo(cdp);
+    assert(stage.tone === 'warn', `Expected warning feedback tone on disconnect, got ${stage.tone}`);
+    assert((await lastAttempt(cdp)) === null, 'Disconnected run must not grade any attempt.');
+    assert((await cdp.evaluate('window.__m3lAttemptCount ?? 0')) === 0, 'No attempt may be counted.');
+
+    const afterLogs = await readStore(cdp, 'reviewLogEvents');
+    assert(afterLogs.length === beforeLogs.length, 'No review logs may be written on disconnect.');
+
+    const selectedValue = await cdp.evaluate(`document.querySelector('[data-testid="two-hand-device-select"]')?.value`);
+    assert(selectedValue === PORT_A, `Port B must not silently replace Port A; selected is ${selectedValue}`);
+
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-range"]')?.classList.contains('warn')`, 'range marked warn/unavailable');
+    await waitFor(cdp, `Boolean(document.querySelector('[data-testid="two-hand-simulation"]'))`, 'simulation banner displayed while disconnected');
+
+    const simArmed = await startRunAndArm(cdp);
+    await midiFrom(cdp, PORT_B, [
+      { type: 'on', notes: [48, 60, 64, 67], at: simArmed.timing.onset },
+      { type: 'off', notes: [48, 60, 64, 67], at: simArmed.timing.onset + 80 }
+    ]);
+    await waitRunClosed(cdp);
+    assert((await lastAttempt(cdp))?.correct !== true, 'Port B must not grade while Port A was the selected device.');
+
+    await cdp.evaluate(`window.__m3lReconnectPort(${JSON.stringify(PORT_A)})`);
+    evidence.selectedPortDisconnectStopsWithoutGrade = true;
+    evidence.unselectedPortDoesNotSilentlyReplace = true;
+  });
+
   await scenario('M3L-12 verified range required; C1–C3 support; stale reconfirmation and calibration isolation', async () => {
     await seedDatabase(cdp, { cards: synthetic.cards, learningProgress: synthetic.profiles.simultaneous }, settingsWithoutCalibration);
     await startTwoHandModule(cdp);
@@ -1222,6 +1309,200 @@ try {
     evidence.compactProgressionsPlayable = { c2c4: true, c3c5: true };
   });
 
+  await scenario('M3L-14 hands-free MIDI start on initial timed run', async () => {
+    await seedAndStartModule(cdp, synthetic, 'simultaneous');
+    await waitStage(cdp, 'simultaneous', 'simultaneous stage for hands-free start');
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandRunning === 'false'`, 'stage idle');
+    assert(await cdp.evaluate(`document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandStartPending === 'false'`), 'Start pending must be false initially.');
+
+    const initialTimingState = await cdp.evaluate(`document.querySelector('[data-testid="two-hand-timing-state"]')?.innerText || ''`);
+    assert(initialTimingState.includes('MIDI') || initialTimingState.includes('Начать отсчёт'), `Expected start hint, got: ${initialTimingState}`);
+
+    await cdp.evaluate('window.__m3lAttemptCount = 0; window.__m3lLastAttempt = null;');
+    // Send Note On from selected port A
+    await cdp.evaluate(`window.__m3lNoteOnFrom(${JSON.stringify(PORT_A)}, [48])`);
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandStartPending === 'true'`, 'start pending on Note On');
+
+    // Instruction and timing-state must show release hint
+    const pendingTimingState = await cdp.evaluate(`document.querySelector('[data-testid="two-hand-timing-state"]')?.innerText || ''`);
+    assert(pendingTimingState.includes('Отпустите клавиши'), `Release hint missing in timing state: ${pendingTimingState}`);
+    const pendingInstruction = await cdp.evaluate(`document.querySelector('[data-testid="two-hand-instruction"]')?.innerText || ''`);
+    assert(pendingInstruction.includes('Отпустите клавиши'), `Release hint missing in instruction: ${pendingInstruction}`);
+
+    // Must not be evaluated musically while held
+    assert((await cdp.evaluate('window.__m3lAttemptCount ?? 0')) === 0, 'Start gesture must not be evaluated musically.');
+    assert(await cdp.evaluate(`document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandRunning === 'false'`), 'Countdown must not start before release.');
+
+    // Release note 48
+    await cdp.evaluate(`window.__m3lNoteOffFrom(${JSON.stringify(PORT_A)}, [48])`);
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandRunning === 'true'`, 'countdown started after release');
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandCountIn === '1'`, 'last count-in beat');
+
+    const armed = await cdp.evaluate('({ timing: window.__m3lTimingTarget, arrangement: window.__m3lArrangement })');
+    assert(armed.timing && Number.isFinite(armed.timing.onset), 'Timing target onset missing.');
+    const cVoicing = armed.arrangement.voicings.C;
+    await playSequence(cdp, [
+      { notes: [cVoicing.bassMidi], at: armed.timing.onset, durationMs: 60 },
+      { notes: cVoicing.triadMidi, at: armed.timing.onset + 20, durationMs: 60 }
+    ]);
+    await waitRunClosed(cdp);
+
+    const attempt = await lastAttempt(cdp);
+    assert(attempt?.correct === true, `Hands-free attempt should succeed: ${JSON.stringify(attempt)}`);
+    assert(attempt?.startMethod === 'midi_gesture', `Expected startMethod midi_gesture, got ${attempt?.startMethod}`);
+    assert(attempt?.startGestureFirstNote === 48, `Expected startGestureFirstNote 48, got ${attempt?.startGestureFirstNote}`);
+    assert((await cdp.evaluate('window.__m3lAttemptCount ?? 0')) === 1, 'Exactly one evaluation expected.');
+
+    // Assert progression to next chord G/B
+    const nextChord = await cdp.evaluate(`document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandChord`);
+    assert(nextChord === 'G/B', `Expected progression to G/B, got ${nextChord}`);
+
+    await saveScreenshot(cdp, '05-m3l-hands-free-initial.png');
+    evidence.m3lHandsFreeInitialSuccess = true;
+  });
+
+  await scenario('M3L-15 hands-free MIDI start in corrective mode', async () => {
+    // Current chord is G/B, stage is idle and waiting
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandRunning === 'false'`, 'G/B idle');
+    // Start run and play wrong note to enter corrective mode
+    const wrongArmed = await startRunAndArm(cdp);
+    await playSequence(cdp, [
+      { notes: [50], at: wrongArmed.timing.onset, durationMs: 60 },
+      { notes: WRONG_TRIAD, at: wrongArmed.timing.onset + 20, durationMs: 60 }
+    ]);
+    await waitRunClosed(cdp);
+
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandAwaiting === 'true'`, 'awaiting corrective');
+    const correctiveTiming = await cdp.evaluate(`document.querySelector('[data-testid="two-hand-timing-state"]')?.innerText || ''`);
+    assert(correctiveTiming.includes('исправления') && correctiveTiming.includes('MIDI'), `Corrective MIDI hint missing: ${correctiveTiming}`);
+
+    await cdp.evaluate('window.__m3lAttemptCount = 0; window.__m3lLastAttempt = null;');
+    // Send Note On to initiate corrective start gesture
+    await cdp.evaluate(`window.__m3lNoteOnFrom(${JSON.stringify(PORT_A)}, [60])`);
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandStartPending === 'true'`, 'start pending in corrective');
+    const releaseText = await cdp.evaluate(`document.querySelector('[data-testid="two-hand-release-hint"]')?.innerText || ''`);
+    assert(releaseText.includes('Отпустите клавиши'), `Release hint missing in corrective: ${releaseText}`);
+    assert((await cdp.evaluate('window.__m3lAttemptCount ?? 0')) === 0, 'Corrective gesture note must not be evaluated.');
+
+    // Release note 60 -> countdown begins
+    await cdp.evaluate(`window.__m3lNoteOffFrom(${JSON.stringify(PORT_A)}, [60])`);
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandRunning === 'true'`, 'corrective countdown started');
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandCountIn === '1'`, 'corrective last count-in beat');
+
+    const correctiveArmed = await cdp.evaluate('({ timing: window.__m3lTimingTarget, arrangement: window.__m3lArrangement })');
+    assert(correctiveArmed.timing && Number.isFinite(correctiveArmed.timing.onset), 'Corrective timing onset missing.');
+    const gbVoicing = correctiveArmed.arrangement.voicings['G/B'];
+    await playSequence(cdp, [
+      { notes: [gbVoicing.bassMidi], at: correctiveArmed.timing.onset, durationMs: 60 },
+      { notes: gbVoicing.triadMidi, at: correctiveArmed.timing.onset + 20, durationMs: 60 }
+    ]);
+    await waitRunClosed(cdp);
+
+    const correctiveAttempt = await lastAttempt(cdp);
+    assert(correctiveAttempt?.correct === true, `Corrective attempt should succeed: ${JSON.stringify(correctiveAttempt)}`);
+    assert(correctiveAttempt?.startMethod === 'midi_gesture', `Corrective startMethod must be midi_gesture, got ${correctiveAttempt?.startMethod}`);
+    assert((await cdp.evaluate(`document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandAwaiting`)) === 'false', 'Awaiting corrective cleared.');
+
+    const nextChord = await cdp.evaluate(`document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandChord`);
+    assert(nextChord === 'Am', `Expected progression to Am, got ${nextChord}`);
+
+    await saveScreenshot(cdp, '06-m3l-hands-free-corrective.png');
+    evidence.m3lHandsFreeCorrectiveSuccess = true;
+  });
+
+  await scenario('M3L-16 hands-free MIDI start in four-bar progression', async () => {
+    await seedAndStartModule(cdp, synthetic, 'fourBar');
+    await waitStage(cdp, 'fourBar', 'fourBar stage for hands-free start');
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandRunning === 'false'`, 'fourBar idle');
+
+    await cdp.evaluate('window.__m3lAttemptCount = 0; window.__m3lLastAttempt = null;');
+    // Initiate hands-free start for continuous 4-bar run
+    await cdp.evaluate(`window.__m3lNoteOnFrom(${JSON.stringify(PORT_A)}, [52])`);
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandStartPending === 'true'`, 'start pending for fourBar');
+    await cdp.evaluate(`window.__m3lNoteOffFrom(${JSON.stringify(PORT_A)}, [52])`);
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandRunning === 'true'`, 'fourBar countdown started');
+
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandCountIn === '1'`, 'last count-in beat');
+    const armed = await cdp.evaluate('({ targets: window.__m3lPhraseTargets })');
+    assert(armed.targets && armed.targets.length === 4, 'Four bar targets armed.');
+
+    const phraseEvents = [];
+    for (let barIndex = 0; barIndex < 4; barIndex++) {
+      const keys = MIDI_KEYS[['C', 'G/B', 'Am', 'F'][barIndex]];
+      phraseEvents.push({ notes: [keys.bass], at: `TARGET_${barIndex}_ONSET`, durationMs: 60 });
+      phraseEvents.push({ notes: keys.triad, at: `TARGET_${barIndex}_CHORD`, durationMs: 60 });
+    }
+    await playSequence(cdp, phraseEvents);
+    await waitRunClosed(cdp);
+
+    await waitStage(cdp, 'independent', 'advanced to independent after hands-free four-bar');
+    await saveScreenshot(cdp, '07-m3l-hands-free-fourbar.png');
+    evidence.m3lHandsFreeFourBarSuccess = true;
+  });
+
+  await scenario('M3L-17 hands-free start guards: port isolation, multitouch, autorepeat and button fallback', async () => {
+    await seedAndStartModule(cdp, synthetic, 'simultaneous');
+    await waitStage(cdp, 'simultaneous', 'simultaneous stage for guard tests');
+    if (!(await cdp.evaluate(`Boolean(document.querySelector('[data-testid="two-hand-device-select"]'))`))) {
+      await cdp.evaluate('window.__m3lAddSecondDevice()');
+      await waitFor(cdp, `Boolean(document.querySelector('[data-testid="two-hand-device-select"]'))`, 'device selector');
+    }
+    // Port A is selected
+    await cdp.evaluate(`(() => {
+      const select = document.querySelector('[data-testid="two-hand-device-select"]');
+      if (select && select.value !== ${JSON.stringify(PORT_A)}) {
+        select.value = ${JSON.stringify(PORT_A)};
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      return true;
+    })()`);
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-device-label"]')?.innerText.includes('MicroLab')`, 'Port A selected');
+
+    // 1. Unselected Port B events must NOT initiate hands-free start
+    await cdp.evaluate(`window.__m3lNoteOnFrom(${JSON.stringify(PORT_B)}, [48])`);
+    await delay(150);
+    assert(await cdp.evaluate(`document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandStartPending === 'false'`), 'Port B must not start gesture on Port A.');
+    await cdp.evaluate(`window.__m3lNoteOffFrom(${JSON.stringify(PORT_B)}, [48])`);
+    assert(await cdp.evaluate(`document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandRunning === 'false'`), 'Port B release must not start countdown.');
+    evidence.m3lHandsFreePortIsolation = true;
+
+    // 2. Multitouch chord gesture: press notes 48 and 52 together
+    await cdp.evaluate(`window.__m3lNoteOnFrom(${JSON.stringify(PORT_A)}, [48])`);
+    await cdp.evaluate(`window.__m3lNoteOnFrom(${JSON.stringify(PORT_A)}, [52])`);
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandStartPending === 'true'`, 'start pending for chord gesture');
+
+    // Release only note 48: note 52 is still held -> countdown MUST NOT start yet
+    await cdp.evaluate(`window.__m3lNoteOffFrom(${JSON.stringify(PORT_A)}, [48])`);
+    await delay(150);
+    assert(await cdp.evaluate(`document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandStartPending === 'true'`), 'Still pending while note 52 held.');
+    assert(await cdp.evaluate(`document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandRunning === 'false'`), 'Must not run while note 52 held.');
+
+    // Autorepeat / duplicate Note On on note 52 while held
+    await cdp.evaluate(`window.__m3lNoteOnFrom(${JSON.stringify(PORT_A)}, [52])`);
+    await delay(50);
+    assert(await cdp.evaluate(`document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandStartPending === 'true'`), 'Autorepeat must keep pending state.');
+
+    // Stale Note Off on unpressed note (e.g. 77)
+    await cdp.evaluate(`window.__m3lNoteOffFrom(${JSON.stringify(PORT_A)}, [77])`);
+    await delay(50);
+    assert(await cdp.evaluate(`document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandRunning === 'false'`), 'Stale Note Off must not start countdown.');
+
+    // Release final note 52 -> countdown starts now!
+    await cdp.evaluate(`window.__m3lNoteOffFrom(${JSON.stringify(PORT_A)}, [52])`);
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandRunning === 'true'`, 'countdown started on full release');
+    await waitRunClosed(cdp);
+    evidence.m3lHandsFreeMultitouchRelease = true;
+
+    // 3. Clickable button alternative remains fully functional
+    await cdp.evaluate('window.__m3lAttemptCount = 0; window.__m3lLastAttempt = null;');
+    await realClick(cdp, '[data-testid="two-hand-start-run"]');
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandRunning === 'true'`, 'countdown started via button');
+    const buttonMethod = await cdp.evaluate('window.__m3lStartMethod');
+    assert(buttonMethod === 'button', `Expected startMethod button, got ${buttonMethod}`);
+    await waitRunClosed(cdp);
+    evidence.m3lHandsFreeButtonAlternative = true;
+  });
+
   await scenario('M3L-13 integrity: no duplicate events, exceptions or console errors', async () => {
     const logs = await readStore(cdp, 'reviewLogEvents');
     const ids = logs.map(row => row.reviewEventId).filter(Boolean);
@@ -1232,7 +1513,7 @@ try {
   });
 
   await writeFile(summaryPath, JSON.stringify({ scenarios: scenarioResults, evidence }, null, 2));
-  console.log(`M3L Rev1 smoke passed: ${scenarioResults.length} scenarios.`);
+  console.log(`M3L Rev4 smoke passed: ${scenarioResults.length} scenarios.`);
 } catch (error) {
   console.error('M3L Rev1 smoke failed:', error);
   process.exitCode = 1;

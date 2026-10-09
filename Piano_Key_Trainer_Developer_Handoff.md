@@ -30,7 +30,8 @@
 > - **Cold Test Progression + Displayed Item Integrity (`ACCEPTED`):** all 19 task families advance through the central `completeColdTestItem` contract; the displayed `Cold Test · N/20` follows the rendered question, and the completion pointer stays separate (`coldIndex` vs `activeColdItemIndex`).
 > - **FSRS & Persistence Integrity (Checkpoint B, `ACCEPTED`; Rev1/Rev2 backup-identity fixes included):** canonical FSRS-6 parity against pinned `py-fsrs` 6.3.2, latency provenance, stable `reviewEventId` identity with schema v3→v4 migration, recoverable persistence retry, atomic legacy migrator.
 > - **Daily Practice & Diagnostics Hardening (Checkpoint C, implemented, pending acceptance):** canonical skill registry; diagnostics schema v3 with real storage schema, 12-stage roadmap and M3K snapshot; heterogeneous `smoke:daily-practice`; SessionStrip title priority; `card.stats`/NaN normalization.
-> - **M3L — Two-Hand Accompaniment I (Rev3 implemented, pending acceptance):** LH bass + RH chords over `C → G/B → Am → F` at 60 BPM, guided stages, ±200 ms hand-sync window, bounded 12-trial assessment with terminal remediation limit, three new skills (registry 22, Cold Test still 19), roadmap stage #12, `smoke:m3l`; see `M3L_DEVICE_AWARENESS_REV3_REPORT.md`. Rev3 adds port-aware MIDI events with per-port held identities (only the explicitly selected device feeds M3L), verified-calibration gating for physical grading (fallback ranges informational, unverified → explicit simulation, stale → matching left/right reconfirmation or recalibration), MIDI 0–127 routing for validated arrangements outside the virtual piano, full calibration note on/off consumption, and safe cancellation on device switch/disconnect with a fresh count-in. Final acceptance requires a real MicroLab mk3 test.
+> - **Global Training Layout Contract (P1, IMPLEMENTED & AUTOMATED):** Mandatory project-wide UX requirement where every interactive training exercise (M3L, M3K, Daily Practice, Cold Test, Curriculum) must fit entirely within the viewport without vertical or horizontal scrolling across all 6 supported viewports (`1920×1080`, `1792×864`, `1440×900`, `1366×768`, `1280×800`, `1024×768`). The learner simultaneously sees the exercise title, instructions, required notes/chords, feedback, all necessary action controls (such as «Начать отсчёт»), and the fixed bottom keyboard dock. Primary controls are strictly visible above the keyboard dock at all times (`npm run smoke:layout-contract`).
+> - **M3L — Two-Hand Accompaniment I (Rev4 implemented with hands-free start regression, pending acceptance):** LH bass + RH chords over `C → G/B → Am → F` at 60 BPM, guided stages, ±200 ms hand-sync window, bounded 12-trial assessment with terminal remediation limit, three new skills (registry 22, Cold Test still 19), roadmap stage #12, `smoke:m3l` (20 scenarios); see `M3L_DEVICE_AWARENESS_REV4_REPORT.md`. Reuses accepted M3K hands-free countdown behavior: idle $\to$ Note On $\to$ release prompt $\to$ Note Off $\to$ 4-beat countdown $\to$ PLAY cue $\to$ chord input $\to$ progression across initial, corrective, and four-bar modes. Multi-touch chord start gestures, port isolation, and autorepeat guards are automated with clickable button alternative preserved. Resolves selected-port disconnect tracking (run cancellation without grade, clearing held notes, no silent substitution by another connected port) and calibration event isolation (Note On/Off consumed even when callback disables calibration); full verify and all smokes green.
 
 
 ---
@@ -633,3 +634,52 @@ Source audit: [`CODE_AUDIT.md`](file:///c:/Projects/piano-key-trainer/CODE_AUDIT
 - **Current working-tree verification:** `tsc --noEmit` clean, `svelte-check` 0 errors / 0 warnings, Vitest **475/475 across 27 files**, production build clean, and `smoke:scheduler-integrity`, `smoke:m3i`, `smoke:m3j`, `smoke:m3k` green. `npm run verify` is the gate; CI (`.github/workflows/verify.yml`) runs `npm ci && npm run verify`.
 - **Historical reports are frozen:** `M3I_FINAL_REPORT.md`, `M3J_REPORT.md`, `M3J_REV1_REPORT.md`, and the Stabilization/Scheduler/Runtime reports keep their original checkpoint counts. `scripts/buildStabilizationRev1Archive.mjs` and `buildStabilizationRev2Archive.mjs` are marked legacy and excluded from the current release workflow.
 - **Checkpoint boundary:** stop after `piano-key-trainer-audit-stabilization-a.zip` is produced and the report is written; do not start the next educational module before independent acceptance.
+
+### 3.18 Milestone 3L — Two-Hand Accompaniment I (Rev4 Implemented, Pending Acceptance)
+
+**Scope:** LH bass + RH chords over `C → G/B → Am → F` at 60 BPM in 4/4 time (`src/core/learning/twoHand.ts`, `src/ui/components/TwoHandStage.svelte`). Includes orientation, hands-separate guided stages, simultaneous play with ±200 ms hand-sync window, 4-bar continuous performance, unhinted independent phrase, and a bounded 12-trial assessment with terminal remediation limit (max 3 remediation items).
+
+- **M3L Rev4 Blocker Resolutions:**
+  1. **Selected MIDI Port Disconnect:** Tracks actual connection state of the selected MIDI input (`selectedMidiInputConnected`). If port A is selected and calibrated while port B remains connected, disconnecting port A immediately stops the active run, cancels all pending beat timers, prevents trial grading / FSRS mutation / ReviewLog creation, clears port A's held notes, and never silently falls back to port B. Physical performance remains unavailable until a connected, verified device is explicitly selected.
+  2. **Calibration Event Isolation:** Calibration mode state is captured before notifying raw-note listeners, so callbacks changing calibration state cannot leak raw Note On events to gameplay listeners. The final calibration Note On and its matching Note Off are completely consumed, even after calibration has ended. Zero leaked held notes, zero leaked audio voices, zero unintended attempts.
+- **Verification:** `npm run smoke:m3l` verifies all 16 scenarios green (0 duplicate events, 0 exceptions, 0 console errors).
+
+### 3.19 Global Training Layout Contract (P1 Mandatory UX Requirement)
+
+**Priority: P1 — Mandatory project-wide UX requirement**  
+**Scope: All interactive training modules (M3L, M3K, Daily Practice, Cold Test, Curriculum, Harmony, Triads, Inversions).**
+
+- **Permanent Rule:** Every interactive training exercise must fit entirely within the available viewport without vertical or horizontal scrolling across all 6 supported viewports:
+  - `1920×1080` (Desktop FHD)
+  - `1792×864` (Reported user failure baseline)
+  - `1440×900` (MacBook Pro / Standard Desktop)
+  - `1366×768` (Standard Laptop)
+  - `1280×800` (16:10 Laptop)
+  - `1024×768` (Compact Desktop Minimum)
+- **Simultaneous Visibility Invariant:** The learner must always see simultaneously:
+  1. Current exercise title and instructions.
+  2. Required notes, chords, or task content.
+  3. Relevant feedback and progress indicators.
+  4. All controls necessary to complete or advance the exercise (including «Начать отсчёт»).
+  5. The fixed bottom piano keyboard dock (`C2–C6`).
+- **Layout Architecture:**
+  - CSS breakpoint unified to `min-width: 1024px` for desktop layout (`src/ui/styles/app.css`), eliminating horizontal overflows on 1024–1260px widths.
+  - Height-responsive CSS variables (`--keyboard-dock-height`, `--practice-banner-height`, `--practice-grid-gap`) responding to `@media (max-height: 920px)` and `@media (max-height: 820px)`.
+  - `.practice-stage-center` set to `overflow: hidden !important;`, flexbox-centered with zero vertical scroll.
+  - Compact 2-column responsive layout in `TwoHandStage.svelte` (`.two-hand-body-grid`) and `ChordRhythmStage.svelte` (`.rhythm-body-grid`), keeping stage card height below 270px and guaranteeing 170px–410px of vertical clearance above the keyboard dock across all viewports.
+  - All 28 `data-testid` and data attributes strictly preserved.
+- **Automated Verification:** `npm run smoke:layout-contract` runs an automated CDP suite verifying strict zero-scroll and zero-clipping bounding box invariants across 66 test cases (M3L 6 states, Daily Practice, Cold Test, and representative Curriculum modules across all 6 viewports: `doc.scrollHeight <= doc.clientHeight`, `doc.scrollWidth <= doc.clientWidth`, `stageCenter.scrollHeight <= stageCenter.clientHeight`, zero direct text clipping, zero ancestor clipping, and `buttonRect.bottom <= keyboardRect.top`). Acceptance evidence saved in `acceptance/layout-contract/screenshots/` and machine-readable `layout-contract-summary.json`.
+
+### 3.20 Permanent Project Rule — Lean ZIP Packaging
+
+**Priority: Permanent architectural standard for all current and future milestones.**
+
+- **Core Invariant:** Distribution archives must remain lean, maintainable, and fast to inspect without sacrificing testing rigour or machine-readable traceability.
+- **Rule Requirements:**
+  1. **Main Source ZIP (`piano-key-trainer-<milestone>.zip`):** Contains the complete source code, tests, build and smoke scripts, documentation, reports, and compact machine-readable acceptance evidence (`smoke-summary.json`, `layout-contract-summary.json`, etc.).
+  2. **Representative Visual Evidence:** At most 3–4 essential screenshots are included in the main source ZIP (e.g. key failing viewport baseline fix, hands-free cue, compact viewport, device profile).
+  3. **Separate Visual Archive (`acceptance-screenshots.zip`):** The full visual collection of current acceptance screenshots is stored in a dedicated optional companion archive.
+  4. **No Historical Bloat:** Archives never accumulate screenshots or artifacts from prior milestones or obsolete revisions.
+  5. **Zero Compromise on Verification:** Screenshot generation and automated visual regression checks (`smoke:layout-contract`, `smoke:m3l`, etc.) remain 100% operational and mandatory in CI/local verification.
+  6. **Mandatory Reporting:** Packaging scripts and handoff reports must explicitly record screenshot counts, uncompressed screenshot sizes, and final ZIP sizes before milestone delivery.
+

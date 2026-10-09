@@ -606,6 +606,12 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   const isTwoHandActive = $derived(twoHandState !== null && !twoHandDailyMode);
   const isTwoHandAvailable = $derived(advancedModuleStates.twoHand.available);
   const twoHandStatus = $derived(advancedModuleStates.twoHand.progressStatus);
+  let twoHandMidiStartPending = $state(false);
+  const twoHandMidiStartHeldKeys = new Set<string>();
+  let twoHandStartMethod: 'button' | 'midi_gesture' | null = null;
+  let twoHandStartGestureFirstNote: number | null = null;
+  let twoHandStartGestureStartedAt: number | null = null;
+  let twoHandStartGestureReleasedAt: number | null = null;
   let twoHandPending: { notes: TwoHandCaptureNote[]; graded: boolean } = { notes: [], graded: false };
   let twoHandHeldKeyIds = new Set<string>();
   let twoHandTargets: number[] = [];
@@ -619,9 +625,10 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   let twoHandCalibration = $state<CalibrationState>(idleCalibration());
   let midiRangeStale = $state(false);
   const selectedMidiInput = $derived(
-    midiInputs.find(input => input.id === selectedMidiInputId) ??
-    midiInputs.find(input => input.state === 'connected') ??
-    null
+    selectedMidiInputId ? midiInputs.find(input => input.id === selectedMidiInputId) ?? null : null
+  );
+  const isSelectedMidiInputConnected = $derived(
+    Boolean(selectedMidiInput && selectedMidiInput.state === 'connected')
   );
   const midiDeviceCapability = $derived.by<MidiDeviceCapability | null>(() => {
     if (!selectedMidiInput) return null;
@@ -637,18 +644,22 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       : base;
     return midiRangeStale ? { ...calibrated, needsRevalidation: true } : calibrated;
   });
-  const twoHandRangeVerified = $derived(isRangeVerified(midiDeviceCapability, midiRangeStale));
+  const twoHandRangeVerified = $derived(
+    isSelectedMidiInputConnected && isRangeVerified(midiDeviceCapability, midiRangeStale)
+  );
   const twoHandArrangement = $derived(planTwoHandArrangement({
     rangeLo: twoHandRangeVerified ? midiDeviceCapability?.minNote ?? null : null,
     rangeHi: twoHandRangeVerified ? midiDeviceCapability?.maxNote ?? null : null,
     verified: twoHandRangeVerified
   }));
   const twoHandRangeLabel = $derived(
-    twoHandRangeVerified
-      ? `Доступный диапазон: ${rangeLabel(midiDeviceCapability?.minNote ?? null, midiDeviceCapability?.maxNote ?? null)}`
-      : midiDeviceCapability?.calibrated && midiRangeStale
-        ? 'Диапазон не подтверждён — нажмите «Проверить диапазон».'
-        : 'Диапазон не подтверждён. Откалибруйте инструмент для физической игры.'
+    !isSelectedMidiInputConnected
+      ? 'Инструмент отключён. Подключите инструмент для физической игры.'
+      : twoHandRangeVerified
+        ? `Доступный диапазон: ${rangeLabel(midiDeviceCapability?.minNote ?? null, midiDeviceCapability?.maxNote ?? null)}`
+        : midiDeviceCapability?.calibrated && midiRangeStale
+          ? 'Диапазон не подтверждён — нажмите «Проверить диапазон».'
+          : 'Диапазон не подтверждён. Откалибруйте инструмент для физической игры.'
   );
   const twoHandArrangementNotice = $derived(
     twoHandArrangement.kind === 'original' ? '' : twoHandArrangement.explanation
@@ -681,8 +692,8 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   let midiStatus = $state('Не подключено');
   let midiReady = $state(false);
   const twoHandDeviceLabel = $derived(
-    midiDeviceCapability
-      ? `MIDI: ${midiDeviceCapability.name}${midiDeviceCapability.physicalKeyCount != null ? ` · ${midiDeviceCapability.physicalKeyCount} клавиш` : ''}`
+    selectedMidiInput
+      ? `MIDI: ${selectedMidiInput.name}${selectedMidiInput.state === 'connected' ? '' : ' (отключён)'}${midiDeviceCapability?.physicalKeyCount != null ? ` · ${midiDeviceCapability.physicalKeyCount} клавиш` : ''}`
       : midiReady ? 'MIDI подключён' : 'MIDI не подключён'
   );
 
@@ -815,16 +826,22 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
         : 'Упражнение перестроено под диапазон инструмента.';
       twoHandDailyFeedbackTone = 'warn';
     } else {
+      const isDisconnected = !isSelectedMidiInputConnected;
+      const preserveInterrupted = wasRunning || (isDisconnected && twoHandState.feedbackTone === 'warn');
       twoHandState = {
         ...rebuilt,
         isRunning: false,
         countInValue: null,
         activeBeat: -1,
         playCue: false,
-        feedbackText: wasRunning
-          ? 'Диапазон инструмента изменился: упражнение остановлено без оценки и перестроено под новый диапазон. Начните отсчёт заново.'
-          : 'Упражнение перестроено под диапазон инструмента.',
-        feedbackTone: wasRunning ? 'warn' : ''
+        feedbackText: isDisconnected
+          ? 'Выбранный MIDI-инструмент отключён. Упражнение остановлено без оценки: подключите инструмент и начните заново.'
+          : preserveInterrupted
+            ? (twoHandState.feedbackText || 'Выбранный MIDI-инструмент отключён. Упражнение остановлено без оценки: подключите инструмент и начните заново.')
+            : wasRunning
+              ? 'Диапазон инструмента изменился: упражнение остановлено без оценки и перестроено под новый диапазон. Начните отсчёт заново.'
+              : 'Упражнение перестроено под диапазон инструмента.',
+        feedbackTone: preserveInterrupted ? 'warn' : ''
       };
       void persistTwoHandState(twoHandState);
     }
@@ -1423,6 +1440,10 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       }
     } catch (err) {
       console.error('loadData failed:', err);
+    } finally {
+      if (typeof window !== 'undefined') {
+        (window as any).__dataLoaded = true;
+      }
     }
   }
 
@@ -4107,7 +4128,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
 
   function refreshMidiInputs() {
     midiInputs = MidiController.getInstance().getInputDescriptors();
-    if (!selectedMidiInputId || !midiInputs.some(input => input.id === selectedMidiInputId)) {
+    if (!selectedMidiInputId) {
       selectedMidiInputId = midiInputs.find(input => input.state === 'connected')?.id ?? midiInputs[0]?.id ?? null;
     }
   }
@@ -4213,6 +4234,8 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   }
 
   function cancelTwoHandRun() {
+    twoHandMidiStartPending = false;
+    twoHandMidiStartHeldKeys.clear();
     twoHandRunGeneration += 1;
     rhythmClock.stop();
     for (const timer of twoHandTimers) window.clearTimeout(timer);
@@ -4232,8 +4255,12 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     twoHandTimers.push(window.setTimeout(callback, Math.max(0, delayMs)));
   }
 
-  function startTwoHandRun() {
+  function startTwoHandRun(method: 'button' | 'midi_gesture' | unknown = 'button') {
     if (!twoHandState || twoHandState.stage === 'transferResult' || twoHandState.stage === 'moduleComplete') return;
+    const resolvedMethod: 'button' | 'midi_gesture' = method === 'midi_gesture' ? 'midi_gesture' : 'button';
+    twoHandMidiStartPending = false;
+    twoHandMidiStartHeldKeys.clear();
+    twoHandStartMethod = resolvedMethod;
     cancelTwoHandRun();
     const generation = twoHandRunGeneration;
     const next = reduceTwoHandState(twoHandState, { type: 'startRun' });
@@ -4247,6 +4274,8 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     if (typeof window !== 'undefined') {
       (window as unknown as { __m3lClockTrace?: unknown }).__m3lClockTrace = [];
       (window as unknown as { __m3lAttemptCount?: number }).__m3lAttemptCount = 0;
+      (window as unknown as { __m3lStartMethod?: unknown }).__m3lStartMethod = resolvedMethod;
+      (window as unknown as { __m3lStartGestureFirstNote?: unknown }).__m3lStartGestureFirstNote = resolvedMethod === 'midi_gesture' ? twoHandStartGestureFirstNote : null;
     }
     const expectedOnsets = rhythmClock.startSequence({
       bpm: 60,
@@ -4387,7 +4416,18 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   function setTwoHandLastAttempt(result: TwoHandAttemptResult | null) {
     if (typeof window === 'undefined') return;
     (window as unknown as { __m3lLastAttempt?: unknown }).__m3lLastAttempt = result
-      ? { outcome: result.outcome, correct: result.correct, bassCorrect: result.bassCorrect, chordCorrect: result.chordCorrect, syncMs: result.syncMs, timing: result.timing }
+      ? {
+          outcome: result.outcome,
+          correct: result.correct,
+          bassCorrect: result.bassCorrect,
+          chordCorrect: result.chordCorrect,
+          syncMs: result.syncMs,
+          timing: result.timing,
+          startMethod: twoHandStartMethod,
+          startGestureFirstNote: twoHandStartGestureFirstNote,
+          startGestureStartedAt: twoHandStartGestureStartedAt,
+          startGestureReleasedAt: twoHandStartGestureReleasedAt
+        }
       : null;
   }
 
@@ -6853,11 +6893,28 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       const wasReady = midiReady;
       midiStatus = st.message;
       midiReady = st.connected;
+      const wasSelectedConnected = Boolean(
+        selectedMidiInputId &&
+        midiInputs.some(input => input.id === selectedMidiInputId && input.state === 'connected')
+      );
       refreshMidiInputs();
-      if (wasReady && !st.connected && twoHandState?.isRunning) {
-        // A disconnected input device must never grade an incomplete gesture.
-        cancelTwoHandRun();
-        updateTwoHandState({ type: 'inputInterrupted' }, false);
+      const isNowSelectedConnected = Boolean(
+        selectedMidiInputId &&
+        midiInputs.some(input => input.id === selectedMidiInputId && input.state === 'connected')
+      );
+      if ((wasReady && !st.connected) || (wasSelectedConnected && !isNowSelectedConnected)) {
+        if (twoHandState?.isRunning) {
+          // A disconnected input device must never grade an incomplete gesture.
+          cancelTwoHandRun();
+          updateTwoHandState({ type: 'inputInterrupted' }, false);
+          if (twoHandState) {
+            twoHandState = {
+              ...twoHandState,
+              feedbackText: 'Выбранный MIDI-инструмент отключён. Упражнение остановлено без оценки: подключите инструмент и начните заново.',
+              feedbackTone: 'warn'
+            };
+          }
+        }
       }
     });
     const unsubscribeRawMidiNotes = midi.onRawNoteOn((portId, note) => {
@@ -6904,6 +6961,35 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
             rhythmStartGestureStartedAt = performance.now();
             rhythmStartGestureReleasedAt = null;
             setRhythmFeedback(chordRhythmState !== null, 'Отпустите клавиши, чтобы начать отсчёт…', 'warn');
+          }
+          return;
+        }
+      }
+
+      // Hands-free M3L start: any MIDI key on the selected, calibrated device in the waiting state is a transport gesture.
+      // The countdown starts only after every gesture key is released, and the gesture
+      // is never evaluated musically.
+      if (
+        activePage === 'practice' &&
+        (isTwoHandActive || isDailyTwoHandActive) &&
+        twoHandState &&
+        !twoHandState.isRunning &&
+        ['simultaneous', 'alternating', 'fourBar', 'independent', 'transferAssessment', 'transferRemediation'].includes(twoHandState.stage)
+      ) {
+        if (
+          acceptsPortEvent(selectedMidiInputId, ev.portId) &&
+          isSelectedMidiInputConnected &&
+          twoHandCalibration.step === 'idle' &&
+          twoHandRangeVerified
+        ) {
+          const identity = heldNoteIdentity(ev.portId, ev.keyId);
+          twoHandMidiStartHeldKeys.add(identity);
+          if (!twoHandMidiStartPending) {
+            twoHandMidiStartPending = true;
+            twoHandStartMethod = 'midi_gesture';
+            twoHandStartGestureFirstNote = ev.midi;
+            twoHandStartGestureStartedAt = performance.now();
+            twoHandStartGestureReleasedAt = null;
           }
           return;
         }
@@ -7033,7 +7119,8 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     const unsubscribeMidiNoteOff = midi.onNoteOff((ev: MidiNoteOffEvent) => {
       midiActiveKeyIds = midiActiveKeyIds.filter(id => id !== ev.keyId);
       rhythmMidiByKeyId.delete(ev.keyId);
-      twoHandHeldKeyIds.delete(heldNoteIdentity(ev.portId, ev.keyId));
+      const twoHandIdentity = heldNoteIdentity(ev.portId, ev.keyId);
+      twoHandHeldKeyIds.delete(twoHandIdentity);
       audioEngine.releaseVoice(ev.voiceKey, 0.12);
       midiChordTracker.handleNoteOff(ev.keyId);
       midiChordHeldKeyIds = midiChordTracker.getActiveNotes();
@@ -7042,6 +7129,12 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
         rhythmMidiStartPending = false;
         rhythmStartGestureReleasedAt = performance.now();
         void startChordRhythmRun();
+      }
+      if (twoHandMidiStartPending && twoHandMidiStartHeldKeys.delete(twoHandIdentity) && twoHandMidiStartHeldKeys.size === 0) {
+        // Full release reached: start exactly one countdown for this gesture.
+        twoHandMidiStartPending = false;
+        twoHandStartGestureReleasedAt = performance.now();
+        startTwoHandRun('midi_gesture');
       }
     });
     if (midi.isSupported()) midi.connect();
@@ -7065,6 +7158,131 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
         failNextReviewCommit: () => { failNextReviewCommit = true; }
       };
       (window as any).__activeTaskDebug = null;
+      (window as any).__m3lMidiStartPending = () => twoHandMidiStartPending;
+      // Build-time gated test hooks: completely eliminated in normal production builds
+      if (__ENABLE_TEST_HOOKS__) {
+        const setupM3lDebug = () => {
+          (window as any).__m3lDebug = {
+            getState: () => twoHandState,
+            setState: (patch: any) => {
+              if (twoHandState) {
+                twoHandState = { ...twoHandState, ...patch };
+              }
+            },
+            setIdle: () => {
+              cancelTwoHandRun();
+              twoHandMidiStartPending = false;
+              if (twoHandState) {
+                twoHandState = {
+                  ...twoHandState,
+                  stage: 'simultaneous',
+                  isRunning: false,
+                  countInValue: null,
+                  playCue: false,
+                  awaitingCorrective: false,
+                  feedbackText: '',
+                  feedbackTone: ''
+                };
+              }
+            },
+            setCountIn: (value: number = 3) => {
+              cancelTwoHandRun();
+              if (twoHandState) {
+                twoHandState = {
+                  ...twoHandState,
+                  stage: 'simultaneous',
+                  isRunning: true,
+                  countInValue: value,
+                  playCue: false,
+                  awaitingCorrective: false,
+                  feedbackText: '',
+                  feedbackTone: ''
+                };
+              }
+            },
+            setPlaying: (beat: number = 0) => {
+              cancelTwoHandRun();
+              if (twoHandState) {
+                twoHandState = {
+                  ...twoHandState,
+                  stage: 'simultaneous',
+                  isRunning: true,
+                  countInValue: null,
+                  activeBeat: beat,
+                  playCue: false,
+                  awaitingCorrective: false,
+                  feedbackText: '',
+                  feedbackTone: ''
+                };
+              }
+            },
+            setFeedback: (text: string = 'Отлично! Обе руки нажаты синхронно.', tone: 'good' | 'bad' | 'warn' = 'good') => {
+              cancelTwoHandRun();
+              if (twoHandState) {
+                twoHandState = {
+                  ...twoHandState,
+                  stage: 'simultaneous',
+                  isRunning: false,
+                  countInValue: null,
+                  playCue: false,
+                  awaitingCorrective: false,
+                  feedbackText: text,
+                  feedbackTone: tone
+                };
+              }
+            },
+            setCorrective: (text: string = 'Ошибка в аккорде: сыграно C-E-G вместо C-E-A.') => {
+              cancelTwoHandRun();
+              if (twoHandState) {
+                twoHandState = {
+                  ...twoHandState,
+                  stage: 'simultaneous',
+                  isRunning: false,
+                  countInValue: null,
+                  playCue: false,
+                  awaitingCorrective: true,
+                  feedbackText: text,
+                  feedbackTone: 'bad'
+                };
+              }
+            },
+            setAssessment: (trialIndex: number = 2) => {
+              cancelTwoHandRun();
+              if (twoHandState) {
+                twoHandState = {
+                  ...twoHandState,
+                  stage: 'transferAssessment',
+                  isRunning: false,
+                  countInValue: null,
+                  playCue: false,
+                  awaitingCorrective: false,
+                  feedbackText: '',
+                  feedbackTone: '',
+                  assessment: {
+                    ...twoHandState.assessment,
+                    phase: 'active',
+                    trialIndex,
+                    trialsCompleted: trialIndex
+                  }
+                };
+              }
+            }
+          };
+          return (window as any).__m3lDebug;
+        };
+
+        // Controlled activator for test builds
+        (window as any).__enableM3lDebug = () => setupM3lDebug();
+
+        const searchParams = new URLSearchParams(window.location.search);
+        if (
+          (window as any).__m3lTestMode ||
+          searchParams.has('testHooks') ||
+          searchParams.has('test')
+        ) {
+          setupM3lDebug();
+        }
+      }
       (window as any).__harmonyDebug = {
         expectedAnswer: () => (
           dailyHarmonyTask && dailyHarmonyTask.kind === 'semantic'
@@ -7105,7 +7323,10 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
 
     window.addEventListener('keydown', handleWindowKeydown);
     const handleVisibilityChange = () => {
-      if (document.hidden) cancelChordRhythmRun('скрытие вкладки');
+      if (document.hidden) {
+        cancelChordRhythmRun('скрытие вкладки');
+        cancelTwoHandRun();
+      }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
       return () => {
@@ -7115,6 +7336,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       unsubscribeMidiNoteOff();
       endPracticeSession(currentSessionId);
       cancelChordRhythmRun('выгрузка компонента');
+      cancelTwoHandRun();
       clearAutoAdvance();
       stopReactionTimer();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -7143,7 +7365,10 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   $effect(() => {
     void activePage;
     void practiceActivity;
-    if (activePage !== 'practice') cancelChordRhythmRun('смена экрана');
+    if (activePage !== 'practice') {
+      cancelChordRhythmRun('смена экрана');
+      cancelTwoHandRun();
+    }
     try {
       if (typeof sessionStorage !== 'undefined') {
         sessionStorage.setItem(ACTIVE_PAGE_SESSION_KEY, activePage);
@@ -7618,10 +7843,11 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
               <TwoHandStage
                 state={twoHandState}
                 showHints={twoHandHintsVisible(twoHandState)}
-                midiConnected={midiReady}
+                midiConnected={midiReady && isSelectedMidiInputConnected}
+                midiStartPending={twoHandMidiStartPending}
                 deviceLabel={twoHandDeviceLabel}
                 rangeLabelText={twoHandRangeLabel}
-                rangeVerified={Boolean(midiDeviceCapability?.calibrated && !midiRangeStale)}
+                rangeVerified={twoHandRangeVerified}
                 rangeStale={midiRangeStale}
                 needsCalibration={Boolean(midiDeviceCapability && !midiDeviceCapability.calibrated)}
                 arrangementNotice={twoHandArrangementNotice}
@@ -7634,7 +7860,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
                 onCancelCalibration={cancelMidiCalibration}
                 onVerifyRange={beginMidiRangeVerification}
                 onContinue={() => updateTwoHandState({ type: 'continueStage' })}
-                onStartRun={startTwoHandRun}
+                onStartRun={() => startTwoHandRun('button')}
                 onCheck={() => flushTwoHandAttempt()}
                 onNext={() => updateTwoHandState({ type: 'advance' })}
                 onRemediation={() => updateTwoHandState({ type: 'startRemediation' })}
@@ -7648,13 +7874,14 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
               <TwoHandStage
                 state={twoHandState}
                 dailyMode={true}
-                midiConnected={midiReady}
+                midiConnected={midiReady && isSelectedMidiInputConnected}
+                midiStartPending={twoHandMidiStartPending}
                 dailyFeedback={twoHandDailyFeedback}
                 dailyFeedbackTone={twoHandDailyFeedbackTone}
                 dailyCorrective={twoHandDailyCorrective}
                 dailyCompleted={twoHandDailyCompleted}
                 onContinue={() => updateTwoHandState({ type: 'continueStage' })}
-                onStartRun={startTwoHandRun}
+                onStartRun={() => startTwoHandRun('button')}
                 onCheck={() => flushTwoHandAttempt()}
                 onNext={advanceDailyTwoHandQuestion}
                 onRemediation={advanceDailyTwoHandQuestion}

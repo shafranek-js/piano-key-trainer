@@ -46,6 +46,7 @@
     <button
       type="button"
       class="top-nav-btn {activePage === p.id ? 'active' : ''}"
+      data-page-id={p.id}
       role="menuitem"
       aria-current={activePage === p.id ? 'page' : 'false'}
       onclick={() => onPageChange?.(p.id)}

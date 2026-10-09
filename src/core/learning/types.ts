@@ -120,9 +120,19 @@ export interface TwoHandAssessmentSnapshotData {
   remediationIndex: number;
   remediationUsed: number;
   pendingCorrective: boolean;
+  inputModes?: string[];
 }
 
 /** Persisted teaching position for Milestone 3L (two-hand accompaniment). */
+export interface TwoHandDeviceContextSnapshot {
+  deviceId: string;
+  name: string;
+  minNote: number | null;
+  maxNote: number | null;
+  calibrated: boolean;
+  physicalKeyCount: number | null;
+}
+
 export interface TwoHandModuleSnapshot {
   stage: string;
   chordIndex: number;
@@ -134,6 +144,8 @@ export interface TwoHandModuleSnapshot {
   independentPassed: boolean;
   awaitingCorrective: boolean;
   trialHadWrong: boolean;
+  arrangementKind?: string;
+  deviceContext?: TwoHandDeviceContextSnapshot;
   assessment?: TwoHandAssessmentSnapshotData;
 }
 

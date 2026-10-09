@@ -1,5 +1,6 @@
 import type { NoteName } from '../fsrs/types';
-import type { TwoHandModuleSnapshot } from './types';
+import type { TwoHandDeviceContextSnapshot, TwoHandModuleSnapshot } from './types';
+import type { TwoHandArrangementKind } from './twoHandArrangement';
 import { HARMONY_CHORDS, type HarmonyChordId } from './harmony';
 
 export const TWO_HAND_BPM = 60;
@@ -91,6 +92,7 @@ export interface TwoHandAssessmentState {
   remediationIndex: number;
   remediationUsed: number;
   pendingCorrective: boolean;
+  inputModes: string[];
 }
 
 export interface TwoHandModuleState {
@@ -108,6 +110,10 @@ export interface TwoHandModuleState {
   expectedOnset: number | null;
   feedbackText: string;
   feedbackTone: 'good' | 'warn' | 'bad' | '';
+  arrangementKind: TwoHandArrangementKind;
+  sequence: readonly HarmonyChordId[];
+  voicings: Readonly<Record<string, TwoHandVoicing>>;
+  deviceContext: TwoHandDeviceContextSnapshot | null;
   assessment: TwoHandAssessmentState;
 }
 
@@ -120,24 +126,11 @@ export type TwoHandAction =
   | { type: 'clockBeat'; beat: number; countInValue: number | null; chordIndex?: number }
   | { type: 'cancel' }
   | { type: 'inputInterrupted' }
-  | { type: 'gradeAttempt'; result: TwoHandAttemptResult }
+  | { type: 'gradeAttempt'; result: TwoHandAttemptResult; inputMode?: 'midi' | 'screen' }
   | { type: 'advance' }
   | { type: 'startRemediation' }
   | { type: 'retryAssessment' }
   | { type: 'completeModule' };
-
-export interface TwoHandAssessmentSnapshot {
-  blockKind: 'initial' | 'retry';
-  phase: TwoHandAssessmentPhase;
-  trialIndex: number;
-  trialsCompleted: number;
-  correctFirstAttempts: number;
-  failedTrialIndexes: number[];
-  remediationTrialIndexes: number[];
-  remediationIndex: number;
-  remediationUsed: number;
-  pendingCorrective: boolean;
-}
 
 export interface TwoHandTrial {
   index: number;
@@ -177,11 +170,16 @@ function freshAssessment(blockKind: 'initial' | 'retry'): TwoHandAssessmentState
     remediationTrialIndexes: [],
     remediationIndex: 0,
     remediationUsed: 0,
-    pendingCorrective: false
+    pendingCorrective: false,
+    inputModes: []
   };
 }
 
-export function createTwoHandModuleState(progress?: ReadonlyMap<string, { state?: string; twoHandSnapshot?: TwoHandModuleSnapshot }> | null): TwoHandModuleState {
+export function createTwoHandModuleState(
+  progress?: ReadonlyMap<string, { state?: string; twoHandSnapshot?: TwoHandModuleSnapshot }> | null,
+  arrangement?: { kind: TwoHandArrangementKind; sequence: readonly HarmonyChordId[]; voicings: Readonly<Record<string, TwoHandVoicing>> } | null,
+  deviceContext: TwoHandDeviceContextSnapshot | null = null
+): TwoHandModuleState {
   const base: TwoHandModuleState = {
     stage: 'handOrientation',
     chordIndex: 0,
@@ -197,6 +195,10 @@ export function createTwoHandModuleState(progress?: ReadonlyMap<string, { state?
     expectedOnset: null,
     feedbackText: '',
     feedbackTone: '',
+    arrangementKind: arrangement?.kind ?? 'original',
+    sequence: arrangement?.sequence ?? TWO_HAND_SEQUENCE,
+    voicings: arrangement?.voicings ?? TWO_HAND_VOICINGS,
+    deviceContext,
     assessment: freshAssessment('initial')
   };
   const snapshot = progress?.get(TWO_HAND_ITEM_IDS.SESSION)?.twoHandSnapshot;
@@ -214,7 +216,8 @@ export function createTwoHandModuleState(progress?: ReadonlyMap<string, { state?
     remediationTrialIndexes: Array.isArray(snapshot.assessment?.remediationTrialIndexes) ? [...snapshot.assessment!.remediationTrialIndexes] : [],
     remediationIndex: Number.isInteger(snapshot.assessment?.remediationIndex) ? snapshot.assessment!.remediationIndex : 0,
     remediationUsed: Number.isInteger(snapshot.assessment?.remediationUsed) ? snapshot.assessment!.remediationUsed : 0,
-    pendingCorrective: Boolean(snapshot.assessment?.pendingCorrective)
+    pendingCorrective: Boolean(snapshot.assessment?.pendingCorrective),
+    inputModes: Array.isArray(snapshot.assessment?.inputModes) ? snapshot.assessment!.inputModes.filter(mode => mode === 'midi' || mode === 'screen') : []
   };
   return {
     ...base,
@@ -228,6 +231,8 @@ export function createTwoHandModuleState(progress?: ReadonlyMap<string, { state?
       barsPassed: Number.isInteger(snapshot.barsPassed) ? snapshot.barsPassed : 0,
       independentPassed: Boolean(snapshot.independentPassed)
     },
+    arrangementKind: arrangement?.kind ?? (typeof snapshot.arrangementKind === 'string' ? snapshot.arrangementKind as TwoHandArrangementKind : 'original'),
+    deviceContext: deviceContext ?? snapshot.deviceContext ?? null,
     assessment,
     awaitingCorrective: Boolean(snapshot.awaitingCorrective),
     trialHadWrong: Boolean(snapshot.trialHadWrong)
@@ -246,6 +251,8 @@ export function twoHandSnapshotFor(state: TwoHandModuleState): TwoHandModuleSnap
     independentPassed: state.progress.independentPassed,
     awaitingCorrective: state.awaitingCorrective,
     trialHadWrong: state.trialHadWrong,
+    arrangementKind: state.arrangementKind,
+    deviceContext: state.deviceContext ?? undefined,
     assessment: {
       blockKind: state.assessment.blockKind,
       phase: state.assessment.phase,
@@ -256,7 +263,8 @@ export function twoHandSnapshotFor(state: TwoHandModuleState): TwoHandModuleSnap
       remediationTrialIndexes: [...state.assessment.remediationTrialIndexes],
       remediationIndex: state.assessment.remediationIndex,
       remediationUsed: state.assessment.remediationUsed,
-      pendingCorrective: state.assessment.pendingCorrective
+      pendingCorrective: state.assessment.pendingCorrective,
+      inputModes: [...state.assessment.inputModes]
     }
   };
 }
@@ -268,6 +276,7 @@ export function normalizeTwoHandSnapshot(value: unknown): TwoHandModuleSnapshot 
   const int = (v: unknown, fallback = 0) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : fallback);
   const assessmentRaw = raw.assessment && typeof raw.assessment === 'object' ? raw.assessment as Record<string, unknown> : {};
   const phases: TwoHandAssessmentPhase[] = ['active', 'result', 'remediation', 'passed', 'failed'];
+  const arrangementKinds: TwoHandArrangementKind[] = ['original', 'compact', 'compact-intro', 'simulation'];
   return {
     stage,
     chordIndex: int(raw.chordIndex),
@@ -279,6 +288,17 @@ export function normalizeTwoHandSnapshot(value: unknown): TwoHandModuleSnapshot 
     independentPassed: Boolean(raw.independentPassed),
     awaitingCorrective: Boolean(raw.awaitingCorrective),
     trialHadWrong: Boolean(raw.trialHadWrong),
+    arrangementKind: arrangementKinds.includes(raw.arrangementKind as TwoHandArrangementKind) ? raw.arrangementKind as TwoHandArrangementKind : 'original',
+    deviceContext: raw.deviceContext && typeof raw.deviceContext === 'object'
+      ? {
+          deviceId: String((raw.deviceContext as Record<string, unknown>).deviceId ?? ''),
+          name: String((raw.deviceContext as Record<string, unknown>).name ?? ''),
+          minNote: typeof (raw.deviceContext as Record<string, unknown>).minNote === 'number' ? (raw.deviceContext as Record<string, unknown>).minNote as number : null,
+          maxNote: typeof (raw.deviceContext as Record<string, unknown>).maxNote === 'number' ? (raw.deviceContext as Record<string, unknown>).maxNote as number : null,
+          calibrated: Boolean((raw.deviceContext as Record<string, unknown>).calibrated),
+          physicalKeyCount: typeof (raw.deviceContext as Record<string, unknown>).physicalKeyCount === 'number' ? (raw.deviceContext as Record<string, unknown>).physicalKeyCount as number : null
+        }
+      : undefined,
     assessment: {
       blockKind: assessmentRaw.blockKind === 'retry' ? 'retry' : 'initial',
       phase: phases.includes(assessmentRaw.phase as TwoHandAssessmentPhase) ? assessmentRaw.phase as TwoHandAssessmentPhase : 'active',
@@ -289,7 +309,8 @@ export function normalizeTwoHandSnapshot(value: unknown): TwoHandModuleSnapshot 
       remediationTrialIndexes: Array.isArray(assessmentRaw.remediationTrialIndexes) ? (assessmentRaw.remediationTrialIndexes as unknown[]).filter(v => typeof v === 'number') as number[] : [],
       remediationIndex: int(assessmentRaw.remediationIndex),
       remediationUsed: int(assessmentRaw.remediationUsed),
-      pendingCorrective: Boolean(assessmentRaw.pendingCorrective)
+      pendingCorrective: Boolean(assessmentRaw.pendingCorrective),
+      inputModes: Array.isArray(assessmentRaw.inputModes) ? (assessmentRaw.inputModes as unknown[]).filter(mode => mode === 'midi' || mode === 'screen') as string[] : []
     }
   };
 }
@@ -298,16 +319,35 @@ export function twoHandSkillForPattern(pattern: TwoHandPattern): TwoHandSkill {
   return pattern === 'simultaneous' ? 'twoHandTogether' : 'twoHandAlternating';
 }
 
+/**
+ * Re-plans the voicings of an open exercise for a new device range while preserving the
+ * learner's teaching position, assessment history and input-mode record. Used when the
+ * calibrated range or the selected device changes; callers must stop an active run first.
+ */
+export function applyTwoHandArrangement(
+  state: TwoHandModuleState,
+  arrangement: { kind: TwoHandArrangementKind; sequence: readonly HarmonyChordId[]; voicings: Readonly<Record<string, TwoHandVoicing>> },
+  deviceContext: TwoHandDeviceContextSnapshot | null
+): TwoHandModuleState {
+  return {
+    ...state,
+    arrangementKind: arrangement.kind,
+    sequence: arrangement.sequence,
+    voicings: arrangement.voicings,
+    deviceContext
+  };
+}
+
 export function twoHandTargetChord(state: TwoHandModuleState): HarmonyChordId {
   if (state.stage === 'transferAssessment' || state.stage === 'transferResult' || state.stage === 'transferRemediation') {
     return twoHandAssessmentTrial(state.assessment.trialIndex).chordId;
   }
-  if (state.stage === 'leftHand') return TWO_HAND_SEQUENCE[state.progress.leftIndex] ?? 'C';
-  if (state.stage === 'rightHand') return TWO_HAND_SEQUENCE[state.progress.rightIndex] ?? 'C';
-  if (state.stage === 'simultaneous') return TWO_HAND_SEQUENCE[state.progress.simultaneousIndex] ?? 'C';
-  if (state.stage === 'alternating') return TWO_HAND_SEQUENCE[state.progress.alternatingIndex] ?? 'C';
-  if (state.stage === 'fourBar' || state.stage === 'independent') return TWO_HAND_SEQUENCE[state.chordIndex] ?? 'C';
-  return TWO_HAND_SEQUENCE[0];
+  if (state.stage === 'leftHand') return state.sequence[state.progress.leftIndex] ?? 'C';
+  if (state.stage === 'rightHand') return state.sequence[state.progress.rightIndex] ?? 'C';
+  if (state.stage === 'simultaneous') return state.sequence[state.progress.simultaneousIndex] ?? 'C';
+  if (state.stage === 'alternating') return state.sequence[state.progress.alternatingIndex] ?? 'C';
+  if (state.stage === 'fourBar' || state.stage === 'independent') return state.sequence[state.chordIndex] ?? 'C';
+  return state.sequence[0] ?? 'C';
 }
 
 export function twoHandPattern(state: TwoHandModuleState): TwoHandPattern {
@@ -338,6 +378,7 @@ export interface TwoHandAttemptInput {
   chordNotes: readonly TwoHandCaptureNote[];
   bassTargetOnset: number | null;
   chordTargetOnset: number | null;
+  voicings?: Readonly<Record<string, TwoHandVoicing>>;
 }
 
 export type TwoHandOutcome =
@@ -404,9 +445,9 @@ export interface TwoHandCaptureClassification {
 export function classifyTwoHandCapture(
   chordId: HarmonyChordId,
   notes: readonly TwoHandCaptureNote[],
-  options: { bassTargetOnset?: number | null } = {}
+  options: { bassTargetOnset?: number | null; voicings?: Readonly<Record<string, TwoHandVoicing>> } = {}
 ): TwoHandCaptureClassification {
-  const voicing = TWO_HAND_VOICINGS[chordId];
+  const voicing = (options.voicings ?? TWO_HAND_VOICINGS)[chordId] ?? TWO_HAND_VOICINGS[chordId];
   const triadSet = new Set<string>(voicing.triadKeyIds);
   const bassPitchClass = pitchClass(voicing.bassKeyId);
   const exactBass = notes.find(note => note.keyId === voicing.bassKeyId) ?? null;
@@ -428,7 +469,7 @@ export function classifyTwoHandCapture(
 }
 
 export function evaluateTwoHandAttempt(input: TwoHandAttemptInput): TwoHandAttemptResult {
-  const voicing = TWO_HAND_VOICINGS[input.chordId];
+  const voicing = (input.voicings ?? TWO_HAND_VOICINGS)[input.chordId] ?? TWO_HAND_VOICINGS[input.chordId];
   const chordKeyIds = input.chordNotes.map(note => note.keyId);
 
   const bassCorrect = input.bass !== null && input.bass.keyId === voicing.bassKeyId;
@@ -514,8 +555,11 @@ export function evaluateTwoHandAttempt(input: TwoHandAttemptInput): TwoHandAttem
   };
 }
 
-function recordTwoHandAttempt(state: TwoHandModuleState, result: TwoHandAttemptResult): TwoHandModuleState {
+function recordTwoHandAttempt(state: TwoHandModuleState, result: TwoHandAttemptResult, inputMode?: 'midi' | 'screen'): TwoHandModuleState {
   const assessment = { ...state.assessment };
+  if (inputMode && !assessment.inputModes.includes(inputMode)) {
+    assessment.inputModes = [...assessment.inputModes, inputMode];
+  }
   if (assessment.phase === 'remediation') {
     return {
       ...state,
@@ -596,7 +640,7 @@ export function reduceTwoHandState(state: TwoHandModuleState, action: TwoHandAct
         const progress = { ...state.progress };
         if (state.stage === 'leftHand') {
           progress.leftIndex += 1;
-          const done = progress.leftIndex >= TWO_HAND_SEQUENCE.length;
+          const done = progress.leftIndex >= state.sequence.length;
           return {
             ...state,
             progress,
@@ -608,7 +652,7 @@ export function reduceTwoHandState(state: TwoHandModuleState, action: TwoHandAct
         }
         if (state.stage === 'rightHand') {
           progress.rightIndex += 1;
-          const done = progress.rightIndex >= TWO_HAND_SEQUENCE.length;
+          const done = progress.rightIndex >= state.sequence.length;
           return {
             ...state,
             progress,
@@ -659,8 +703,8 @@ export function reduceTwoHandState(state: TwoHandModuleState, action: TwoHandAct
           return { ...state, isRunning: false, activeBeat: -1, playCue: false, expectedOnset: null, awaitingCorrective: true, feedbackText: action.result.feedbackText, feedbackTone: 'bad' };
         }
         const progress = { ...state.progress, barsPassed: state.progress.barsPassed + 1 };
-        const chordIndex = (state.chordIndex + 1) % TWO_HAND_SEQUENCE.length;
-        if (progress.barsPassed >= TWO_HAND_SEQUENCE.length) {
+        const chordIndex = (state.chordIndex + 1) % state.sequence.length;
+        if (progress.barsPassed >= state.sequence.length) {
           if (state.stage === 'independent') {
             const isFreshFirstBlock = state.assessment.phase === 'active' &&
               state.assessment.blockKind === 'initial' &&
@@ -672,7 +716,7 @@ export function reduceTwoHandState(state: TwoHandModuleState, action: TwoHandAct
           }
           return { ...state, progress: { ...progress, barsPassed: 0 }, stage: 'independent', chordIndex: 0, isRunning: false, activeBeat: -1, playCue: false, expectedOnset: null, feedbackText: 'Четыре такта двумя руками получились! Теперь играем без подсказок.', feedbackTone: 'good', awaitingCorrective: false };
         }
-        return { ...state, progress, chordIndex, isRunning: false, activeBeat: -1, playCue: false, expectedOnset: null, feedbackText: `Такт ${state.chordIndex + 1} верно. Следующий: ${TWO_HAND_VOICINGS[TWO_HAND_SEQUENCE[chordIndex]].symbol}`, feedbackTone: 'good', awaitingCorrective: false };
+        return { ...state, progress, chordIndex, isRunning: false, activeBeat: -1, playCue: false, expectedOnset: null, feedbackText: `Такт ${state.chordIndex + 1} верно. Следующий: ${(state.voicings[state.sequence[chordIndex]] ?? TWO_HAND_VOICINGS[state.sequence[chordIndex]]).symbol}`, feedbackTone: 'good', awaitingCorrective: false };
       }
       if (state.stage === 'simultaneous' || state.stage === 'alternating') {
         if (!action.result.correct) {
@@ -680,8 +724,8 @@ export function reduceTwoHandState(state: TwoHandModuleState, action: TwoHandAct
         }
         const progress = { ...state.progress };
         const done = state.stage === 'simultaneous'
-          ? (progress.simultaneousIndex += 1) >= TWO_HAND_SEQUENCE.length
-          : (progress.alternatingIndex += 1) >= TWO_HAND_SEQUENCE.length;
+          ? (progress.simultaneousIndex += 1) >= state.sequence.length
+          : (progress.alternatingIndex += 1) >= state.sequence.length;
         return {
           ...state,
           progress,
@@ -698,7 +742,7 @@ export function reduceTwoHandState(state: TwoHandModuleState, action: TwoHandAct
         };
       }
       if (state.stage === 'transferAssessment' || state.stage === 'transferRemediation') {
-        const next = recordTwoHandAttempt(state, action.result);
+        const next = recordTwoHandAttempt(state, action.result, action.inputMode);
         return next;
       }
       return state;
@@ -773,6 +817,13 @@ export function reduceTwoHandState(state: TwoHandModuleState, action: TwoHandAct
       };
     case 'completeModule':
       if (state.assessment.phase !== 'passed') return state;
+      if (state.assessment.inputModes.length > 0 && !state.assessment.inputModes.includes('midi')) {
+        return {
+          ...state,
+          feedbackText: 'Для завершения модуля требуется исполнение на физическом MIDI-инструменте. Экранная практика доступна, но не засчитывается как mastery двумя руками.',
+          feedbackTone: 'warn'
+        };
+      }
       return { ...state, stage: 'moduleComplete', feedbackText: 'Модуль «Игра двумя руками» завершён.', feedbackTone: 'good' };
     default:
       return state;
@@ -829,4 +880,6 @@ export function twoHandSkillInstruction(skill: TwoHandSkill): string {
 export function isTwoHandSkill(skill: string): skill is TwoHandSkill {
   return skill === 'twoHandBass' || skill === 'twoHandTogether' || skill === 'twoHandAlternating';
 }
+
+
 

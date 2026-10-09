@@ -179,6 +179,14 @@ export interface UserSettings {
   repertoireArticulationTarget: 'off' | 'legato' | 'detached';
   twoHandTempoMode: 'wait' | 'slow';
   autoAdvanceDelaySeconds: number;
+  midiCalibration?: {
+    deviceId: string;
+    deviceName: string;
+    minNote: number;
+    maxNote: number;
+    physicalKeyCount: number | null;
+    calibratedAt: number;
+  } | null;
   level?: 'white' | 'all';
   mode?: string;
   notationClef?: 'treble' | 'bass' | 'grand';

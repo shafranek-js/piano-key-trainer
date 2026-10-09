@@ -1,6 +1,5 @@
 <script lang="ts">
   import {
-    TWO_HAND_SEQUENCE,
     TWO_HAND_VOICINGS,
     TWO_HAND_SYNC_WINDOW_MS,
     twoHandAssessmentTrial,
@@ -20,6 +19,20 @@
     dailyFeedbackTone = '',
     dailyCorrective = false,
     dailyCompleted = false,
+    deviceLabel = '',
+    rangeLabelText = '',
+    rangeVerified = false,
+    rangeStale = false,
+    needsCalibration = false,
+    arrangementNotice = '',
+    simulationMode = false,
+    midiInputs = [] as { id: string; name: string; state: string }[],
+    selectedMidiInputId = null as string | null,
+    calibration = { step: 'idle', message: '' } as { step: string; message: string; minNote?: number | null; maxNote?: number | null },
+    onSelectMidiInput,
+    onCalibrate,
+    onCancelCalibration,
+    onConfirmRange,
     onContinue,
     onStartRun,
     onCheck,
@@ -37,6 +50,20 @@
     dailyFeedbackTone?: string;
     dailyCorrective?: boolean;
     dailyCompleted?: boolean;
+    deviceLabel?: string;
+    rangeLabelText?: string;
+    rangeVerified?: boolean;
+    rangeStale?: boolean;
+    needsCalibration?: boolean;
+    arrangementNotice?: string;
+    simulationMode?: boolean;
+    midiInputs?: { id: string; name: string; state: string }[];
+    selectedMidiInputId?: string | null;
+    calibration?: { step: string; message: string; minNote?: number | null; maxNote?: number | null };
+    onSelectMidiInput?: (id: string) => void;
+    onCalibrate?: () => void;
+    onCancelCalibration?: () => void;
+    onConfirmRange?: () => void;
     onContinue: () => void;
     onStartRun: () => void;
     onCheck: () => void;
@@ -48,7 +75,7 @@
   } = $props();
 
   const chordId = $derived(twoHandTargetChord(state));
-  const voicing: TwoHandVoicing = $derived(TWO_HAND_VOICINGS[chordId]);
+  const voicing: TwoHandVoicing = $derived(state.voicings[chordId] ?? TWO_HAND_VOICINGS[chordId]);
   const pattern = $derived(twoHandPattern(state));
   const isAssessment = $derived(state.stage === 'transferAssessment' || state.stage === 'transferResult' || state.stage === 'transferRemediation');
   const trial = $derived(isAssessment ? twoHandAssessmentTrial(state.assessment.trialIndex) : null);
@@ -108,9 +135,51 @@
   }
 </script>
 
-<section class="two-hand-stage" data-testid="two-hand-stage" data-two-hand-stage={state.stage} data-two-hand-pattern={pattern} data-two-hand-chord={chordId} data-two-hand-running={state.isRunning} data-two-hand-count-in={state.countInValue ?? ''} data-two-hand-beat={state.activeBeat} data-two-hand-bar={state.chordIndex} data-two-hand-hints={showHints} data-two-hand-awaiting={state.awaitingCorrective} data-two-hand-corrected={state.remediationCorrected} data-two-hand-feedback-tone={state.feedbackTone} data-two-hand-running-label={state.isRunning ? 'running' : 'idle'}>
+<section class="two-hand-stage" data-testid="two-hand-stage" data-two-hand-stage={state.stage} data-two-hand-pattern={pattern} data-two-hand-chord={chordId} data-two-hand-running={state.isRunning} data-two-hand-count-in={state.countInValue ?? ''} data-two-hand-beat={state.activeBeat} data-two-hand-bar={state.chordIndex} data-two-hand-hints={showHints} data-two-hand-awaiting={state.awaitingCorrective} data-two-hand-corrected={state.remediationCorrected} data-two-hand-feedback-tone={state.feedbackTone} data-two-hand-arrangement={state.arrangementKind} data-two-hand-running-label={state.isRunning ? 'running' : 'idle'}>
   <div class="two-hand-card">
     <div class="two-hand-eyebrow">ДОПОЛНИТЕЛЬНЫЙ МОДУЛЬ · ИГРА ДВУМЯ РУКАМИ · 4/4 · 60 BPM</div>
+    {#if deviceLabel}
+      <div class="two-hand-device" data-testid="two-hand-device">
+        <span data-testid="two-hand-device-label">{deviceLabel}</span>
+        {#if rangeLabelText}
+          <span class={`two-hand-range ${rangeVerified ? 'ok' : 'warn'}`} data-testid="two-hand-range">{rangeLabelText}</span>
+        {/if}
+      </div>
+    {/if}
+    {#if rangeStale}
+      <button class="btn btn-secondary tiny" data-testid="two-hand-confirm-range" onclick={onConfirmRange}>Подтвердить диапазон</button>
+    {/if}
+    {#if arrangementNotice}
+      <div class="two-hand-adaptation" data-testid="two-hand-adaptation">{arrangementNotice}</div>
+    {/if}
+    {#if simulationMode}
+      <div class="two-hand-simulation" data-testid="two-hand-simulation">Экранная симуляция: результат не засчитывается как физическое исполнение двумя руками.</div>
+    {/if}
+    {#if calibration.step !== 'idle'}
+      <div class="two-hand-calibration" data-testid="two-hand-calibration">
+        <strong>{calibration.message}</strong>
+        {#if calibration.step === 'complete' && calibration.minNote != null && calibration.maxNote != null}
+          <span data-testid="two-hand-calibration-range">Слева: {calibration.minNote} · Справа: {calibration.maxNote}</span>
+        {/if}
+        <button class="btn btn-secondary tiny" data-testid="two-hand-calibration-cancel" onclick={onCancelCalibration}>Отмена калибровки</button>
+      </div>
+    {:else}
+      <div class="two-hand-calibration-actions">
+        {#if midiInputs.length > 1}
+          <select data-testid="two-hand-device-select" value={selectedMidiInputId ?? ''} onchange={event => onSelectMidiInput?.(event.currentTarget.value)}>
+            {#each midiInputs as input (input.id)}
+              <option value={input.id}>{input.name || input.id}</option>
+            {/each}
+          </select>
+        {/if}
+        {#if !dailyMode}
+          <button class="btn btn-secondary tiny" data-testid="two-hand-calibrate" onclick={onCalibrate} disabled={!midiConnected}>Калибровать диапазон</button>
+        {/if}
+        {#if needsCalibration}
+          <span class="two-hand-calibration-hint" data-testid="two-hand-calibration-hint">Диапазон не калиброван — используется типовой для устройства.</span>
+        {/if}
+      </div>
+    {/if}
     <h2>{stageTitle()}</h2>
     <p class="two-hand-instruction" data-testid="two-hand-instruction">{instruction()}</p>
 
@@ -129,7 +198,7 @@
 
     <div class="two-hand-chord-label">Текущий аккорд: <strong>{voicing.symbol}</strong>
       {#if state.stage === 'fourBar' || state.stage === 'independent'}
-        · такт {state.chordIndex + 1} из {TWO_HAND_SEQUENCE.length}
+        · такт {state.chordIndex + 1} из {state.sequence.length}
       {/if}
       · {pattern === 'simultaneous' ? 'обе руки вместе' : 'бас на 1 · аккорд на 3'}
     </div>
@@ -245,3 +314,5 @@
     .two-hand-parts { grid-template-columns: 1fr; }
   }
 </style>
+
+

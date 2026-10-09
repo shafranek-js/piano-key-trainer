@@ -33,6 +33,16 @@ export type MidiStatusCallback = (status: {
   message: string;
 }) => void;
 
+export interface MidiInputDescriptor {
+  id: string;
+  name: string;
+  manufacturer: string;
+  portName: string;
+  state: string;
+}
+
+export type RawNoteCallback = (note: number, velocity: number, channel: number) => void;
+
 export class MidiController {
   private static instance: MidiController | null = null;
   private midiAccess: MIDIAccess | null = null;
@@ -41,6 +51,8 @@ export class MidiController {
   private noteOnListeners = new Set<(ev: MidiNoteOnEvent) => void>();
   private noteOffListeners = new Set<(ev: MidiNoteOffEvent) => void>();
   private statusListeners = new Set<MidiStatusCallback>();
+  private rawNoteListeners = new Set<RawNoteCallback>();
+  private calibrationMode = false;
 
   public static getInstance(): MidiController {
     if (!MidiController.instance) {
@@ -72,6 +84,35 @@ export class MidiController {
   public onStatusChange(cb: MidiStatusCallback): () => void {
     this.statusListeners.add(cb);
     return () => this.statusListeners.delete(cb);
+  }
+
+  /**
+   * Raw note-on stream used for device-range calibration and stale-range detection.
+   * Emits every transmitted note, including notes outside the virtual C2–C6 piano range.
+   */
+  public onRawNoteOn(cb: RawNoteCallback): () => void {
+    this.rawNoteListeners.add(cb);
+    return () => this.rawNoteListeners.delete(cb);
+  }
+
+  /** While active, raw notes are emitted and virtual-piano routing is suppressed. */
+  public setCalibrationMode(active: boolean): void {
+    this.calibrationMode = active;
+  }
+
+  public getInputDescriptors(): MidiInputDescriptor[] {
+    if (!this.midiAccess) return [];
+    const descriptors: MidiInputDescriptor[] = [];
+    this.midiAccess.inputs.forEach(input => {
+      descriptors.push({
+        id: input.id,
+        name: input.name ?? '',
+        manufacturer: input.manufacturer ?? '',
+        portName: input.name ?? '',
+        state: input.state ?? 'disconnected'
+      });
+    });
+    return descriptors;
   }
 
   public async connect(): Promise<boolean> {
@@ -130,7 +171,9 @@ export class MidiController {
     const now = performance.now();
 
     if (status === 0x90 && velocity > 0) {
-      // Note On
+      // Note On — emit the raw stream first (calibration accepts any MIDI note number).
+      this.rawNoteListeners.forEach(cb => cb(note, velocity, channel));
+      if (this.calibrationMode) return;
       if (note < MIDI_MIN || note > MIDI_MAX) return;
 
       const keyId = keyIdFromMidi(note);

@@ -11,25 +11,27 @@ const projectDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.
 const previewEntry = path.join(projectDir, 'node_modules', 'vite', 'bin', 'vite.js');
 const chromePath = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 const appRoute = '/piano-key-trainer/';
-const screenshotDir = path.join(projectDir, 'acceptance', 'm3l-rev1', 'screenshots');
-const summaryPath = path.join(projectDir, 'acceptance', 'm3l-rev1', 'smoke-summary.json');
+const screenshotDir = path.join(projectDir, 'acceptance', 'm3l-rev2', 'screenshots');
+const summaryPath = path.join(projectDir, 'acceptance', 'm3l-rev2', 'smoke-summary.json');
 
+const ORIGINAL_REQUIRED = { min: 41, max: 67, span: 27 };
+const MICROLAB_RANGE = { min: 48, max: 72 };
 const HAND_KEYS = {
   C: { bass: 'C3', triad: ['C4', 'E4', 'G4'] },
-  'G/B': { bass: 'B2', triad: ['B3', 'D4', 'G4'] },
-  Am: { bass: 'A2', triad: ['A3', 'C4', 'E4'] },
-  F: { bass: 'F2', triad: ['F3', 'A3', 'C4'] }
+  'G/B': { bass: 'B3', triad: ['D4', 'G4', 'B4'] },
+  Am: { bass: 'A3', triad: ['C4', 'E4', 'A4'] },
+  F: { bass: 'F3', triad: ['A3', 'C4', 'F4'] }
 };
 const MIDI_KEYS = {
   C: { bass: 48, triad: [60, 64, 67] },
-  'G/B': { bass: 47, triad: [59, 62, 67] },
-  Am: { bass: 45, triad: [57, 60, 64] },
-  F: { bass: 41, triad: [53, 57, 60] }
+  'G/B': { bass: 59, triad: [62, 67, 71] },
+  Am: { bass: 57, triad: [60, 64, 69] },
+  F: { bass: 53, triad: [57, 60, 65] }
 };
 const WRONG_TRIAD = [65, 69, 72];
 
 const fakeMidiScript = `(() => {
-  const input = {id:'m3l-fake-midi',name:'M3L acceptance MIDI',manufacturer:'Codex',state:'connected',connection:'open',type:'input',onmidimessage:null};
+  const input = {id:'m3l-fake-midi',name:'Arturia MicroLab mk3',manufacturer:'Arturia',state:'connected',connection:'open',type:'input',onmidimessage:null};
   const access = {inputs:new Map([[input.id,input]]),onstatechange:null};
   Object.defineProperty(navigator,'requestMIDIAccess',{configurable:true,value:async()=>access});
   window.__m3lMidiInput = input;
@@ -76,6 +78,12 @@ const fakeMidiScript = `(() => {
     input.state = 'connected';
     input.connection = 'open';
     access.onstatechange?.();
+  };
+  window.__m3lAddSecondDevice = () => {
+    const second = {id:'m3l-second-device',name:'Generic USB Keyboard',manufacturer:'Generic',state:'connected',connection:'open',type:'input',onmidimessage:null};
+    access.inputs.set(second.id, second);
+    access.onstatechange?.();
+    return second.id;
   };
 })();`;
 
@@ -376,7 +384,15 @@ async function waitSnapshot(cdp, predicateExpression, description, attempts = 60
 const baseSettings = {
   sessionPreset: 'normal', level: 'white', mode: 'smart', autoAdvanceDelaySeconds: 0,
   desiredRetention: 0.9, maxIntervalDays: 120, relearningSeconds: 45,
-  newPitchClassesPerSession: 2, useLatencyGrading: true, notationClef: 'treble'
+  newPitchClassesPerSession: 2, useLatencyGrading: true, notationClef: 'treble',
+  midiCalibration: {
+    deviceId: 'm3l-fake-midi',
+    deviceName: 'Arturia MicroLab mk3',
+    minNote: 48,
+    maxNote: 72,
+    physicalKeyCount: 25,
+    calibratedAt: 1_800_000_000_000
+  }
 };
 
 async function seedDatabase(cdp, data) {
@@ -517,13 +533,19 @@ async function openProgram(cdp) {
 
 async function startTwoHandModule(cdp) {
   await openProgram(cdp);
+  await waitFor(cdp, `Boolean(document.querySelector('[data-stage-id="two_hand"]'))`, 'two_hand roadmap card');
   const selected = await cdp.evaluate(`(() => {
     const card = document.querySelector('[data-stage-id="two_hand"]');
     card?.click();
     return Boolean(card);
   })()`);
   assert(selected, 'Program stage two_hand is missing.');
-  await waitFor(cdp, `Boolean(document.querySelector('.roadmap-action-btn'))`, 'two_hand module action');
+  try {
+    await waitFor(cdp, `Boolean(document.querySelector('.roadmap-action-btn'))`, 'two_hand module action', 25);
+  } catch {
+    await cdp.evaluate('document.querySelector(`[data-stage-id="two_hand"]`)?.click()');
+    await waitFor(cdp, `Boolean(document.querySelector('.roadmap-action-btn'))`, 'two_hand module action (retry)', 40);
+  }
   await cdp.evaluate('document.querySelector(".roadmap-action-btn")?.click()');
   await waitFor(cdp, `Boolean(document.querySelector(${JSON.stringify(stageSelector())}))`, 'two-hand stage');
 }
@@ -621,15 +643,15 @@ try {
   await scenario('M3L-P0-B on-screen wrong triad then correct chord and a fresh correct first attempt', async () => {
     await clickKeyboardKeys(cdp, ['F4', 'A4', 'C5']);
     await waitFor(cdp, `document.querySelector(${JSON.stringify(stageSelector())})?.dataset.twoHandAwaiting === 'true'`, 'awaiting corrective after wrong screen triad');
-    await clickKeyboardKeys(cdp, ['B3', 'D4', 'G4']);
+    await clickKeyboardKeys(cdp, HAND_KEYS['G/B'].triad);
     await waitFor(cdp, `document.querySelector(${JSON.stringify(stageSelector())})?.dataset.twoHandChord === 'Am'`, 'progression to Am after screen correction');
     let snapshot = await waitSnapshot(cdp, 'snapshot.rightIndex === 2', 'rightIndex 2 after screen correction');
     assert(snapshot?.rightIndex === 2, `Expected rightIndex 2 after screen correction, got ${snapshot?.rightIndex}.`);
     evidence.p0RightHandCorrectionScreen = true;
 
-    await clickKeyboardKeys(cdp, ['A3', 'C4', 'E4']);
+    await clickKeyboardKeys(cdp, HAND_KEYS.Am.triad);
     await waitFor(cdp, `document.querySelector(${JSON.stringify(stageSelector())})?.dataset.twoHandChord === 'F'`, 'progression to F on fresh first attempt');
-    await clickKeyboardKeys(cdp, ['F3', 'A3', 'C4']);
+    await clickKeyboardKeys(cdp, HAND_KEYS.F.triad);
     await waitStage(cdp, 'simultaneous', 'simultaneous stage after fresh correct first attempt');
     snapshot = await waitSnapshot(cdp, 'snapshot.rightIndex === 4', 'rightIndex 4 after fresh attempts');
     assert(snapshot?.rightIndex === 4, `Expected rightIndex 4 after fresh attempts, got ${snapshot?.rightIndex}.`);
@@ -645,7 +667,18 @@ try {
     assert(targets[1].onset - targets[0].onset === 4000, 'Bars must be four 60 BPM beats apart.');
     assert(targets[0].chordOnset - targets[0].onset === 2000, 'Chord must land on beat 3 of each bar.');
     assert(targets[3].chordOnset - targets[0].onset === 14000, 'Phrase must span four contiguous bars.');
-    await saveScreenshot(cdp, '01-m3l-rev1-four-bar-continuous.png');
+    const arrangement = await cdp.evaluate('window.__m3lArrangement');
+    assert(arrangement?.kind === 'compact', `Expected compact arrangement on the 25-key device, got ${arrangement?.kind}.`);
+    const allPhraseNotes = Object.values(arrangement.voicings).flatMap(voicing => [voicing.bassMidi, ...voicing.triadMidi]);
+    assert(allPhraseNotes.every(note => note >= MICROLAB_RANGE.min && note <= MICROLAB_RANGE.max),
+      `Every bar must fit one 25-key range, got ${JSON.stringify(allPhraseNotes)}.`);
+    evidence.originalVsAdapted = {
+      original: ORIGINAL_REQUIRED,
+      adaptedSpan: Math.max(...allPhraseNotes) - Math.min(...allPhraseNotes) + 1,
+      range: MICROLAB_RANGE
+    };
+    evidence.compactVoicings = arrangement.voicings;
+    await saveScreenshot(cdp, '02-m3l-rev2-compact-four-bars.png');
     const phraseEvents = [];
     for (let barIndex = 0; barIndex < 4; barIndex++) {
       const keys = MIDI_KEYS[['C', 'G/B', 'Am', 'F'][barIndex]];
@@ -655,7 +688,8 @@ try {
     await playSequence(cdp, phraseEvents);
     await waitRunClosed(cdp);
     const phraseResults = await cdp.evaluate('window.__m3lPhraseResults ?? null');
-    console.log('phrase results:', JSON.stringify(phraseResults));
+    assert(Array.isArray(phraseResults) && phraseResults.every(result => result?.correct === true),
+      `Every compact bar must be graded correct before reaching independent: ${JSON.stringify(phraseResults)}`);
     await waitStage(cdp, 'independent', 'independent stage after continuous phrase');
     evidence.fourBarsOneCountInContinuous = true;
   });
@@ -665,7 +699,7 @@ try {
     assert(info.hints === 'false', 'Independent stage must hide note hints.');
     assert(info.parts.every(part => part === '—'), `Independent parts must hide note lists, got ${JSON.stringify(info.parts)}.`);
     assert(!/[A-G]\d/.test(info.instruction), `Independent instruction must not list exact keys: ${info.instruction}`);
-    await saveScreenshot(cdp, '02-m3l-rev1-independent-no-hints.png');
+    
     evidence.independentNoNoteHints = true;
     await startRunAndArm(cdp);
     const independentEvents = [];
@@ -702,7 +736,7 @@ try {
       await waitRunClosed(cdp);
       const attempt = await lastAttempt(cdp);
       assert(attempt?.correct === true, `Trial ${trial + 1} not graded correct: ${JSON.stringify(attempt)}.`);
-      if (trial === 5) await saveScreenshot(cdp, '03-m3l-rev1-assessment-midi.png');
+      if (trial === 5) await saveScreenshot(cdp, '03-m3l-rev2-assessment-midi.png');
     }
     await waitStage(cdp, 'transferResult', 'assessment result');
     const snapshot = await readTwoHandSnapshot(cdp);
@@ -720,7 +754,7 @@ try {
     await waitStage(cdp, 'simultaneous', 'simultaneous stage');
     const wrongBassArmed = await startRunAndArm(cdp);
     await playSequence(cdp, [
-      { notes: [38], at: wrongBassArmed.timing.onset, durationMs: 60 },
+      { notes: [50], at: wrongBassArmed.timing.onset, durationMs: 60 },
       { notes: MIDI_KEYS.C.triad, at: wrongBassArmed.timing.onset + 20, durationMs: 60 }
     ]);
     await waitRunClosed(cdp);
@@ -788,7 +822,7 @@ try {
 
     const firstItemArmed = await startRunAndArm(cdp);
     await playSequence(cdp, [
-      { notes: [38], at: firstItemArmed.timing.onset, durationMs: 60 },
+      { notes: [50], at: firstItemArmed.timing.onset, durationMs: 60 },
       { notes: WRONG_TRIAD, at: firstItemArmed.timing.onset + 20, durationMs: 60 }
     ]);
     await waitRunClosed(cdp);
@@ -796,7 +830,7 @@ try {
     info = await stageInfo(cdp);
     assert(info.chord === 'C', `Wrong remediation must keep the same item, got ${info.chord}.`);
     assert(await cdp.evaluate(`!document.querySelector('[data-testid="two-hand-remediation-next"]')`), 'Next must stay hidden after a wrong remediation attempt.');
-    await saveScreenshot(cdp, '04-m3l-rev1-remediation-gate.png');
+    await saveScreenshot(cdp, '04-m3l-rev2-remediation-gate.png');
     evidence.wrongRemediationNextBlocked = true;
 
     const correctiveArmed = await startRunAndArm(cdp);
@@ -896,7 +930,104 @@ try {
     evidence.metronomeLateRejected = lateAttempt?.outcome ?? null;
   });
 
-  await scenario('M3L-10 integrity: no duplicate events, exceptions or console errors', async () => {
+  await scenario('M3L-10 device profile, calibration trace, compact range and input selection', async () => {
+    await seedAndStartModule(cdp, synthetic, 'simultaneous');
+    await waitStage(cdp, 'simultaneous', 'simultaneous stage');
+    const deviceLabel = await cdp.evaluate(`document.querySelector('[data-testid="two-hand-device-label"]')?.innerText || ''`);
+    assert(deviceLabel.includes('MicroLab') && deviceLabel.includes('25'), `Device label must show the MicroLab and 25 keys: ${deviceLabel}`);
+    const rangeText = await cdp.evaluate(`document.querySelector('[data-testid="two-hand-range"]')?.innerText || ''`);
+    assert(rangeText.includes('C3') && rangeText.includes('C5'), `Calibrated range must show C3–C5: ${rangeText}`);
+    const adaptation = await cdp.evaluate(`document.querySelector('[data-testid="two-hand-adaptation"]')?.innerText || ''`);
+    assert(adaptation.length > 0, 'Compact adaptation notice must be visible.');
+    await saveScreenshot(cdp, '01-m3l-rev2-device-range.png');
+    evidence.deviceProfile = { label: deviceLabel, range: rangeText, source: 'known-profile+calibration' };
+
+    // Calibration workflow captures raw notes, including notes outside the virtual C2–C6 piano.
+    await realClick(cdp, '[data-testid="two-hand-calibrate"]');
+    await waitFor(cdp, `Boolean(document.querySelector('[data-testid="two-hand-calibration"]'))`, 'calibration panel');
+    await cdp.evaluate('window.__m3lNoteOn([30])');
+    await delay(120);
+    await cdp.evaluate('window.__m3lNoteOff([30])');
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-calibration"]')?.innerText.includes('прав') || document.querySelector('[data-testid="two-hand-calibration"]')?.innerText.includes('Справа')`, 'leftmost captured prompt');
+    await cdp.evaluate('window.__m3lNoteOn([96])');
+    await delay(120);
+    await cdp.evaluate('window.__m3lNoteOff([96])');
+    await waitFor(cdp, `Boolean(document.querySelector('[data-testid="two-hand-calibration-range"]'))`, 'calibration range display');
+    const calibrationRange = await cdp.evaluate(`document.querySelector('[data-testid="two-hand-calibration-range"]')?.innerText || ''`);
+    assert(calibrationRange.includes('30') && calibrationRange.includes('96'), `Raw out-of-virtual-range notes must be captured: ${calibrationRange}`);
+    evidence.calibrationTrace = { left: 30, right: 96, displayed: calibrationRange };
+    await realClick(cdp, '[data-testid="two-hand-calibration-cancel"]');
+    await waitFor(cdp, `!document.querySelector('[data-testid="two-hand-calibration"]')`, 'calibration cancelled');
+
+    // Multiple devices: an explicit selection appears and switching keeps the flow safe.
+    await cdp.evaluate('window.__m3lAddSecondDevice()');
+    await waitFor(cdp, `Boolean(document.querySelector('[data-testid="two-hand-device-select"]'))`, 'device selection list');
+    const optionCount = await cdp.evaluate(`document.querySelectorAll('[data-testid="two-hand-device-select"] option').length`);
+    assert(optionCount === 2, `Expected two selectable MIDI devices, got ${optionCount}.`);
+    const secondId = await cdp.evaluate(`(() => {
+      const select = document.querySelector('[data-testid="two-hand-device-select"]');
+      const option = [...select.options].find(item => item.value === 'm3l-second-device');
+      select.value = option.value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      return option.value;
+    })()`);
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-device-label"]')?.innerText.includes('Generic')`, 'second device selected');
+    await cdp.evaluate(`(() => {
+      const select = document.querySelector('[data-testid="two-hand-device-select"]');
+      const option = [...select.options].find(item => item.value === 'm3l-fake-midi');
+      select.value = option.value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    })()`);
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-device-label"]')?.innerText.includes('MicroLab')`, 'first device reselected');
+    evidence.multiDeviceSelection = { optionCount, secondId };
+
+    // Physical case: while the exercise is open, the player calibrates a C2–C4 keyboard.
+    // The open exercise must be re-planned to playable voicings without a dead end.
+    await realClick(cdp, '[data-testid="two-hand-calibrate"]');
+    await waitFor(cdp, `Boolean(document.querySelector('[data-testid="two-hand-calibration"]'))`, 'second calibration panel');
+    await cdp.evaluate('window.__m3lNoteOn([36])');
+    await delay(120);
+    await cdp.evaluate('window.__m3lNoteOff([36])');
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-calibration"]')?.innerText.includes('прав') || document.querySelector('[data-testid="two-hand-calibration"]')?.innerText.includes('Справа')`, 'C2 captured');
+    await cdp.evaluate('window.__m3lNoteOn([60])');
+    await delay(120);
+    await cdp.evaluate('window.__m3lNoteOff([60])');
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-calibration-range"]')?.innerText.includes('36') && document.querySelector('[data-testid="two-hand-calibration-range"]')?.innerText.includes('60')`, 'C4 captured');
+    await waitFor(cdp, `window.__m3lArrangement?.voicings?.['G/B']?.bassKeyId === 'B2'`, 're-planned C2–C4 voicings');
+    await waitFor(cdp, `document.querySelector('[data-testid="two-hand-stage"]')?.dataset.twoHandArrangement === 'compact'`, 'compact arrangement after re-plan');
+    const replanned = await cdp.evaluate('window.__m3lArrangement');
+    assert([...replanned.voicings['G/B'].triadKeyIds].join(',') === 'D3,G3,B3',
+      `Expected C2–C4 G/B voicing D3–G3–B3, got ${JSON.stringify(replanned.voicings['G/B'])}.`);
+    const replannedNotes = Object.values(replanned.voicings).flatMap(voicing => [voicing.bassMidi, ...voicing.triadMidi]);
+    assert(replannedNotes.every(note => note >= 36 && note <= 60),
+      `Re-planned exercise must fit the C2–C4 range: ${JSON.stringify(replannedNotes)}.`);
+    assert(await cdp.evaluate(`document.querySelector('.keyboard button[data-id="D4"]')?.classList.contains('key-unavailable') === true`),
+      'Keys outside the calibrated range must be marked unavailable.');
+    const replanFeedback = await cdp.evaluate(`document.querySelector('[data-testid="two-hand-feedback"]')?.innerText || ''`);
+    assert(replanFeedback.includes('перестроено'), `Re-plan notice must be shown: ${replanFeedback}`);
+    await realClick(cdp, '[data-testid="two-hand-calibration-cancel"]');
+    evidence.rangeChangeReplan = {
+      from: 'C3–C5 compact (B3 / D4–G4–B4)',
+      to: 'C2–C4 compact (B2 / D3–G3–B3)',
+      playable: true,
+      unavailableKeysMarked: true
+    };
+
+    const lowC = replanned.voicings.C;
+    const lowArmed = await startRunAndArm(cdp);
+    assert(lowArmed.timing && Number.isFinite(lowArmed.timing.onset), 'Low-range timing target missing.');
+    await playSequence(cdp, [
+      { notes: [lowC.bassMidi], at: lowArmed.timing.onset, durationMs: 60 },
+      { notes: lowC.triadMidi, at: lowArmed.timing.onset + 20, durationMs: 60 }
+    ]);
+    await waitRunClosed(cdp);
+    const lowAttempt = await lastAttempt(cdp);
+    assert(lowAttempt?.correct === true, `Re-planned C2–C4 bar must be playable: ${JSON.stringify(lowAttempt)}.`);
+    evidence.allBarsWithinOneCompactRange = true;
+  });
+
+  await scenario('M3L-11 integrity: no duplicate events, exceptions or console errors', async () => {
     const logs = await readStore(cdp, 'reviewLogEvents');
     const ids = logs.map(row => row.reviewEventId).filter(Boolean);
     assert(ids.length - new Set(ids).size === 0, 'Duplicate review event identities detected.');
@@ -917,3 +1048,6 @@ try {
   if (tempRoot) { try { await rm(tempRoot, { recursive: true, force: true }); } catch {} }
   if (portFile) { try { await rm(portFile, { force: true }); } catch {} }
 }
+
+
+

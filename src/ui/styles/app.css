@@ -4546,3 +4546,7 @@ body::before{opacity:.9}
   }
   .workspace-page[data-page="practice"] > .session-strip .session-meta{overflow:visible!important}
 }
+
+.key.key-unavailable{filter:grayscale(.85) brightness(.72);opacity:.55}
+.key.key-unavailable::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(135deg,transparent 0 6px,rgba(15,23,42,.35) 6px 12px);pointer-events:none}
+.black-key.key-unavailable{opacity:.4}

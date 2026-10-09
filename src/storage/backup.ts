@@ -354,6 +354,25 @@ export function normalizeBackupSettings(raw: unknown): Partial<UserSettings> {
   }
   const mode = asString(raw.mode, 64);
   if (mode) out.mode = mode;
+  if (isRecord(raw.midiCalibration)) {
+    const calibration = raw.midiCalibration;
+    const minNote = asFinite(calibration.minNote);
+    const maxNote = asFinite(calibration.maxNote);
+    const deviceId = asString(calibration.deviceId, 128);
+    if (deviceId && minNote != null && maxNote != null) {
+      const lo = Math.max(0, Math.min(127, Math.floor(Math.min(minNote, maxNote))));
+      const hi = Math.max(0, Math.min(127, Math.floor(Math.max(minNote, maxNote))));
+      const keyCount = asFinite(calibration.physicalKeyCount);
+      out.midiCalibration = {
+        deviceId,
+        deviceName: asString(calibration.deviceName, 128) ?? deviceId,
+        minNote: lo,
+        maxNote: hi,
+        physicalKeyCount: keyCount != null && keyCount >= 1 && keyCount <= 88 ? Math.floor(keyCount) : null,
+        calibratedAt: asFinite(calibration.calibratedAt) ?? 0
+      };
+    }
+  }
   return out;
 }
 

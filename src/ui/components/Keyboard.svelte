@@ -65,6 +65,7 @@
     selectedKeyIds = [] as readonly string[],
     twoHandLeftTarget = null as string | null,
     twoHandRightTarget = null as string | null,
+    unavailableKeyIds = [] as readonly string[],
     fingerGuides = new Map<string, { finger: number; isTarget: boolean }>()
   } = $props();
 
@@ -113,6 +114,7 @@
     if (midiActiveKeyIds.includes(k.id)) classes.push('midi-active');
     if (twoHandLeftTarget === k.id) classes.push('twohand-left-target');
     if (twoHandRightTarget === k.id) classes.push('twohand-right-target');
+    if (unavailableKeyIds.includes(k.id)) classes.push('key-unavailable');
     
     const guide = fingerGuides.get(k.id);
     if (guide) {

@@ -5,8 +5,21 @@
   // Core & Audio
   import { AudioEngine } from './audio/AudioEngine';
   import { MetronomeClock } from './audio/MetronomeClock';
-  import { MidiController, type MidiNoteOnEvent, type MidiNoteOffEvent } from './audio/MidiController';
-  import { midiFromKeyId } from './audio/types';
+  import { MidiController, type MidiNoteOnEvent, type MidiNoteOffEvent, type MidiInputDescriptor } from './audio/MidiController';
+import {
+  applyCalibration,
+  calibrationCapability,
+  calibrationRawNote,
+  capabilityFromDescriptor,
+  idleCalibration,
+  observeTransmittedNote,
+  rangeLabel,
+  startCalibration,
+  type CalibrationState,
+  type MidiDeviceCapability
+} from './core/midi/deviceCapability';
+import { planTwoHandArrangement } from './core/learning/twoHandArrangement';
+  import { midiFromKeyId, keyIdFromMidi } from './audio/types';
   import {
     DEFAULT_SETTINGS,
     NATURAL_NOTES,
@@ -181,6 +194,7 @@ import { getCurriculumPhases } from './core/curriculum/curriculum';
     TWO_HAND_ACCEPT_WINDOW_MS,
     TWO_HAND_VOICINGS,
     createTwoHandModuleState,
+    applyTwoHandArrangement,
     classifyTwoHandCapture,
     evaluateTwoHandAttempt,
     isTwoHandSkill,
@@ -594,6 +608,44 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   let twoHandPlayableAt = 0;
   let twoHandTimers: number[] = [];
   let twoHandRunGeneration = 0;
+  let twoHandLastInputMode: 'midi' | 'screen' = 'screen';
+  let midiInputs = $state<MidiInputDescriptor[]>([]);
+  let selectedMidiInputId = $state<string | null>(null);
+  let twoHandCalibration = $state<CalibrationState>(idleCalibration());
+  let midiRangeStale = $state(false);
+  const selectedMidiInput = $derived(
+    midiInputs.find(input => input.id === selectedMidiInputId) ??
+    midiInputs.find(input => input.state === 'connected') ??
+    null
+  );
+  const midiDeviceCapability = $derived.by<MidiDeviceCapability | null>(() => {
+    if (!selectedMidiInput) return null;
+    const base = capabilityFromDescriptor({
+      id: selectedMidiInput.id,
+      name: selectedMidiInput.name,
+      manufacturer: selectedMidiInput.manufacturer,
+      portName: selectedMidiInput.portName
+    });
+    const saved = settings.midiCalibration;
+    const calibrated = saved && saved.deviceId === base.deviceId
+      ? applyCalibration(base, { minNote: saved.minNote, maxNote: saved.maxNote, physicalKeyCount: saved.physicalKeyCount })
+      : base;
+    return midiRangeStale ? { ...calibrated, needsRevalidation: true } : calibrated;
+  });
+  const twoHandArrangement = $derived(planTwoHandArrangement({
+    rangeLo: midiDeviceCapability && !midiDeviceCapability.needsRevalidation ? midiDeviceCapability.minNote : null,
+    rangeHi: midiDeviceCapability && !midiDeviceCapability.needsRevalidation ? midiDeviceCapability.maxNote : null
+  }));
+  const twoHandRangeLabel = $derived(
+    midiDeviceCapability?.calibrated && !midiRangeStale
+      ? `Доступный диапазон: ${rangeLabel(midiDeviceCapability.minNote, midiDeviceCapability.maxNote)}`
+      : midiRangeStale
+        ? 'Диапазон требует повторного подтверждения.'
+        : 'Доступный диапазон не калиброван.'
+  );
+  const twoHandArrangementNotice = $derived(
+    twoHandArrangement.kind === 'original' ? '' : twoHandArrangement.explanation
+  );
   let chordRhythmDiagnostics = $state<{
     targetBpm: number;
     expectedOnset: number | null;
@@ -621,6 +673,11 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   let audioReady = $state(false);
   let midiStatus = $state('Не подключено');
   let midiReady = $state(false);
+  const twoHandDeviceLabel = $derived(
+    midiDeviceCapability
+      ? `MIDI: ${midiDeviceCapability.name}${midiDeviceCapability.physicalKeyCount != null ? ` · ${midiDeviceCapability.physicalKeyCount} клавиш` : ''}`
+      : midiReady ? 'MIDI подключён' : 'MIDI не подключён'
+  );
 
   // Drawers & Modals
   let isSettingsOpen = $state(false);
@@ -709,6 +766,63 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   let currentCard = $state<Card | null>(null);
   const isDailyTwoHandActive = $derived(Boolean(currentCard && isTwoHandSkill(currentCard.skill) && twoHandState && twoHandDailyMode));
   const twoHandVisual = $derived(twoHandHighlight());
+  const twoHandUnavailableKeyIds = $derived.by<string[]>(() => {
+    if (!midiDeviceCapability || midiDeviceCapability.minNote == null || midiDeviceCapability.maxNote == null) return [];
+    if (!isTwoHandActive && !isDailyTwoHandActive) return [];
+    const unavailable: string[] = [];
+    for (let midi = 36; midi <= 84; midi++) {
+      if (midi < midiDeviceCapability.minNote || midi > midiDeviceCapability.maxNote) {
+        const keyId = keyIdFromMidi(midi);
+        if (keyId) unavailable.push(keyId);
+      }
+    }
+    return unavailable;
+  });
+
+  function twoHandArrangementSignature(arrangement: { kind: string; rangeLo: number | null; rangeHi: number | null; voicings: Readonly<Record<string, { bassKeyId: string; triadKeyIds: readonly string[] }>> }) {
+    const voicingSignature = Object.entries(arrangement.voicings)
+      .map(([chordId, voicing]) => `${chordId}:${voicing.bassKeyId}:${[...voicing.triadKeyIds].join(',')}`)
+      .join(';');
+    return `${arrangement.kind}|${arrangement.rangeLo ?? 'n'}|${arrangement.rangeHi ?? 'n'}|${voicingSignature}`;
+  }
+  let twoHandAppliedArrangementSignature = $state('');
+
+  // The exercise must never require notes outside the active device range: any range or
+  // device change re-plans the open exercise, stopping an active run without grading.
+  $effect(() => {
+    const arrangement = twoHandArrangement;
+    const signature = twoHandArrangementSignature(arrangement);
+    if (!twoHandState) {
+      twoHandAppliedArrangementSignature = signature;
+      return;
+    }
+    if (signature === twoHandAppliedArrangementSignature) return;
+    const wasRunning = twoHandState.isRunning;
+    if (wasRunning) cancelTwoHandRun();
+    twoHandAppliedArrangementSignature = signature;
+    const rebuilt = applyTwoHandArrangement(twoHandState, arrangement, twoHandDeviceContext());
+    if (twoHandDailyMode) {
+      twoHandState = rebuilt;
+      twoHandDailyFeedback = wasRunning
+        ? 'Диапазон инструмента изменился: попытка остановлена без оценки. Упражнение перестроено — начните заново.'
+        : 'Упражнение перестроено под диапазон инструмента.';
+      twoHandDailyFeedbackTone = 'warn';
+    } else {
+      twoHandState = {
+        ...rebuilt,
+        isRunning: false,
+        countInValue: null,
+        activeBeat: -1,
+        playCue: false,
+        feedbackText: wasRunning
+          ? 'Диапазон инструмента изменился: упражнение остановлено без оценки и перестроено под новый диапазон. Начните отсчёт заново.'
+          : 'Упражнение перестроено под диапазон инструмента.',
+        feedbackTone: wasRunning ? 'warn' : ''
+      };
+      void persistTwoHandState(twoHandState);
+    }
+    publishTwoHandArrangement(arrangement);
+  });
   const isDailyRhythmActive = $derived(Boolean(
     currentCard &&
     (currentCard.skill === 'chordPulse' || currentCard.skill === 'chordChangeTiming' || currentCard.skill === 'chordRhythmPattern') &&
@@ -1287,7 +1401,9 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
         activePage = 'practice';
         practiceActivity = 'standard';
         twoHandDailyMode = false;
-        twoHandState = createTwoHandModuleState(learningProgressMap);
+        twoHandState = createTwoHandModuleState(learningProgressMap, twoHandArrangement, twoHandDeviceContext());
+        publishTwoHandArrangement(twoHandArrangement);
+        twoHandAppliedArrangementSignature = twoHandArrangementSignature(twoHandArrangement);
         sessionEndsAt = null;
       } else {
         nextRound();
@@ -1779,8 +1895,8 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       dailyRhythmViewState = null;
     }
     if (isTwoHandSkill(params.card.skill)) {
-      const chordIndex = sessionTrials % TWO_HAND_SEQUENCE.length;
-      const base = createTwoHandModuleState();
+      const base = createTwoHandModuleState(null, twoHandArrangement, twoHandDeviceContext());
+      const chordIndex = sessionTrials % base.sequence.length;
       twoHandDailyMode = true;
       twoHandDailyCompleted = false;
       twoHandDailyFeedback = '';
@@ -1789,6 +1905,8 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       twoHandState = params.card.skill === 'twoHandTogether'
         ? { ...base, stage: 'simultaneous', progress: { ...base.progress, simultaneousIndex: chordIndex } }
         : { ...base, stage: 'alternating', progress: { ...base.progress, alternatingIndex: chordIndex } };
+      publishTwoHandArrangement(twoHandArrangement);
+      twoHandAppliedArrangementSignature = twoHandArrangementSignature(twoHandArrangement);
     } else if (twoHandDailyMode || twoHandState) {
       cancelTwoHandRun();
       twoHandState = null;
@@ -3867,7 +3985,8 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
   }
 
   function twoHandVoicingOf(state: TwoHandModuleState) {
-    return TWO_HAND_VOICINGS[twoHandTargetChord(state)];
+    const chordId = twoHandTargetChord(state);
+    return state.voicings[chordId] ?? TWO_HAND_VOICINGS[chordId];
   }
 
   function twoHandHintsVisible(state: TwoHandModuleState): boolean {
@@ -3920,6 +4039,40 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     }
   }
 
+  function twoHandDeviceContext() {
+    if (!midiDeviceCapability) return null;
+    return {
+      deviceId: midiDeviceCapability.deviceId,
+      name: midiDeviceCapability.name,
+      minNote: midiDeviceCapability.minNote,
+      maxNote: midiDeviceCapability.maxNote,
+      calibrated: midiDeviceCapability.calibrated && !midiRangeStale,
+      physicalKeyCount: midiDeviceCapability.physicalKeyCount
+    };
+  }
+
+  function publishTwoHandArrangement(arrangement: { kind: string; sequence: readonly HarmonyChordId[]; voicings: Readonly<Record<string, { bassKeyId: string; triadKeyIds: readonly [string, string, string] }>>; rangeLo: number | null; rangeHi: number | null }) {
+    if (typeof window === 'undefined') return;
+    const voicings: Record<string, { bassKeyId: string; triadKeyIds: string[]; bassMidi: number | null; triadMidi: number[] }> = {};
+    for (const chordId of arrangement.sequence) {
+      const voicing = arrangement.voicings[chordId];
+      if (!voicing) continue;
+      voicings[chordId] = {
+        bassKeyId: voicing.bassKeyId,
+        triadKeyIds: [...voicing.triadKeyIds],
+        bassMidi: midiFromKeyId(voicing.bassKeyId),
+        triadMidi: voicing.triadKeyIds.map(keyId => midiFromKeyId(keyId)).filter((midi): midi is number => midi != null)
+      };
+    }
+    (window as unknown as { __m3lArrangement?: unknown }).__m3lArrangement = {
+      kind: arrangement.kind,
+      sequence: [...arrangement.sequence],
+      rangeLo: arrangement.rangeLo,
+      rangeHi: arrangement.rangeHi,
+      voicings
+    };
+  }
+
   function handleStartTwoHandModule() {
     if (!advancedModuleStates.twoHand.available) return;
     cancelChordRhythmRun('переход в модуль');
@@ -3931,10 +4084,72 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     clearActiveAdvancedModuleStates('twoHand');
     clearActiveTask();
     twoHandDailyMode = false;
-    twoHandState = createTwoHandModuleState(learningProgressMap);
+    twoHandState = createTwoHandModuleState(learningProgressMap, twoHandArrangement, twoHandDeviceContext());
+    publishTwoHandArrangement(twoHandArrangement);
+    twoHandAppliedArrangementSignature = twoHandArrangementSignature(twoHandArrangement);
     sessionEndsAt = null;
     midiChordTracker.reset();
     midiChordHeldKeyIds = [];
+  }
+
+  function refreshMidiInputs() {
+    midiInputs = MidiController.getInstance().getInputDescriptors();
+    if (!selectedMidiInputId || !midiInputs.some(input => input.id === selectedMidiInputId)) {
+      selectedMidiInputId = midiInputs.find(input => input.state === 'connected')?.id ?? midiInputs[0]?.id ?? null;
+    }
+  }
+
+  function handleSelectMidiInput(id: string) {
+    selectedMidiInputId = id;
+  }
+
+  function beginMidiCalibration() {
+    if (!selectedMidiInput) return;
+    twoHandCalibration = startCalibration({
+      id: selectedMidiInput.id,
+      name: selectedMidiInput.name,
+      manufacturer: selectedMidiInput.manufacturer,
+      portName: selectedMidiInput.portName
+    });
+    MidiController.getInstance().setCalibrationMode(true);
+  }
+
+  function cancelMidiCalibration() {
+    MidiController.getInstance().setCalibrationMode(false);
+    twoHandCalibration = idleCalibration();
+  }
+
+  function confirmMidiRange() {
+    midiRangeStale = false;
+  }
+
+  function handleCalibrationNote(note: number) {
+    const result = calibrationRawNote(twoHandCalibration, note);
+    twoHandCalibration = result.state;
+    if (result.state.step !== 'complete') return;
+    MidiController.getInstance().setCalibrationMode(false);
+    const base = midiDeviceCapability;
+    if (!base || result.state.minNote == null || result.state.maxNote == null) return;
+    const calibrated = calibrationCapability(base, result.state);
+    if (!calibrated || calibrated.minNote == null || calibrated.maxNote == null) return;
+    const rangeValid = calibrated.physicalKeyCount == null || calibrated.physicalKeyCount - 1 === calibrated.maxNote - calibrated.minNote;
+    midiRangeStale = !rangeValid;
+    persistSettings({
+      midiCalibration: {
+        deviceId: calibrated.deviceId,
+        deviceName: calibrated.name,
+        minNote: calibrated.minNote,
+        maxNote: calibrated.maxNote,
+        physicalKeyCount: calibrated.physicalKeyCount,
+        calibratedAt: Date.now()
+      }
+    });
+    twoHandCalibration = {
+      ...result.state,
+      message: rangeValid
+        ? `Диапазон сохранён: ${rangeLabel(calibrated.minNote, calibrated.maxNote)}.`
+        : `Диапазон сохранён, но не совпадает с заявленным числом клавиш (${calibrated.physicalKeyCount}). Подтвердите диапазон повторно.`
+    };
   }
 
   function exitTwoHandModule(destination: 'curriculum' | 'practice' = 'curriculum') {
@@ -4057,8 +4272,9 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     }, Math.max(0, (lastTarget + 1200) - performance.now()));
   }
 
-  function handleTwoHandNoteInput(keyId: string, midi: number, at: number) {
+  function handleTwoHandNoteInput(keyId: string, midi: number, at: number, method: 'screen' | 'midi' = 'screen') {
     if (!twoHandState) return;
+    twoHandLastInputMode = method;
     const state = twoHandState;
     const voicing = twoHandVoicingOf(state);
     if (state.stage === 'leftHand') {
@@ -4103,14 +4319,15 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     const pattern = twoHandPattern(state);
     const bassTarget = twoHandTargets[0] ?? null;
     const chordTarget = pattern === 'simultaneous' ? (twoHandTargets[0] ?? null) : (twoHandTargets[1] ?? null);
-    const classification = classifyTwoHandCapture(chordId, twoHandPending.notes, { bassTargetOnset: bassTarget });
+    const classification = classifyTwoHandCapture(chordId, twoHandPending.notes, { bassTargetOnset: bassTarget, voicings: state.voicings });
     return evaluateTwoHandAttempt({
       chordId,
       pattern,
       bass: classification.bass,
       chordNotes: classification.chordNotes,
       bassTargetOnset: bassTarget,
-      chordTargetOnset: chordTarget
+      chordTargetOnset: chordTarget,
+      voicings: state.voicings
     });
   }
 
@@ -4136,14 +4353,15 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       const results: TwoHandAttemptResult[] = [];
       for (const target of twoHandPhraseTargets) {
         const notes = twoHandPending.notes.filter(note => twoHandPhraseBarIndex(note.at) === target.barIndex);
-        const classification = classifyTwoHandCapture(target.chordId, notes, { bassTargetOnset: target.onset });
+        const classification = classifyTwoHandCapture(target.chordId, notes, { bassTargetOnset: target.onset, voicings: state.voicings });
         results.push(evaluateTwoHandAttempt({
           chordId: target.chordId,
           pattern: 'alternating',
           bass: classification.bass,
           chordNotes: classification.chordNotes,
           bassTargetOnset: target.onset,
-          chordTargetOnset: target.chordOnset
+          chordTargetOnset: target.chordOnset,
+          voicings: state.voicings
         }));
       }
       setTwoHandLastAttempt(results[results.length - 1] ?? null);
@@ -4152,7 +4370,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       }
       cancelTwoHandRun();
       for (const result of results) {
-        updateTwoHandState({ type: 'gradeAttempt', result }, false);
+        updateTwoHandState({ type: 'gradeAttempt', result, inputMode: twoHandLastInputMode }, false);
         if (!result.correct) break;
       }
       if (twoHandState) void persistTwoHandState(twoHandState);
@@ -4162,7 +4380,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     if (twoHandDailyMode && currentCard?.skill === 'twoHandBass') {
       const voicing = twoHandVoicingOf(state);
       const bassTarget = twoHandTargets[0] ?? null;
-      const classification = classifyTwoHandCapture(twoHandTargetChord(state), twoHandPending.notes, { bassTargetOnset: bassTarget });
+      const classification = classifyTwoHandCapture(twoHandTargetChord(state), twoHandPending.notes, { bassTargetOnset: bassTarget, voicings: state.voicings });
       const bass = classification.bass;
       const timing = bass && bassTarget != null ? twoHandTimingBand(bass.at, bassTarget) : null;
       const bassCorrect = Boolean(bass && bass.keyId === voicing.bassKeyId);
@@ -4189,7 +4407,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       commitTwoHandDailyResult(result);
       return;
     }
-    updateTwoHandState({ type: 'gradeAttempt', result });
+    updateTwoHandState({ type: 'gradeAttempt', result, inputMode: twoHandLastInputMode });
     if (twoHandState) twoHandState = { ...twoHandState, activeBeat: -1, playCue: false };
   }
 
@@ -6075,7 +6293,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
         return;
       }
       if ((isTwoHandActive || isDailyTwoHandActive) && twoHandState) {
-        handleTwoHandNoteInput(keyId, midiFromKeyId(keyId) ?? 60, performance.now());
+        handleTwoHandNoteInput(keyId, midiFromKeyId(keyId) ?? 60, performance.now(), 'screen');
         return;
       }
       if (isChordRhythmActive || isDailyRhythmActive) {
@@ -6570,10 +6788,34 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       const wasReady = midiReady;
       midiStatus = st.message;
       midiReady = st.connected;
+      refreshMidiInputs();
       if (wasReady && !st.connected && twoHandState?.isRunning) {
         // A disconnected input device must never grade an incomplete gesture.
         cancelTwoHandRun();
         updateTwoHandState({ type: 'inputInterrupted' }, false);
+      }
+    });
+    const unsubscribeRawMidiNotes = midi.onRawNoteOn((note) => {
+      if (twoHandCalibration.step === 'awaiting-left' || twoHandCalibration.step === 'awaiting-right') {
+        handleCalibrationNote(note);
+        return;
+      }
+      const capability = midiDeviceCapability;
+      if (!capability) return;
+      const observed = observeTransmittedNote(capability, note);
+      if (!observed.staleTriggered) return;
+      midiRangeStale = true;
+      if (twoHandState?.isRunning) {
+        // The configured range changed mid-run (e.g., octave shift): stop without grading.
+        cancelTwoHandRun();
+        updateTwoHandState({ type: 'inputInterrupted' }, false);
+        if (twoHandState) {
+          twoHandState = {
+            ...twoHandState,
+            feedbackText: 'Диапазон инструмента изменился. Упражнение остановлено без оценки: перекалибруйте или подтвердите диапазон и начните заново.',
+            feedbackTone: 'warn'
+          };
+        }
       }
     });
     const unsubscribeMidiNoteOn = midi.onNoteOn((ev: MidiNoteOnEvent) => {
@@ -6644,7 +6886,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
         } else if ((isTwoHandActive || isDailyTwoHandActive) && twoHandState) {
           if (!twoHandHeldKeyIds.has(ev.keyId)) {
             twoHandHeldKeyIds.add(ev.keyId);
-            handleTwoHandNoteInput(ev.keyId, ev.midi, ev.timestamp);
+            handleTwoHandNoteInput(ev.keyId, ev.midi, ev.timestamp, 'midi');
           }
         } else if (isChordRhythmActive || isDailyRhythmActive) {
           const rhythmState = chordRhythmState ?? dailyRhythmViewState;
@@ -6796,8 +7038,9 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
       if (document.hidden) cancelChordRhythmRun('скрытие вкладки');
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      unsubscribeMidiStatus();
+      return () => {
+        unsubscribeMidiStatus();
+        unsubscribeRawMidiNotes();
       unsubscribeMidiNoteOn();
       unsubscribeMidiNoteOff();
       endPracticeSession(currentSessionId);
@@ -7306,6 +7549,20 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
                 state={twoHandState}
                 showHints={twoHandHintsVisible(twoHandState)}
                 midiConnected={midiReady}
+                deviceLabel={twoHandDeviceLabel}
+                rangeLabelText={twoHandRangeLabel}
+                rangeVerified={Boolean(midiDeviceCapability?.calibrated && !midiRangeStale)}
+                rangeStale={midiRangeStale}
+                needsCalibration={Boolean(midiDeviceCapability && !midiDeviceCapability.calibrated)}
+                arrangementNotice={twoHandArrangementNotice}
+                simulationMode={twoHandArrangement.kind === 'simulation'}
+                midiInputs={midiInputs}
+                selectedMidiInputId={selectedMidiInputId}
+                calibration={twoHandCalibration}
+                onSelectMidiInput={handleSelectMidiInput}
+                onCalibrate={beginMidiCalibration}
+                onCancelCalibration={cancelMidiCalibration}
+                onConfirmRange={confirmMidiRange}
                 onContinue={() => updateTwoHandState({ type: 'continueStage' })}
                 onStartRun={startTwoHandRun}
                 onCheck={() => flushTwoHandAttempt()}
@@ -7538,6 +7795,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
           {wrongKeyIds}
           {hintKeyIds}
           {structuralGuideKeyIds}
+          unavailableKeyIds={twoHandUnavailableKeyIds}
           structuralGuideBadge={isInversionActive && inversionState?.structuralGuideKeyIds.length ? 'БАС' : null}
           {modelLabelKeyIds}
           {pulseCorrectKeyIds}
@@ -7770,3 +8028,7 @@ import { isFsrsCardDue } from './core/fsrs/cardClassification';
     }}
   />
 </main>
+
+
+
+

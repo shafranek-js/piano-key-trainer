@@ -18,7 +18,7 @@
 - **Cold Test Progression + Displayed Item Integrity:** accepted; all 19 task families advance through the central completion contract, and the displayed `Cold Test · N/20` follows the rendered question.
 - **FSRS & Persistence Integrity (Checkpoint B):** accepted; canonical FSRS-6 parity (pinned `py-fsrs` 6.3.2), latency provenance, identity-keyed review events (schema v4), recoverable persistence retry, atomic migrator.
 - **Scheduler Integrity:** accepted baseline; active questions cannot be replaced by refresh, and persistence completes before the next scheduler decision.
-- **M3L — Two-Hand Accompaniment I:** Rev1 implemented (pending acceptance); left-hand bass + right-hand chords over `C → G/B → Am → F`, 4/4 at 60 BPM, guided stages through a bounded 12-trial assessment, three Daily Practice skills, `smoke:m3l`. Rev1 fixes the review blockers and both physical-test P0s (right-hand corrective input, shared-metronome count-in); physical re-test is pending.
+- **M3L — Two-Hand Accompaniment I:** Rev2 implemented (pending acceptance); left-hand bass + right-hand chords over `C → G/B → Am → F`, 4/4 at 60 BPM, guided stages through a bounded 12-trial assessment, three Daily Practice skills, `smoke:m3l`. Rev2 adds MIDI device awareness: MicroLab mk3 (25 keys) and generic 25/37/49/61/88 profiles, raw calibration, one-range feasibility planning, compact voicings, stable arrangement with dynamic re-planning, device-aware UI; final acceptance requires a real MicroLab mk3 test.
 
 ## Current checkpoint: Milestone 3L — Two-Hand Accompaniment I (pending independent acceptance)
 
